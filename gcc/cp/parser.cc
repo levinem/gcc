@@ -111,7 +111,9 @@ enum non_integral_constant {
   /* a call to a constructor */
   NIC_CONSTRUCTOR,
   /* a transaction expression */
-  NIC_TRANSACTION
+  NIC_TRANSACTION,
+  /* a reflection expression */
+  NIC_REFLECTION
 };
 
 /* The various kinds of errors about name-lookup failing. */
@@ -149,6 +151,7 @@ enum required_token {
   RT_COMMA_CLOSE_PAREN, /* ',' or ')' */
   RT_PRAGMA_EOL, /* end of line */
   RT_NAME, /* identifier */
+  RT_LIFT, /* '^' */
 
   /* The type is CPP_KEYWORD */
   RT_NEW, /* new */
@@ -565,6 +568,8 @@ cp_debug_parser (FILE *file, cp_parser *parser)
 			      parser->in_statement & IN_IF_STMT);
   cp_debug_print_flag (file, "Parsing a type-id in an expression "
 			      "context", parser->in_type_id_in_expr_p);
+  cp_debug_print_flag (file, "Parsing a lift in an expression "
+                       "context", parser->in_lift_in_expr_p);
   cp_debug_print_flag (file, "String expressions should be translated "
 			      "to execution character set",
 			      parser->translate_strings_p);
@@ -26995,7 +27000,7 @@ cp_parser_class_head (cp_parser* parser,
 
   /* If this type was already complete, and we see another definition,
      that's an error.  Likewise if the type is already being defined:
-     this can happen, eg, when it's defined from within an expression 
+     this can happen, eg, when it's defined from within an expression
      (c++/84605).  */
   if (type != error_mark_node
       && (COMPLETE_TYPE_P (type) || TYPE_BEING_DEFINED (type)))
@@ -31872,7 +31877,7 @@ cp_parser_constructor_declarator_p (cp_parser *parser, cp_parser_flags flags,
 	     use a qualified name.
 
 	     Parse with an empty set of declaration specifiers since we're
-	     trying to match a decl-specifier-seq of the first parameter.  
+	     trying to match a decl-specifier-seq of the first parameter.
 	     This must be non-null so that cp_parser_simple_type_specifier
 	     will recognize a constrained placeholder type such as:
 	     'C<int> auto' where C is a type concept.  */
@@ -32676,7 +32681,7 @@ cp_parser_functional_cast (cp_parser* parser, tree type)
 					   parser->lexer);
   cast = build_functional_cast (combined_loc, type, expression_list,
                                 tf_warning_or_error);
-  
+
   /* [expr.const]/1: In an integral constant expression "only type
      conversions to integral or enumeration type can be used".  */
   if (TREE_CODE (type) == TYPE_DECL)
