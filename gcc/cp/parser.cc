@@ -2043,7 +2043,6 @@ enum cp_parser_declarator_kind
 
 enum cp_parser_prec
 {
-  PREC_LIFT_OPERATOR,
   PREC_NOT_OPERATOR,
   PREC_LOGICAL_OR_EXPRESSION,
   PREC_LOGICAL_AND_EXPRESSION,
