@@ -3494,7 +3494,7 @@ expand_builtin_strnlen (tree exp, rtx target, machine_mode target_mode)
   wide_int min, max;
   value_range r;
   get_global_range_query ()->range_of_expr (r, bound);
-  if (r.kind () != VR_RANGE)
+  if (r.varying_p () || r.undefined_p ())
     return NULL_RTX;
   min = r.lower_bound ();
   max = r.upper_bound ();
@@ -3570,12 +3570,13 @@ determine_block_size (tree len, rtx len_rtx,
       if (TREE_CODE (len) == SSA_NAME)
 	{
 	  value_range r;
+	  tree tmin, tmax;
 	  get_global_range_query ()->range_of_expr (r, len);
-	  range_type = r.kind ();
+	  range_type = get_legacy_range (r, tmin, tmax);
 	  if (range_type != VR_UNDEFINED)
 	    {
-	      min = wi::to_wide (r.min ());
-	      max = wi::to_wide (r.max ());
+	      min = wi::to_wide (tmin);
+	      max = wi::to_wide (tmax);
 	    }
 	}
       if (range_type == VR_RANGE)
@@ -10910,7 +10911,7 @@ do_mpfr_ckconv (mpfr_srcptr m, tree type, int inexact)
       real_from_mpfr (&rr, m, type, MPFR_RNDN);
       /* Proceed iff GCC's REAL_VALUE_TYPE can hold the MPFR value,
 	 check for overflow/underflow.  If the REAL_VALUE_TYPE is zero
-	 but the mpft_t is not, then we underflowed in the
+	 but the mpfr_t is not, then we underflowed in the
 	 conversion.  */
       if (real_isfinite (&rr)
 	  && (rr.cl == rvc_zero) == (mpfr_zero_p (m) != 0))
@@ -10951,7 +10952,7 @@ do_mpc_ckconv (mpc_srcptr m, tree type, int inexact, int force_convert)
       real_from_mpfr (&im, mpc_imagref (m), TREE_TYPE (type), MPFR_RNDN);
       /* Proceed iff GCC's REAL_VALUE_TYPE can hold the MPFR values,
 	 check for overflow/underflow.  If the REAL_VALUE_TYPE is zero
-	 but the mpft_t is not, then we underflowed in the
+	 but the mpfr_t is not, then we underflowed in the
 	 conversion.  */
       if (force_convert
 	  || (real_isfinite (&re) && real_isfinite (&im)
@@ -11717,6 +11718,8 @@ builtin_fnspec (tree callee)
       case BUILT_IN_RETURN_ADDRESS:
 	return ".c";
       case BUILT_IN_ASSUME_ALIGNED:
+      case BUILT_IN_EXPECT:
+      case BUILT_IN_EXPECT_WITH_PROBABILITY:
 	return "1cX ";
       /* But posix_memalign stores a pointer into the memory pointed to
 	 by its first argument.  */

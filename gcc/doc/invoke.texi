@@ -1227,7 +1227,8 @@ See RS/6000 and PowerPC Options.
 -mbig-endian  -mlittle-endian
 -mstack-protector-guard=@var{guard}  -mstack-protector-guard-reg=@var{reg}
 -mstack-protector-guard-offset=@var{offset}
--mcsr-check -mno-csr-check}
+-mcsr-check -mno-csr-check
+-minline-atomics  -mno-inline-atomics}
 
 @emph{RL78 Options}
 @gccoptlist{-msim  -mmul=none  -mmul=g13  -mmul=g14  -mallregs
@@ -12454,8 +12455,8 @@ Attempt to remove redundant extension instructions.  This is especially
 helpful for the x86-64 architecture, which implicitly zero-extends in 64-bit
 registers after writing to their lower 32-bit half.
 
-Enabled for Alpha, AArch64 and x86 at levels @option{-O2},
-@option{-O3}, @option{-Os}.
+Enabled for Alpha, AArch64, PowerPC, RISC-V, SPARC, h83000 and x86 at levels
+@option{-O2}, @option{-O3}, @option{-Os}.
 
 @opindex fno-lifetime-dse
 @opindex flifetime-dse
@@ -15987,14 +15988,8 @@ The maximum number of may-defs we analyze when looking for a must-def
 specifying the dynamic type of an object that invokes a virtual call
 we may be able to devirtualize speculatively.
 
-@item evrp-sparse-threshold
-Maximum number of basic blocks before EVRP uses a sparse cache.
-
 @item ranger-debug
 Specifies the type of debug output to be issued for ranges.
-
-@item evrp-switch-limit
-Specifies the maximum number of switch cases before EVRP ignores a switch.
 
 @item unroll-jam-min-percent
 The minimum percentage of memory references that must be optimized
@@ -16053,6 +16048,15 @@ this parameter.  The default value of this parameter is 50.
 
 @item vect-induction-float
 Enable loop vectorization of floating point inductions.
+
+@item vrp-sparse-threshold
+Maximum number of basic blocks before VRP uses a sparse bitmap cache.
+
+@item vrp-switch-limit
+Maximum number of outgoing edges in a switch before VRP will not process it.
+
+@item vrp-vector-threshold
+Maximum number of basic blocks for VRP to use a basic cache vector.
 
 @item avoid-fma-max-bits
 Maximum number of bits for which we avoid creating FMAs.
@@ -20141,6 +20145,16 @@ Generate code for the large code model.  This makes no assumptions about
 addresses and sizes of sections.  Programs can be statically linked only.  The
 @option{-mcmodel=large} option is incompatible with @option{-mabi=ilp32},
 @option{-fpic} and @option{-fPIC}.
+
+@item -mtp=@var{name}
+@opindex mtp
+Specify the system register to use as a thread pointer.  The valid values
+are @samp{el0}, @samp{el1}, @samp{el2}, @samp{el3}.  These correspond to
+using the @samp{tpidr_el0}, @samp{tpidr_el1}, @samp{tpidr_el2},
+@samp{tpidr_el3} registers accordingly.  The default setting is @samp{el0}.
+It is recommended to compile all code intended to interoperate with the same
+value of this option to avoid accessing a different thread pointer from the
+wrong exception level.
 
 @opindex mstrict-align
 @opindex mno-strict-align
@@ -29013,6 +29027,13 @@ Put global and static data smaller than @var{n} bytes into a special section
 Do or don't use smaller but slower prologue and epilogue code that uses
 library function calls.  The default is to use fast inline prologues and
 epilogues.
+
+@opindex minline-atomics
+@item -minline-atomics
+@itemx -mno-inline-atomics
+Do or don't use smaller but slower subword atomic emulation code that uses
+libatomic function calls.  The default is to use fast inline subword atomics
+that do not require libatomic.
 
 @opindex mshorten-memrefs
 @item -mshorten-memrefs

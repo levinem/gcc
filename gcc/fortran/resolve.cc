@@ -4200,6 +4200,17 @@ resolve_operator (gfc_expr *e)
     case INTRINSIC_POWER:
       if (gfc_numeric_ts (&op1->ts) && gfc_numeric_ts (&op2->ts))
 	{
+	  /* Do not perform conversions if operands are not conformable as
+	     required for the binary intrinsic operators (F2018:10.1.5).
+	     Defer to a possibly overloading user-defined operator.  */
+	  if (!gfc_op_rank_conformable (op1, op2))
+	    {
+	      dual_locus_error = true;
+	      snprintf (msg, sizeof (msg),
+			_("Inconsistent ranks for operator at %%L and %%L"));
+	      goto bad_op;
+	    }
+
 	  gfc_type_convert_binary (e, 1);
 	  break;
 	}
@@ -4372,6 +4383,17 @@ resolve_operator (gfc_expr *e)
 
       if (gfc_numeric_ts (&op1->ts) && gfc_numeric_ts (&op2->ts))
 	{
+	  /* Do not perform conversions if operands are not conformable as
+	     required for the binary intrinsic operators (F2018:10.1.5).
+	     Defer to a possibly overloading user-defined operator.  */
+	  if (!gfc_op_rank_conformable (op1, op2))
+	    {
+	      dual_locus_error = true;
+	      snprintf (msg, sizeof (msg),
+			_("Inconsistent ranks for operator at %%L and %%L"));
+	      goto bad_op;
+	    }
+
 	  gfc_type_convert_binary (e, 1);
 
 	  e->ts.type = BT_LOGICAL;
@@ -5644,6 +5666,21 @@ done:
 }
 
 
+/* Given two expressions, check that their rank is conformable, i.e. either
+   both have the same rank or at least one is a scalar.  */
+
+bool
+gfc_op_rank_conformable (gfc_expr *op1, gfc_expr *op2)
+{
+  if (op1->expr_type == EXPR_VARIABLE)
+    gfc_expression_rank (op1);
+  if (op2->expr_type == EXPR_VARIABLE)
+    gfc_expression_rank (op2);
+
+  return (op1->rank == 0 || op2->rank == 0 || op1->rank == op2->rank);
+}
+
+
 static void
 add_caf_get_intrinsic (gfc_expr *e)
 {
@@ -5883,7 +5920,7 @@ resolve_variable (gfc_expr *e)
       /* Because this is an associate var and the first ref either is a ref to
 	 the _data component or not, no traversal of the ref chain is
 	 needed.  The array ref needs to be inserted after the _data ref,
-	 or when that is not present, which may happend for polymorphic
+	 or when that is not present, which may happened for polymorphic
 	 types, then at the first position.  */
       ref = e->ref;
       if (!ref)
@@ -6102,7 +6139,7 @@ resolve_procedure:
 	     the symbol in the expression and convert the array reference
 	     into an actual arglist if the old symbol is a variable; or
 	(ii) That in which an external function is typed but not declared
-	     explcitly to be external. Here, the old symbol is changed
+	     explicitly to be external. Here, the old symbol is changed
 	     from a variable to an external function.  */
 static bool
 check_host_association (gfc_expr *e)
@@ -9894,8 +9931,7 @@ resolve_select_type (gfc_code *code, gfc_namespace *old_ns)
   gfc_resolve_blocks (code->block, gfc_current_ns);
   gfc_current_ns = old_ns;
 
-  if (ref)
-    free (ref);
+  free (ref);
 }
 
 
@@ -11129,12 +11165,23 @@ resolve_ordinary_assign (gfc_code *code, gfc_namespace *ns)
   lhs = code->expr1;
   rhs = code->expr2;
 
+  if ((lhs->symtree->n.sym->ts.type == BT_DERIVED
+       || lhs->symtree->n.sym->ts.type == BT_CLASS)
+      && !lhs->symtree->n.sym->attr.proc_pointer
+      && gfc_expr_attr (lhs).proc_pointer)
+    {
+      gfc_error ("Variable in the ordinary assignment at %L is a procedure "
+		 "pointer component",
+		 &lhs->where);
+      return false;
+    }
+
   if ((gfc_numeric_ts (&lhs->ts) || lhs->ts.type == BT_LOGICAL)
       && rhs->ts.type == BT_CHARACTER
       && (rhs->expr_type != EXPR_CONSTANT || !flag_dec_char_conversions))
     {
       /* Use of -fdec-char-conversions allows assignment of character data
-	 to non-character variables.  This not permited for nonconstant
+	 to non-character variables.  This not permitted for nonconstant
 	 strings.  */
       gfc_error ("Cannot convert %s to %s at %L", gfc_typename (rhs),
 		 gfc_typename (lhs), &rhs->where);

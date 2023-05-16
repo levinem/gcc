@@ -69,6 +69,7 @@
 #include "optabs-libfuncs.h"
 #include "gimplify.h"
 #include "gimple.h"
+#include "gimple-iterator.h"
 #include "selftest.h"
 #include "tree-vectorizer.h"
 #include "opts.h"
@@ -505,6 +506,9 @@ static const struct attribute_spec arm_attribute_table[] =
 
 #undef TARGET_FUNCTION_VALUE_REGNO_P
 #define TARGET_FUNCTION_VALUE_REGNO_P arm_function_value_regno_p
+
+#undef TARGET_GIMPLE_FOLD_BUILTIN
+#define TARGET_GIMPLE_FOLD_BUILTIN arm_gimple_fold_builtin
 
 #undef  TARGET_ASM_OUTPUT_MI_THUNK
 #define TARGET_ASM_OUTPUT_MI_THUNK arm_output_mi_thunk
@@ -2842,6 +2846,29 @@ arm_init_libfuncs (void)
     synchronize_libfunc = init_one_libfunc ("__sync_synchronize");
 
   speculation_barrier_libfunc = init_one_libfunc ("__speculation_barrier");
+}
+
+/* Implement TARGET_GIMPLE_FOLD_BUILTIN.  */
+static bool
+arm_gimple_fold_builtin (gimple_stmt_iterator *gsi)
+{
+  gcall *stmt = as_a <gcall *> (gsi_stmt (*gsi));
+  tree fndecl = gimple_call_fndecl (stmt);
+  unsigned int code = DECL_MD_FUNCTION_CODE (fndecl);
+  unsigned int subcode = code >> ARM_BUILTIN_SHIFT;
+  gimple *new_stmt = NULL;
+  switch (code & ARM_BUILTIN_CLASS)
+    {
+    case ARM_BUILTIN_GENERAL:
+      break;
+    case ARM_BUILTIN_MVE:
+      new_stmt = arm_mve::gimple_fold_builtin (subcode, stmt);
+    }
+  if (!new_stmt)
+    return false;
+
+  gsi_replace (gsi, new_stmt, true);
+  return true;
 }
 
 /* On AAPCS systems, this is the "struct __va_list".  */
@@ -31606,13 +31633,13 @@ arm_expand_vcond (rtx *operands, machine_mode cmp_result_mode)
       switch (GET_MODE_CLASS (cmp_mode))
 	{
 	case MODE_VECTOR_INT:
-	  emit_insn (gen_mve_vpselq (VPSELQ_S, cmp_mode, operands[0],
-				     operands[1], operands[2], mask));
+	  emit_insn (gen_mve_q (VPSELQ_S, VPSELQ_S, cmp_mode, operands[0],
+				operands[1], operands[2], mask));
 	  break;
 	case MODE_VECTOR_FLOAT:
 	  if (TARGET_HAVE_MVE_FLOAT)
-	    emit_insn (gen_mve_vpselq_f (cmp_mode, operands[0],
-					 operands[1], operands[2], mask));
+	    emit_insn (gen_mve_q_f (VPSELQ_F, cmp_mode, operands[0],
+				    operands[1], operands[2], mask));
 	  else
 	    gcc_unreachable ();
 	  break;

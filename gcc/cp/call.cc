@@ -3847,6 +3847,7 @@ print_conversion_rejection (location_t loc, struct conversion_info *info,
       if (info->n_arg >= 0)
 	inform (loc, "  conversion of argument %d would be ill-formed:",
 		info->n_arg + 1);
+      iloc_sentinel ils = loc;
       perform_implicit_conversion (info->to_type, info->from,
 				   tf_warning_or_error);
     }
@@ -4128,6 +4129,14 @@ add_list_candidates (tree fns, tree first_arg,
   if (CONSTRUCTOR_NELTS (init_list) == 0
       && TYPE_HAS_DEFAULT_CONSTRUCTOR (totype))
     ;
+  else if (CONSTRUCTOR_IS_DESIGNATED_INIT (init_list)
+	   && !CP_AGGREGATE_TYPE_P (totype))
+    {
+      if (complain & tf_error)
+	error ("designated initializers cannot be used with a "
+	       "non-aggregate type %qT", totype);
+      return;
+    }
   /* If the class has a list ctor, try passing the list as a single
      argument first, but only consider list ctors.  */
   else if (TYPE_HAS_LIST_CTOR (totype))
@@ -4138,14 +4147,6 @@ add_list_candidates (tree fns, tree first_arg,
 		      access_path, flags, candidates, complain);
       if (any_strictly_viable (*candidates))
 	return;
-    }
-  else if (CONSTRUCTOR_IS_DESIGNATED_INIT (init_list)
-	   && !CP_AGGREGATE_TYPE_P (totype))
-    {
-      if (complain & tf_error)
-	error ("designated initializers cannot be used with a "
-	       "non-aggregate type %qT", totype);
-      return;
     }
 
   /* Expand the CONSTRUCTOR into a new argument vec.  */
@@ -8359,15 +8360,6 @@ convert_like_internal (conversion *convs, tree expr, tree fn, int argnum,
 				   /*issue_conversion_warnings=*/false,
 				   /*c_cast_p=*/false, /*nested_p=*/true,
 				   complain);
-	      if (convs->kind == ck_ref_bind)
-		expr = convert_to_reference (totype, expr, CONV_IMPLICIT,
-					     LOOKUP_NORMAL, NULL_TREE,
-					     complain);
-	      else
-		expr = cp_convert (totype, expr, complain);
-	      if (complained)
-		maybe_inform_about_fndecl_for_bogus_argument_init (fn, argnum);
-	      return expr;
 	    }
 	  else if (t->kind == ck_user || !t->bad_p)
 	    {
@@ -8375,6 +8367,8 @@ convert_like_internal (conversion *convs, tree expr, tree fn, int argnum,
 				   /*issue_conversion_warnings=*/false,
 				   /*c_cast_p=*/false, /*nested_p=*/true,
 				   complain);
+	      if (t->bad_p)
+		complained = 1;
 	      break;
 	    }
 	  else if (t->kind == ck_ambig)
@@ -8393,10 +8387,15 @@ convert_like_internal (conversion *convs, tree expr, tree fn, int argnum,
 				  "invalid conversion from %qH to %qI",
 				  TREE_TYPE (expr), totype);
 	}
+      if (convs->kind == ck_ref_bind)
+	expr = convert_to_reference (totype, expr, CONV_IMPLICIT,
+				     LOOKUP_NORMAL, NULL_TREE,
+				     complain);
+      else
+	expr = cp_convert (totype, expr, complain);
       if (complained == 1)
 	maybe_inform_about_fndecl_for_bogus_argument_init (fn, argnum);
-
-      return cp_convert (totype, expr, complain);
+      return expr;
     }
 
   if (issue_conversion_warnings && (complain & tf_warning))

@@ -776,6 +776,27 @@ split_nonconstant_init (tree dest, tree init)
   return code;
 }
 
+/* T is the initializer of a constexpr variable.  Set CONSTRUCTOR_MUTABLE_POISON
+   for any CONSTRUCTOR within T that contains (directly or indirectly) a mutable
+   member, thereby poisoning it so it can't be copied to another a constexpr
+   variable or read during constexpr evaluation.  */
+
+static void
+poison_mutable_constructors (tree t)
+{
+  if (TREE_CODE (t) != CONSTRUCTOR)
+    return;
+
+  if (cp_has_mutable_p (TREE_TYPE (t)))
+    {
+      CONSTRUCTOR_MUTABLE_POISON (t) = true;
+
+      if (vec<constructor_elt, va_gc> *elts = CONSTRUCTOR_ELTS (t))
+	for (const constructor_elt &ce : *elts)
+	  poison_mutable_constructors (ce.value);
+    }
+}
+
 /* Perform appropriate conversions on the initial value of a variable,
    store it in the declaration DECL,
    and print any error messages that are appropriate.
@@ -843,31 +864,50 @@ store_init_value (tree decl, tree init, vec<tree, va_gc>** cleanups, int flags)
       bool const_init;
       tree oldval = value;
       if (DECL_DECLARED_CONSTEXPR_P (decl)
+	  || DECL_DECLARED_CONSTINIT_P (decl)
 	  || (DECL_IN_AGGR_P (decl)
 	      && DECL_INITIALIZED_IN_CLASS_P (decl)))
 	{
 	  value = fold_non_dependent_expr (value, tf_warning_or_error,
 					   /*manifestly_const_eval=*/true,
 					   decl);
+	  if (value == error_mark_node)
+	    ;
 	  /* Diagnose a non-constant initializer for constexpr variable or
 	     non-inline in-class-initialized static data member.  */
-	  if (!require_constant_expression (value))
-	    value = error_mark_node;
-	  else if (processing_template_decl)
-	    /* In a template we might not have done the necessary
-	       transformations to make value actually constant,
-	       e.g. extend_ref_init_temps.  */
-	    value = maybe_constant_init (value, decl, true);
+	  else if (!is_constant_expression (value))
+	    {
+	      /* Maybe we want to give this message for constexpr variables as
+		 well, but that will mean a lot of testsuite adjustment.  */
+	      if (DECL_DECLARED_CONSTINIT_P (decl))
+	      error_at (location_of (decl),
+			"%<constinit%> variable %qD does not have a "
+			"constant initializer", decl);
+	      require_constant_expression (value);
+	      value = error_mark_node;
+	    }
 	  else
-	    value = cxx_constant_init (value, decl);
+	    {
+	      value = maybe_constant_init (value, decl, true);
+
+	      /* In a template we might not have done the necessary
+		 transformations to make value actually constant,
+		 e.g. extend_ref_init_temps.  */
+	      if (!processing_template_decl
+		  && !TREE_CONSTANT (value))
+		{
+		  if (DECL_DECLARED_CONSTINIT_P (decl))
+		  error_at (location_of (decl),
+			    "%<constinit%> variable %qD does not have a "
+			    "constant initializer", decl);
+		  value = cxx_constant_init (value, decl);
+		}
+	    }
 	}
       else
 	value = fold_non_dependent_init (value, tf_warning_or_error,
 					 /*manifestly_const_eval=*/true, decl);
-      if (TREE_CODE (value) == CONSTRUCTOR && cp_has_mutable_p (type))
-	/* Poison this CONSTRUCTOR so it can't be copied to another
-	   constexpr variable.  */
-	CONSTRUCTOR_MUTABLE_POISON (value) = true;
+      poison_mutable_constructors (value);
       const_init = (reduced_constant_expression_p (value)
 		    || error_operand_p (value));
       DECL_INITIALIZED_BY_CONSTANT_EXPRESSION_P (decl) = const_init;
@@ -875,22 +915,7 @@ store_init_value (tree decl, tree init, vec<tree, va_gc>** cleanups, int flags)
       if (!TYPE_REF_P (type))
 	TREE_CONSTANT (decl) = const_init && decl_maybe_constant_var_p (decl);
       if (!const_init)
-	{
-	  /* [dcl.constinit]/2 "If a variable declared with the constinit
-	     specifier has dynamic initialization, the program is
-	     ill-formed."  */
-	  if (DECL_DECLARED_CONSTINIT_P (decl))
-	    {
-	      error_at (location_of (decl),
-			"%<constinit%> variable %qD does not have a constant "
-			"initializer", decl);
-	      if (require_constant_expression (value))
-		cxx_constant_init (value, decl);
-	      value = error_mark_node;
-	    }
-	  else
-	    value = oldval;
-	}
+	value = oldval;
     }
   /* Don't fold initializers of automatic variables in constexpr functions,
      that might fold away something that needs to be diagnosed at constexpr

@@ -4130,11 +4130,11 @@ simplify_bound_dim (gfc_expr *array, gfc_expr *kind, int d, int upper,
 	  /* For {L,U}BOUND, the value depends on whether the array
 	     is empty.  We can nevertheless simplify if the declared bound
 	     has the same value as that of an empty array, in which case
-	     the result isn't dependent on the array emptyness.  */
+	     the result isn't dependent on the array emptiness.  */
 	  if (mpz_cmp_si (declared_bound->value.integer, empty_bound) == 0)
 	    mpz_set_si (result->value.integer, empty_bound);
 	  else if (!constant_lbound || !constant_ubound)
-	    /* Array emptyness can't be determined, we can't simplify.  */
+	    /* Array emptiness can't be determined, we can't simplify.  */
 	    goto returnNull;
 	  else if (mpz_cmp (l->value.integer, u->value.integer) > 0)
 	    mpz_set_si (result->value.integer, empty_bound);
@@ -6866,6 +6866,7 @@ gfc_simplify_reshape (gfc_expr *source, gfc_expr *shape_exp,
 	  gfc_error ("The SHAPE array for the RESHAPE intrinsic at %L has a "
 		     "negative value %d for dimension %d",
 		     &shape_exp->where, shape[rank], rank+1);
+	  mpz_clear (index);
 	  return &gfc_bad_expr;
 	}
 
@@ -6889,6 +6890,7 @@ gfc_simplify_reshape (gfc_expr *source, gfc_expr *shape_exp,
 	{
 	  gfc_error ("Shapes of ORDER at %L and SHAPE at %L are different",
 		     &order_exp->where, &shape_exp->where);
+	  mpz_clear (index);
 	  return &gfc_bad_expr;
 	}
 
@@ -6902,6 +6904,7 @@ gfc_simplify_reshape (gfc_expr *source, gfc_expr *shape_exp,
 	{
 	  gfc_error ("Sizes of ORDER at %L and SHAPE at %L are different",
 		     &order_exp->where, &shape_exp->where);
+	  mpz_clear (index);
 	  return &gfc_bad_expr;
 	}
 
@@ -6918,6 +6921,7 @@ gfc_simplify_reshape (gfc_expr *source, gfc_expr *shape_exp,
 			 "in the range [1, ..., %d] for the RESHAPE intrinsic "
 			 "near %L", order[i], &order_exp->where, rank,
 			 &shape_exp->where);
+	      mpz_clear (index);
 	      return &gfc_bad_expr;
 	    }
 
@@ -6926,6 +6930,7 @@ gfc_simplify_reshape (gfc_expr *source, gfc_expr *shape_exp,
 	    {
 	      gfc_error ("ORDER at %L is not a permutation of the size of "
 			 "SHAPE at %L", &order_exp->where, &shape_exp->where);
+	      mpz_clear (index);
 	      return &gfc_bad_expr;
 	    }
 	  x[order[i]] = 1;

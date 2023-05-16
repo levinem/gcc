@@ -121,7 +121,9 @@ ASM_MISA_SPEC
 
 /* The mapping from gcc register number to DWARF 2 CFA column number.  */
 #define DWARF_FRAME_REGNUM(REGNO)                                              \
-  (VL_REG_P (REGNO) ? RISCV_DWARF_VL                                           \
+  (FRM_REG_P (REGNO)	? RISCV_DWARF_FRM                                      \
+   : VXRM_REG_P (REGNO) ? RISCV_DWARF_VXRM                                     \
+   : VL_REG_P (REGNO)	? RISCV_DWARF_VL                                       \
    : VTYPE_REG_P (REGNO)                                                       \
      ? RISCV_DWARF_VTYPE                                                       \
      : (GP_REG_P (REGNO) || FP_REG_P (REGNO) || V_REG_P (REGNO)                \
@@ -372,6 +374,8 @@ ASM_MISA_SPEC
   ((unsigned int) ((int) (REGNO) - V_REG_FIRST) < V_REG_NUM)
 #define VL_REG_P(REGNO) ((REGNO) == VL_REGNUM)
 #define VTYPE_REG_P(REGNO) ((REGNO) == VTYPE_REGNUM)
+#define VXRM_REG_P(REGNO) ((REGNO) == VXRM_REGNUM)
+#define FRM_REG_P(REGNO) ((REGNO) == FRM_REGNUM)
 
 /* True when REGNO is in SIBCALL_REGS set.  */
 #define SIBCALL_REG_P(REGNO)	\
@@ -390,6 +394,8 @@ ASM_MISA_SPEC
 #define FRAME_POINTER_REGNUM 65
 
 /* Define Dwarf for RVV.  */
+#define RISCV_DWARF_FRM (4096 + 0x003)
+#define RISCV_DWARF_VXRM (4096 + 0x00a)
 #define RISCV_DWARF_VL (4096 + 0xc20)
 #define RISCV_DWARF_VTYPE (4096 + 0xc21)
 #define RISCV_DWARF_VLENB (4096 + 0xc22)
@@ -1095,5 +1101,10 @@ extern void riscv_remove_unneeded_save_restore_calls (void);
 
 #define DWARF_REG_TO_UNWIND_COLUMN(REGNO) \
   ((REGNO == RISCV_DWARF_VLENB) ? (FIRST_PSEUDO_REGISTER + 1) : REGNO)
+
+/* Like s390, riscv also defined this macro for the vector comparision.  Then
+   the simplify-rtx relational_result will canonicalize the result to the
+   CONST1_RTX for the simplification.  */
+#define VECTOR_STORE_FLAG_VALUE(MODE) CONSTM1_RTX (GET_MODE_INNER (MODE))
 
 #endif /* ! GCC_RISCV_H */

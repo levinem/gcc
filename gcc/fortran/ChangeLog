@@ -1,3 +1,106 @@
+2023-05-15  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/109846
+	* expr.cc (gfc_check_vardef_context): Check appropriate pointer
+	attribute for CLASS vs. non-CLASS function result in variable
+	definition context.
+
+2023-05-11  Xi Ruoyao  <xry111@xry111.site>
+
+	* Make-lang.in: Use grep instead of fgrep.
+
+2023-05-10  Bernhard Reutner-Fischer  <aldot@gcc.gnu.org>
+
+	* dump-parse-tree.cc (gfc_debug_expr): Remove forward declaration.
+	(debug): Add DEBUG_FUNCTION.
+	(show_code_node): Remove erroneous whitespace.
+
+2023-05-10  Bernhard Reutner-Fischer  <aldot@gcc.gnu.org>
+
+	PR fortran/109624
+	* dump-parse-tree.cc (debug): New function for gfc_namespace.
+	(gfc_debug_code): Delete forward declaration.
+	(show_attr): Make sure to print balanced braces.
+
+2023-05-08  Bernhard Reutner-Fischer  <aldot@gcc.gnu.org>
+
+	* resolve.cc (resolve_select_type): Fix coding style.
+
+2023-05-08  Bernhard Reutner-Fischer  <aldot@gcc.gnu.org>
+
+	* resolve.cc (resolve_select_type): Call free() unconditionally.
+
+2023-05-08  Bernhard Reutner-Fischer  <aldot@gcc.gnu.org>
+
+	PR fortran/68800
+	* expr.cc (find_array_section): Fix mpz memory leak.
+	* simplify.cc (gfc_simplify_reshape): Fix mpz memory leaks in
+	error paths.
+
+2023-05-05  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/109641
+	* arith.cc (eval_intrinsic): Check conformability of ranks of operands
+	for intrinsic binary operators before performing type conversions.
+	* gfortran.h (gfc_op_rank_conformable): Add prototype.
+	* resolve.cc (resolve_operator): Check conformability of ranks of
+	operands for intrinsic binary operators before performing type
+	conversions.
+	(gfc_op_rank_conformable): New helper function to compare ranks of
+	operands of binary operator.
+
+2023-05-04  Julian Brown  <julian@codesourcery.com>
+
+	PR fortran/109622
+	* openmp.cc (resolve_omp_clauses): Add diagnostic for
+	non-pointer/non-allocatable attach/detach.
+	* trans-openmp.cc (gfc_trans_omp_clauses): Remove dereference for
+	pointer-to-scalar derived type component attach/detach.  Fix
+	attach/detach handling for descriptors.
+
+2023-04-28  Julian Brown  <julian@codesourcery.com>
+
+	PR fortran/109622
+	* trans-openmp.cc (gfc_trans_omp_clauses): Attach/detach clause fixes.
+
+2023-04-28  Tobias Burnus  <tobias@codesourcery.com>
+
+	* gfortran.texi: Fix typos.
+	* decl.cc: Fix typos in comments and in a variable name.
+	* arith.cc: Fix comment typos.
+	* check.cc: Likewise.
+	* class.cc: Likewise.
+	* dependency.cc: Likewise.
+	* expr.cc: Likewise.
+	* frontend-passes.cc: Likewise.
+	* gfortran.h: Likewise.
+	* intrinsic.cc: Likewise.
+	* iresolve.cc: Likewise.
+	* match.cc: Likewise.
+	* module.cc: Likewise.
+	* primary.cc: Likewise.
+	* resolve.cc: Likewise.
+	* simplify.cc: Likewise.
+	* trans-array.cc: Likewise.
+	* trans-decl.cc: Likewise.
+	* trans-expr.cc: Likewise.
+	* trans-intrinsic.cc: Likewise.
+	* trans-openmp.cc: Likewise.
+	* trans-stmt.cc: Likewise.
+
+2023-04-25  Tobias Burnus  <tobias@codesourcery.com>
+
+	* openmp.cc (gfc_resolve_omp_do_blocks): Handle zero
+	or more than one exec statements before/after 'omp scan'.
+	* trans-openmp.cc (gfc_trans_omp_do): Likewise.
+
+2023-04-22  Harald Anlauf  <anlauf@gmx.de>
+	    Steven G. Kargl  <kargl@gcc.gnu.org>
+
+	PR fortran/109500
+	* interface.cc (gfc_compare_actual_formal): Reject allocatable
+	functions being used as actual argument for allocable dummy.
+
 2023-04-14  Harald Anlauf  <anlauf@gmx.de>
 
 	PR fortran/109511

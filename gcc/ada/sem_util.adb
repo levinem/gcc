@@ -477,7 +477,7 @@ package body Sem_Util is
       --  this breaks the name resolution mechanism for generic instances.
 
       if not Expander_Active
-        and (Inside_A_Generic or not Full_Analysis or not GNATprove_Mode)
+        and not (GNATprove_Mode and not Inside_A_Generic)
       then
          return;
       end if;
@@ -6483,15 +6483,42 @@ package body Sem_Util is
      (Ancestor_Op     : Entity_Id;
       Descendant_Type : Entity_Id) return Entity_Id
    is
-      Typ  : constant Entity_Id := Find_Dispatching_Type (Ancestor_Op);
-      Elmt : Elmt_Id;
-      Subp : Entity_Id;
+      function Find_Untagged_Type_Of (Prim : Entity_Id) return Entity_Id;
+      --  Search for the untagged type of the primitive operation Prim.
 
       function Profile_Matches_Ancestor (S : Entity_Id) return Boolean;
       --  Returns True if subprogram S has the proper profile for an
       --  overriding of Ancestor_Op (that is, corresponding formals either
       --  have the same type, or are corresponding controlling formals,
       --  and similarly for result types).
+
+      ---------------------------
+      -- Find_Untagged_Type_Of --
+      ---------------------------
+
+      function Find_Untagged_Type_Of (Prim : Entity_Id) return Entity_Id is
+         E : Entity_Id := First_Entity (Scope (Prim));
+
+      begin
+         while Present (E) and then E /= Prim loop
+            if not Is_Tagged_Type (E)
+              and then Present (Direct_Primitive_Operations (E))
+              and then Contains (Direct_Primitive_Operations (E), Prim)
+            then
+               return E;
+            end if;
+
+            Next_Entity (E);
+         end loop;
+
+         pragma Assert (False);
+         return Empty;
+      end Find_Untagged_Type_Of;
+
+      Typ  : constant Entity_Id :=
+               (if Is_Dispatching_Operation (Ancestor_Op)
+                 then Find_Dispatching_Type (Ancestor_Op)
+                 else Find_Untagged_Type_Of (Ancestor_Op));
 
       ------------------------------
       -- Profile_Matches_Ancestor --
@@ -6529,10 +6556,14 @@ package body Sem_Util is
                       or else Is_Ancestor (Typ, Etype (S)));
       end Profile_Matches_Ancestor;
 
+      --  Local variables
+
+      Elmt : Elmt_Id;
+      Subp : Entity_Id;
+
    --  Start of processing for Corresponding_Primitive_Op
 
    begin
-      pragma Assert (Is_Dispatching_Operation (Ancestor_Op));
       pragma Assert (Is_Ancestor (Typ, Descendant_Type)
                       or else Is_Progenitor (Typ, Descendant_Type));
 
@@ -10017,6 +10048,14 @@ package body Sem_Util is
       then
          return Actual_Subtype (Entity (N));
 
+      --  Similarly, if we have an explicit dereference, then we get the
+      --  actual subtype from the node itself if one has been built.
+
+      elsif Nkind (N) = N_Explicit_Dereference
+        and then Present (Actual_Designated_Subtype (N))
+      then
+         return Actual_Designated_Subtype (N);
+
       --  Actual subtype of unchecked union is always itself. We never need
       --  the "real" actual subtype. If we did, we couldn't get it anyway
       --  because the discriminant is not available. The restrictions on
@@ -10129,6 +10168,14 @@ package body Sem_Util is
         and then Present (Actual_Subtype (Entity (N)))
       then
          return Actual_Subtype (Entity (N));
+
+      --  Similarly, if we have an explicit dereference, then we get the
+      --  actual subtype from the node itself if one has been built.
+
+      elsif Nkind (N) = N_Explicit_Dereference
+        and then Present (Actual_Designated_Subtype (N))
+      then
+         return Actual_Designated_Subtype (N);
 
       --  Otherwise the Etype of N is returned unchanged
 
@@ -23323,65 +23370,6 @@ package body Sem_Util is
          New_Par  : Node_Id := Empty;
          Semantic : Boolean := False) return Union_Id
       is
-         function Has_More_Ids (N : Node_Id) return Boolean;
-         --  Return True when N has attribute More_Ids set to True
-
-         function Is_Syntactic_Node return Boolean;
-         --  Return True when Field is a syntactic node
-
-         ------------------
-         -- Has_More_Ids --
-         ------------------
-
-         function Has_More_Ids (N : Node_Id) return Boolean is
-         begin
-            if Nkind (N) in N_Component_Declaration
-                          | N_Discriminant_Specification
-                          | N_Exception_Declaration
-                          | N_Formal_Object_Declaration
-                          | N_Number_Declaration
-                          | N_Object_Declaration
-                          | N_Parameter_Specification
-                          | N_Use_Package_Clause
-                          | N_Use_Type_Clause
-            then
-               return More_Ids (N);
-            else
-               return False;
-            end if;
-         end Has_More_Ids;
-
-         -----------------------
-         -- Is_Syntactic_Node --
-         -----------------------
-
-         function Is_Syntactic_Node return Boolean is
-            Old_N : constant Node_Id := Node_Id (Field);
-
-         begin
-            if Parent (Old_N) = Old_Par then
-               return True;
-
-            elsif not Has_More_Ids (Old_Par) then
-               return False;
-
-            --  Perform the check using the last last id in the syntactic chain
-
-            else
-               declare
-                  N : Node_Id := Old_Par;
-
-               begin
-                  while Present (N) and then More_Ids (N) loop
-                     Next (N);
-                  end loop;
-
-                  pragma Assert (Prev_Ids (N));
-                  return Parent (Old_N) = N;
-               end;
-            end if;
-         end Is_Syntactic_Node;
-
       begin
          --  The field is empty
 
@@ -23393,7 +23381,8 @@ package body Sem_Util is
          elsif Field in Node_Range then
             declare
                Old_N     : constant Node_Id := Node_Id (Field);
-               Syntactic : constant Boolean := Is_Syntactic_Node;
+               Syntactic : constant Boolean :=
+                 Is_Syntactic_Node (Source => Old_Par, Field => Old_N);
 
                New_N : Node_Id;
 
@@ -24225,14 +24214,12 @@ package body Sem_Util is
          --  Note that the element of a syntactic list is always a node, never
          --  an entity or itype, hence the call to Visit_Node.
 
-         if Present (List) then
-            Elmt := First (List);
-            while Present (Elmt) loop
-               Visit_Node (Elmt);
+         Elmt := First (List);
+         while Present (Elmt) loop
+            Visit_Node (Elmt);
 
-               Next (Elmt);
-            end loop;
-         end if;
+            Next (Elmt);
+         end loop;
       end Visit_List;
 
       ----------------
@@ -24264,8 +24251,7 @@ package body Sem_Util is
          --  If the node is a block, we need to process all declarations
          --  in the block and make new entities for each.
 
-         if Nkind (N) = N_Block_Statement and then Present (Declarations (N))
-         then
+         if Nkind (N) = N_Block_Statement then
             declare
                Decl : Node_Id := First (Declarations (N));
 
@@ -28154,6 +28140,9 @@ package body Sem_Util is
                | N_Task_Body
             =>
                Ent := Defining_Identifier (Ent);
+               exit;
+
+            when N_Entity =>
                exit;
 
             when others =>

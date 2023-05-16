@@ -733,11 +733,11 @@ const unsigned int AARCH64_BUILTIN_CLASS = (1 << AARCH64_BUILTIN_SHIFT) - 1;
 class aarch64_simd_switcher
 {
 public:
-  aarch64_simd_switcher (unsigned int extra_flags = 0);
+  aarch64_simd_switcher (aarch64_feature_flags extra_flags = 0);
   ~aarch64_simd_switcher ();
 
 private:
-  unsigned long m_old_asm_isa_flags;
+  aarch64_feature_flags m_old_asm_isa_flags;
   bool m_old_general_regs_only;
 };
 
@@ -838,6 +838,7 @@ int aarch64_movk_shift (const wide_int_ref &, const wide_int_ref &);
 bool aarch64_is_mov_xn_imm (unsigned HOST_WIDE_INT);
 bool aarch64_use_return_insn_p (void);
 const char *aarch64_output_casesi (rtx *);
+const char *aarch64_output_load_tp (rtx);
 
 unsigned int aarch64_tlsdesc_abi_id ();
 enum aarch64_symbol_type aarch64_classify_symbol (rtx, HOST_WIDE_INT);
@@ -1065,5 +1066,7 @@ extern bool aarch64_harden_sls_retbr_p (void);
 extern bool aarch64_harden_sls_blr_p (void);
 
 extern void aarch64_output_patchable_area (unsigned int, bool);
+
+extern void aarch64_adjust_reg_alloc_order ();
 
 #endif /* GCC_AARCH64_PROTOS_H */

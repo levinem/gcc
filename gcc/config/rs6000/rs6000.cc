@@ -10385,19 +10385,34 @@ rs6000_emit_set_long_const (rtx dest, HOST_WIDE_INT c)
     }
   else
     {
-      temp = !can_create_pseudo_p () ? dest : gen_reg_rtx (DImode);
+      if (can_create_pseudo_p ())
+	{
+	  /* lis HIGH,UD4 ; ori HIGH,UD3 ;
+	     lis LOW,UD2 ; ori LOW,UD1 ; rldimi LOW,HIGH,32,0.  */
+	  rtx high = gen_reg_rtx (DImode);
+	  rtx low = gen_reg_rtx (DImode);
+	  HOST_WIDE_INT num = (ud2 << 16) | ud1;
+	  rs6000_emit_set_long_const (low, sext_hwi (num, 32));
+	  num = (ud4 << 16) | ud3;
+	  rs6000_emit_set_long_const (high, sext_hwi (num, 32));
+	  emit_insn (gen_rotldi3_insert_3 (dest, high, GEN_INT (32), low,
+					   GEN_INT (0xffffffff)));
+	}
+      else
+	{
+	  /* lis DEST,UD4 ; ori DEST,UD3 ; rotl DEST,32 ;
+	     oris DEST,UD2 ; ori DEST,UD1.  */
+	  emit_move_insn (dest, GEN_INT (sext_hwi (ud4 << 16, 32)));
+	  if (ud3 != 0)
+	    emit_move_insn (dest, gen_rtx_IOR (DImode, dest, GEN_INT (ud3)));
 
-      emit_move_insn (temp, GEN_INT (sext_hwi (ud4 << 16, 32)));
-      if (ud3 != 0)
-	emit_move_insn (temp, gen_rtx_IOR (DImode, temp, GEN_INT (ud3)));
-
-      emit_move_insn (ud2 != 0 || ud1 != 0 ? temp : dest,
-		      gen_rtx_ASHIFT (DImode, temp, GEN_INT (32)));
-      if (ud2 != 0)
-	emit_move_insn (ud1 != 0 ? temp : dest,
-			gen_rtx_IOR (DImode, temp, GEN_INT (ud2 << 16)));
-      if (ud1 != 0)
-	emit_move_insn (dest, gen_rtx_IOR (DImode, temp, GEN_INT (ud1)));
+	  emit_move_insn (dest, gen_rtx_ASHIFT (DImode, dest, GEN_INT (32)));
+	  if (ud2 != 0)
+	    emit_move_insn (dest,
+			    gen_rtx_IOR (DImode, dest, GEN_INT (ud2 << 16)));
+	  if (ud1 != 0)
+	    emit_move_insn (dest, gen_rtx_IOR (DImode, dest, GEN_INT (ud1)));
+	}
     }
 }
 
@@ -11409,7 +11424,16 @@ bool
 rs6000_is_valid_rotate_dot_mask (rtx mask, machine_mode mode)
 {
   int nb, ne;
-  return rs6000_is_valid_mask (mask, &nb, &ne, mode) && nb >= ne && ne > 0;
+  if (rs6000_is_valid_mask (mask, &nb, &ne, mode) && nb >= ne && ne > 0)
+    {
+      if (TARGET_64BIT)
+	return true;
+      /* *rotldi3_mask_dot requires for -m32 -mpowerpc64 that the mask is
+	 <= 0x7fffffff.  */
+      return (UINTVAL (mask) << (63 - nb)) <= 0x7fffffff;
+    }
+
+  return false;
 }
 
 /* Return whether MASK (a CONST_INT) is a valid mask for any rlwinm, rldicl,
