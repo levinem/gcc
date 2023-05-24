@@ -880,7 +880,7 @@ package body Sem_Ch9 is
       E := First_Entity (Etype (Task_Nam));
       while Present (E) loop
          if Chars (E) = Chars (Nam)
-           and then (Ekind (E) = Ekind (Accept_Id))
+           and then Ekind (E) = Ekind (Accept_Id)
            and then Type_Conformant (Accept_Id, E)
          then
             Entry_Nam := E;
@@ -1305,6 +1305,7 @@ package body Sem_Ch9 is
             Entry_Name := E;
             Set_Convention (Id, Convention (E));
             Set_Corresponding_Body (Parent (E), Id);
+            Set_Corresponding_Spec (N, E);
             Check_Fully_Conformant (Id, E, N);
 
             if Ekind (Id) = E_Entry_Family then
@@ -2500,7 +2501,7 @@ package body Sem_Ch9 is
             --  for error output in some cases not to do that here.
 
             if (No (First_Formal (It.Nam))
-                 or else (Type_Conformant (Enclosing, It.Nam)))
+                 or else Type_Conformant (Enclosing, It.Nam))
               and then Ekind (It.Nam) = E_Entry
             then
                --  Ada 2005 (AI-345): Since protected and task types have

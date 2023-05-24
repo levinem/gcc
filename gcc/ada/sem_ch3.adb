@@ -4971,6 +4971,7 @@ package body Sem_Ch3 is
          end if;
 
          Rewrite (Object_Definition (N), New_Occurrence_Of (Act_T, Loc));
+         Freeze_Before (N, Act_T);
 
       elsif Nkind (E) = N_Function_Call
         and then Constant_Present (N)
@@ -5375,7 +5376,6 @@ package body Sem_Ch3 is
       Set_Convention       (T, Convention     (Parent_Type));
       Set_First_Rep_Item   (T, First_Rep_Item (Parent_Type));
       Set_Is_First_Subtype (T);
-      Make_Class_Wide_Type (T);
 
       --  Set the SPARK mode from the current context
 
@@ -7041,7 +7041,7 @@ package body Sem_Ch3 is
       Desig_Type := Designated_Type (Derived_Type);
 
       if Is_Composite_Type (Desig_Type)
-        and then (not Is_Array_Type (Desig_Type))
+        and then not Is_Array_Type (Desig_Type)
         and then Has_Discriminants (Desig_Type)
         and then Base_Type (Desig_Type) /= Desig_Type
       then
@@ -16205,6 +16205,7 @@ package body Sem_Ch3 is
 
       if No (Actual_Subp) then
          if Is_Intrinsic_Subprogram (Parent_Subp) then
+            Set_Convention (New_Subp, Convention_Intrinsic);
             Set_Is_Intrinsic_Subprogram (New_Subp);
 
             if Present (Alias (Parent_Subp))
@@ -18417,10 +18418,10 @@ package body Sem_Ch3 is
                Set_Etype  (T, Base_T);
                Mutate_Ekind  (T, Subtype_Kind (Ekind (Base_T)));
                Set_Parent (T, Obj_Def);
+               Set_Scope (T, Current_Scope);
 
                if Ekind (T) = E_Array_Subtype then
-                  Set_First_Index (T, First_Index (Base_T));
-                  Set_Is_Constrained (T);
+                  Constrain_Array (T, Obj_Def, Related_Nod, T, 'P');
 
                elsif Ekind (T) = E_Record_Subtype then
                   Set_First_Entity (T, First_Entity (Base_T));

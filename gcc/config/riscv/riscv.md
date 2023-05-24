@@ -223,7 +223,7 @@
 (define_attr "ext_enabled" "no,yes"
   (cond [(eq_attr "ext" "base")
 	 (const_string "yes")
-	
+
 	 (and (eq_attr "ext" "f")
 	      (match_test "TARGET_HARD_FLOAT"))
 	 (const_string "yes")
@@ -259,7 +259,7 @@
 ;; logical      integer logical instructions
 ;; shift	integer shift instructions
 ;; slt		set less than instructions
-;; imul		integer multiply 
+;; imul		integer multiply
 ;; idiv		integer divide
 ;; move		integer register move (addi rd, rs1, 0)
 ;; fmove	floating point register move
@@ -284,6 +284,7 @@
 ;; Classification of RVV instructions which will be added to each RVV .md pattern and used by scheduler.
 ;; rdvlenb     vector byte length vlenb csrr read
 ;; rdvl        vector length vl csrr read
+;; wrvxrm      vector fixed-point rounding mode write
 ;; vsetvl      vector configuration-setting instrucions
 ;; 7. Vector Loads and Stores
 ;; vlde        vector unit-stride load instructions
@@ -387,7 +388,7 @@
    mtc,mfc,const,arith,logical,shift,slt,imul,idiv,move,fmove,fadd,fmul,
    fmadd,fdiv,fcmp,fcvt,fsqrt,multi,auipc,sfb_alu,nop,ghost,bitmanip,rotate,
    clmul,min,max,minu,maxu,clz,ctz,cpop,
-   atomic,condmove,crypto,rdvlenb,rdvl,vsetvl,vlde,vste,vldm,vstm,vlds,vsts,
+   atomic,condmove,crypto,rdvlenb,rdvl,wrvxrm,vsetvl,vlde,vste,vldm,vstm,vlds,vsts,
    vldux,vldox,vstux,vstox,vldff,vldr,vstr,
    vlsegde,vssegte,vlsegds,vssegts,vlsegdux,vlsegdox,vssegtux,vssegtox,vlsegdff,
    vialu,viwalu,vext,vicalu,vshift,vnshift,vicmp,viminmax,
@@ -2047,45 +2048,6 @@
   [(set_attr "type" "shift")
    (set_attr "mode" "SI")])
 
-(define_insn_and_split "*<optab>si3_mask"
-  [(set (match_operand:SI     0 "register_operand" "= r")
-	(any_shift:SI
-	    (match_operand:SI 1 "register_operand" "  r")
-	    (match_operator 4 "subreg_lowpart_operator"
-	     [(and:SI
-	       (match_operand:SI 2 "register_operand"  "r")
-	       (match_operand 3 "const_int_operand"))])))]
-  "(INTVAL (operands[3]) & (GET_MODE_BITSIZE (SImode)-1))
-   == GET_MODE_BITSIZE (SImode)-1"
-  "#"
-  "&& 1"
-  [(set (match_dup 0)
-	(any_shift:SI (match_dup 1)
-		      (match_dup 2)))]
-  "operands[2] = gen_lowpart (QImode, operands[2]);"
-  [(set_attr "type" "shift")
-   (set_attr "mode" "SI")])
-
-(define_insn_and_split "*<optab>si3_mask_1"
-  [(set (match_operand:SI     0 "register_operand" "= r")
-	(any_shift:SI
-	    (match_operand:SI 1 "register_operand" "  r")
-	    (match_operator 4 "subreg_lowpart_operator"
-	     [(and:DI
-	       (match_operand:DI 2 "register_operand"  "r")
-	       (match_operand 3 "const_int_operand"))])))]
-  "TARGET_64BIT
-   && (INTVAL (operands[3]) & (GET_MODE_BITSIZE (SImode)-1))
-       == GET_MODE_BITSIZE (SImode)-1"
-  "#"
-  "&& 1"
-  [(set (match_dup 0)
-	(any_shift:SI (match_dup 1)
-		      (match_dup 2)))]
-  "operands[2] = gen_lowpart (QImode, operands[2]);"
-  [(set_attr "type" "shift")
-   (set_attr "mode" "SI")])
-
 (define_insn "<optab>di3"
   [(set (match_operand:DI 0 "register_operand"     "= r")
 	(any_shift:DI
@@ -2102,45 +2064,23 @@
   [(set_attr "type" "shift")
    (set_attr "mode" "DI")])
 
-(define_insn_and_split "*<optab>di3_mask"
-  [(set (match_operand:DI     0 "register_operand" "= r")
-	(any_shift:DI
-	    (match_operand:DI 1 "register_operand" "  r")
+(define_insn_and_split "*<optab><GPR:mode>3_mask_1"
+  [(set (match_operand:GPR     0 "register_operand" "= r")
+	(any_shift:GPR
+	    (match_operand:GPR 1 "register_operand" "  r")
 	    (match_operator 4 "subreg_lowpart_operator"
-	     [(and:SI
-	       (match_operand:SI 2 "register_operand"  "r")
-	       (match_operand 3 "const_int_operand"))])))]
-  "TARGET_64BIT
-   && (INTVAL (operands[3]) & (GET_MODE_BITSIZE (DImode)-1))
-       == GET_MODE_BITSIZE (DImode)-1"
+	     [(and:GPR2
+	       (match_operand:GPR2 2 "register_operand"  "r")
+	       (match_operand 3 "<GPR:shiftm1>"))])))]
+  ""
   "#"
   "&& 1"
   [(set (match_dup 0)
-	(any_shift:DI (match_dup 1)
+	(any_shift:GPR (match_dup 1)
 		      (match_dup 2)))]
   "operands[2] = gen_lowpart (QImode, operands[2]);"
   [(set_attr "type" "shift")
-   (set_attr "mode" "DI")])
-
-(define_insn_and_split "*<optab>di3_mask_1"
-  [(set (match_operand:DI     0 "register_operand" "= r")
-	(any_shift:DI
-	    (match_operand:DI 1 "register_operand" "  r")
-	    (match_operator 4 "subreg_lowpart_operator"
-	     [(and:DI
-	       (match_operand:DI 2 "register_operand"  "r")
-	       (match_operand 3 "const_int_operand"))])))]
-  "TARGET_64BIT
-   && (INTVAL (operands[3]) & (GET_MODE_BITSIZE (DImode)-1))
-       == GET_MODE_BITSIZE (DImode)-1"
-  "#"
-  "&& 1"
-  [(set (match_dup 0)
-	(any_shift:DI (match_dup 1)
-		      (match_dup 2)))]
-  "operands[2] = gen_lowpart (QImode, operands[2]);"
-  [(set_attr "type" "shift")
-   (set_attr "mode" "DI")])
+   (set_attr "mode" "<GPR:MODE>")])
 
 (define_insn "*<optab>si3_extend"
   [(set (match_operand:DI                   0 "register_operand" "= r")
@@ -2163,34 +2103,10 @@
 	    (any_shift:SI
 	     (match_operand:SI 1 "register_operand" "  r")
 	     (match_operator 4 "subreg_lowpart_operator"
-	      [(and:SI
-	        (match_operand:SI 2 "register_operand" " r")
-	        (match_operand 3 "const_int_operand"))]))))]
-  "TARGET_64BIT
-   && (INTVAL (operands[3]) & (GET_MODE_BITSIZE (SImode)-1))
-       == GET_MODE_BITSIZE (SImode)-1"
-  "#"
-  "&& 1"
-  [(set (match_dup 0)
-	(sign_extend:DI
-	 (any_shift:SI (match_dup 1)
-		       (match_dup 2))))]
-  "operands[2] = gen_lowpart (QImode, operands[2]);"
-  [(set_attr "type" "shift")
-   (set_attr "mode" "SI")])
-
-(define_insn_and_split "*<optab>si3_extend_mask_1"
-  [(set (match_operand:DI                   0 "register_operand" "= r")
-	(sign_extend:DI
-	    (any_shift:SI
-	     (match_operand:SI 1 "register_operand" "  r")
-	     (match_operator 4 "subreg_lowpart_operator"
-	      [(and:DI
-	        (match_operand:DI 2 "register_operand" " r")
-	        (match_operand 3 "const_int_operand"))]))))]
-  "TARGET_64BIT
-   && (INTVAL (operands[3]) & (GET_MODE_BITSIZE (SImode)-1))
-       == GET_MODE_BITSIZE (SImode)-1"
+	      [(and:GPR
+	        (match_operand:GPR 2 "register_operand" " r")
+	        (match_operand 3 "const_si_mask_operand"))]))))]
+  "TARGET_64BIT"
   "#"
   "&& 1"
   [(set (match_dup 0)

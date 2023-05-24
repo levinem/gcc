@@ -1,3 +1,2041 @@
+2023-05-23  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/109450
+	* gcc.dg/pr109450-1.c: New test.
+	* gcc.dg/pr109450-2.c: New test.
+	* gcc.dg/vla-26.c: New test.
+
+2023-05-23  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/70418
+	PR c/106465
+	PR c/107557
+	PR c/108423
+	* gcc.dg/nested-vla-1.c: New test.
+	* gcc.dg/nested-vla-2.c: New test.
+	* gcc.dg/nested-vla-3.c: New test.
+	* gcc.dg/pr70418.c: New test.
+	* gcc.dg/pr106465.c: New test.
+	* gcc.dg/pr107557-1.c: New test.
+	* gcc.dg/pr107557-2.c: New test.
+	* gcc.dg/pr108423-1.c: New test.
+	* gcc.dg/pr108423-2.c: New test.
+	* gcc.dg/pr108423-3.c: New test.
+	* gcc.dg/pr108423-4.c: New test.
+	* gcc.dg/pr108423-5.c: New test.
+	* gcc.dg/pr108423-6.c: New test.
+	* gcc.dg/typename-vla-2.c: New test.
+	* gcc.dg/typename-vla-3.c: New test.
+	* gcc.dg/typename-vla-4.c: New test.
+	* gcc.misc-tests/gcov-pr85350.c: Adapt.
+	* gcc.dg/typename-vla-5.c: New file.
+	* gcc.dg/typename-vla-6.c: New file.
+
+2023-05-23  Uros Bizjak  <ubizjak@gmail.com>
+
+	* gcc.target/i386/vect-shiftv4qi.c: New test.
+	* gcc.target/i386/vect-shiftv8qi.c: New test.
+
+2023-05-23  Aldy Hernandez  <aldyh@redhat.com>
+
+	PR tree-optimization/109934
+	* gcc.dg/tree-ssa/pr109934.c: New test.
+
+2023-05-23  Richard Sandiford  <richard.sandiford@arm.com>
+
+	* gcc.target/aarch64/ins_bitfield_1.c: New test.
+	* gcc.target/aarch64/ins_bitfield_2.c: Likewise.
+	* gcc.target/aarch64/ins_bitfield_3.c: Likewise.
+	* gcc.target/aarch64/ins_bitfield_4.c: Likewise.
+	* gcc.target/aarch64/ins_bitfield_5.c: Likewise.
+	* gcc.target/aarch64/ins_bitfield_6.c: Likewise.
+
+2023-05-23  Kyrylo Tkachov  <kyrylo.tkachov@arm.com>
+
+	PR target/109855
+	* gcc.target/aarch64/pr109855.c: New test.
+
+2023-05-23  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/109849
+	* gcc.dg/tree-ssa/ssa-hoist-8.c: New testcase.
+
+2023-05-23  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/opt101.adb: New test.
+	* gnat.dg/opt101_pkg.ads: New helper.
+
+2023-05-23  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/103716
+	* gfortran.dg/pr103716.f90 : New test.
+
+2023-05-23  Paul Thomas  <pault@gcc.gnu.org>
+	    Steven G. Kargl  <kargl@gcc.gnu.org>
+
+	PR fortran/97122
+	* gfortran.dg/finalize_8.f03 : Replace testcase that checks
+	declaration of finalizable derived types in submodules works.
+
+2023-05-22  Uros Bizjak  <ubizjak@gmail.com>
+
+	* gcc.target/i386/sse2-shiftqihi-constant-1.c: Remove XFAILs.
+
+2023-05-22  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR testsuite/52641
+	* gcc.c-torture/compile/pr108892.c: Require int32.
+	* gcc.c-torture/compile/pr98199.c: Require int32plus.
+	* gcc.dg/analyzer/call-summaries-pr107072.c: Same.
+	* gcc.dg/analyzer/null-deref-pr105755.c: Same.
+	* gcc.dg/tree-ssa/pr102232.c: Same.
+	* gcc.dg/tree-ssa/pr105860.c: Same.
+	* gcc.dg/tree-ssa/pr96730.c: Same.
+	* gcc.dg/tree-ssa/pr96779-disabled.c: Same.
+	* gcc.dg/tree-ssa/pr96779.c: Same.
+	* gcc.dg/tree-ssa/pr98513.c: Same.
+	* gcc.dg/tree-ssa/ssa-sink-18.c
+	* gcc.dg/analyzer/coreutils-cksum-pr108664.c: Require int32plus,
+	size24plus.
+	* gcc.dg/analyzer/doom-s_sound-pr108867.c: Require size32plus.
+	* gcc.dg/analyzer/malloc-CWE-590-examples.c: Same.
+	* gcc.dg/debug/btf/btf-bitfields-4.c: Same.
+	* gcc.dg/tree-ssa/pr93435.c: Same.
+	* gcc.dg/analyzer/null-deref-pr102671-1.c: Require ptr_eq_long:
+	* gcc.dg/analyzer/null-deref-pr102671-2.c: Same.
+	* gcc.dg/analyzer/null-deref-pr108251-smp_fetch_ssl_fc_has_early-O2.c:
+	Same.
+	* gcc.dg/analyzer/null-deref-pr108251-smp_fetch_ssl_fc_has_early.c:
+	Same.
+	* gcc.dg/tree-ssa/pr103345.c: Use uint32_t.
+	* gcc.dg/tree-ssa/ssa-ccp-41.c [sizeof(int)==2]: Same.
+	* gcc.dg/tree-ssa/pr109031-1.c: Use uint16_t, uint32_t.
+	* gcc.dg/tree-ssa/pr109031-2.c: Same.
+	* gcc.dg/Warray-bounds-49.c (dg-warning): Discriminate int != short.
+	* gcc.dg/Warray-bounds-52.c (dg-warning): Discriminate avr.
+	* gcc.dg/Warray-bounds-33.c: Skip target avr.
+	* gcc.dg/analyzer/fd-access-mode-target-headers.c: Same.
+	* gcc.dg/analyzer/flex-with-call-summaries.c: Same.
+	* gcc.dg/analyzer/isatty-1.c: Same.
+	* gcc.dg/analyzer/pipe-glibc.c: Same.
+
+2023-05-22  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR testsuite/52641
+	* c-c++-common/pr19807-2.c: Use __SIZEOF_INT__ instead of 4.
+	* gcc.c-torture/compile/pr103813.c: Require size32plus.
+	* gcc.c-torture/execute/pr108498-2.c: Same.
+	* gcc.c-torture/compile/pr96426.c: Condition on
+	__SIZEOF_LONG_LONG__ == __SIZEOF_DOUBLE__.
+	* gcc.c-torture/execute/pr103417.c: Require int32plus.
+	* gcc.dg/pr104198.c: Same.
+	* gcc.dg/pr21137.c: Same.
+	* gcc.dg/pr88905.c: Same.
+	* gcc.dg/pr90838.c: Same.
+	* gcc.dg/pr97317.c: Same.
+	* gcc.dg/pr100292.c: Require int32.
+	* gcc.dg/pr101008.c: Same.
+	* gcc.dg/pr96542.c: Same.
+	* gcc.dg/pr96674.c: Same.
+	* gcc.dg/pr97750.c: Require ptr_eq_long.
+
+2023-05-22  Georg-Johann Lay  <avr@gjlay.de>
+
+	* lib/target-supports.exp (check_effective_target_lra) [avr]: Return 0.
+	* gcc.dg/pr19402-2.c: Skip for avr.
+	* gcc.dg/pr86124.c: Same.
+	* gcc.dg/pr94291.c: Same.
+	* gcc.dg/torture/builtin-complex-1.c: Same.
+	* gcc.dg/torture/fp-int-convert-float32x-timode.c: Same.
+	* gcc.dg/torture/fp-int-convert-float32x.c: Same.
+	* gcc.dg/torture/fp-int-convert-float64-timode.c: Same.
+	* gcc.dg/torture/fp-int-convert-float64.c: Same.
+	* gcc.dg/torture/fp-int-convert-long-double.c: Same.
+	* gcc.dg/torture/fp-int-convert-timode.c: Same.
+	* c-c++-common/torture/builtin-convertvector-1.c: Same.
+	* c-c++-common/torture/complex-sign-add.c: Same.
+	* c-c++-common/torture/complex-sign-mixed-add.c: Same.
+	* c-c++-common/torture/complex-sign-mixed-div.c: Same.
+	* c-c++-common/torture/complex-sign-mixed-mul.c: Same.
+	* c-c++-common/torture/complex-sign-mixed-sub.c: Same.
+	* c-c++-common/torture/complex-sign-mul-minus-one.c: Same.
+	* c-c++-common/torture/complex-sign-mul-one.c: Same.
+	* c-c++-common/torture/complex-sign-mul.c: Same.
+	* c-c++-common/torture/complex-sign-sub.c: Same.
+
+2023-05-22  Juzhe-Zhong  <juzhe.zhong@rivai.ai>
+
+	* gcc.target/riscv/rvv/autovec/partial/multiple_rgroup-2.h: Fix
+	typo
+
+2023-05-22  Ju-Zhe Zhong  <juzhe.zhong@rivai.ai>
+
+	* gcc.target/riscv/rvv/autovec/partial/multiple_rgroup-1.c: New
+	test.
+	* gcc.target/riscv/rvv/autovec/partial/multiple_rgroup-1.h: New
+	test.
+	* gcc.target/riscv/rvv/autovec/partial/multiple_rgroup-2.c: New
+	test.
+	* gcc.target/riscv/rvv/autovec/partial/multiple_rgroup-2.h: New
+	test.
+	* gcc.target/riscv/rvv/autovec/partial/multiple_rgroup_run-1.c:
+	New test.
+	* gcc.target/riscv/rvv/autovec/partial/multiple_rgroup_run-2.c:
+	New test.
+
+2023-05-21  Roger Sayle  <roger@nextmovesoftware.com>
+
+	* gcc.target/nvptx/brev-1.c: New 32-bit test case.
+	* gcc.target/nvptx/brev-2.c: Likewise.
+	* gcc.target/nvptx/brevll-1.c: New 64-bit test case.
+	* gcc.target/nvptx/brevll-2.c: Likewise.
+
+2023-05-21  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/109505
+	* gcc.target/aarch64/sve/pr109505.c: New test.
+
+2023-05-21  Pan Li  <pan2.li@intel.com>
+
+	* gcc.target/riscv/rvv/base/misc_vreinterpret_vbool_vint.c: Add
+	test cases for vbool[2|4|8|16|32|64]_t.
+
+2023-05-21  Andrew Pinski  <apinski@marvell.com>
+
+	PR middle-end/109919
+	* gcc.c-torture/compile/pr109919-1.c: New test.
+
+2023-05-20  Triffid Hunter  <triffid.hunter@gmail.com>
+
+	PR target/105753
+	* gcc.target/avr/torture/pr105753.c: New test.
+
+2023-05-20  Die Li  <lidie@eswincomputing.com>
+
+	* gcc.target/riscv/xtheadcondmov-indirect-rv32.c: New test.
+	* gcc.target/riscv/xtheadcondmov-indirect-rv64.c: New test.
+
+2023-05-20  Raphael Moreira Zinsly  <rzinsly@ventanamicro.com>
+
+	* gcc.target/riscv/zbs-bext-02.c: New test.
+
+2023-05-20  Raphael Moreira Zinsly  <rzinsly@ventanamicro.com>
+
+	PR target/106888
+	* gcc.target/riscv/pr106888.c: New test.
+	* gcc.target/riscv/zbbw.c: Check for ANDI.
+
+2023-05-19  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/97340
+	* g++.dg/cpp1y/var-templ80.C: New test.
+	* g++.dg/cpp1y/var-templ81.C: New test.
+
+2023-05-19  Robin Dapp  <rdapp@ventanamicro.com>
+
+	* gcc.target/riscv/rvv/autovec/binop/shift-run.c: Do not include
+	<stdio.h>.
+	* gcc.target/riscv/rvv/autovec/binop/shift-run-template.h: Removed.
+	* gcc.target/riscv/rvv/autovec/binop/vadd-run-template.h: Removed.
+	* gcc.target/riscv/rvv/autovec/binop/vand-run-template.h: Removed.
+	* gcc.target/riscv/rvv/autovec/binop/vdiv-run-template.h: Removed.
+	* gcc.target/riscv/rvv/autovec/binop/vmax-run-template.h: Removed.
+	* gcc.target/riscv/rvv/autovec/binop/vmin-run-template.h: Removed.
+	* gcc.target/riscv/rvv/autovec/binop/vmul-run-template.h: Removed.
+	* gcc.target/riscv/rvv/autovec/binop/vor-run-template.h: Removed.
+	* gcc.target/riscv/rvv/autovec/binop/vrem-run-template.h: Removed.
+	* gcc.target/riscv/rvv/autovec/binop/vsub-run-template.h: Removed.
+	* gcc.target/riscv/rvv/autovec/binop/vxor-run-template.h: Removed.
+
+2023-05-19  Robin Dapp  <rdapp@ventanamicro.com>
+
+	* gcc.target/riscv/rvv/autovec/vmv-imm-fixed-rv32.c: New test.
+	* gcc.target/riscv/rvv/autovec/vmv-imm-fixed-rv64.c: New test.
+
+2023-05-19  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/109908
+	* gm2/isolib/run/pass/testdelete.mod: New test.
+
+2023-05-19  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/105776
+	* gcc.target/i386/pr105776.c: New test.
+
+2023-05-19  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/101856
+	* gcc.dg/tree-ssa/pr101856.c: New test.
+
+2023-05-19  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/specs/array6.ads: New test.
+
+2023-05-19  Joseph Myers  <joseph@codesourcery.com>
+
+	* gcc.dg/c2x-thread-local-2.c: New test.
+
+2023-05-18  Uros Bizjak  <ubizjak@gmail.com>
+
+	* gcc.target/i386/avx512vl-pr95488-1.c: Adjust
+	expected scan-assembler-times frequency and strings..
+	* gcc.target/i386/vect-mulv4qi.c: New test.
+	* gcc.target/i386/vect-mulv8qi.c: New test.
+
+2023-05-18  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR bootstrap/105831
+	* gcc.test-framework/gen_directive_tests: Use = operator instead
+	of ==.
+
+2023-05-18  Stam Markianos-Wright  <stam.markianos-wright@arm.com>
+
+	* gcc.target/arm/mve/intrinsics/srshr.c: Update shift value.
+	* gcc.target/arm/mve/intrinsics/srshrl.c: Update shift value.
+	* gcc.target/arm/mve/intrinsics/uqshl.c: Update shift value.
+	* gcc.target/arm/mve/intrinsics/uqshll.c: Update shift value.
+	* gcc.target/arm/mve/intrinsics/urshr.c: Update shift value.
+	* gcc.target/arm/mve/intrinsics/urshrl.c: Update shift value.
+	* gcc.target/arm/mve/intrinsics/vadciq_m_s32.c: Update to ubfx.
+	* gcc.target/arm/mve/intrinsics/vadciq_m_u32.c: Update to ubfx.
+	* gcc.target/arm/mve/intrinsics/vadciq_s32.c: Update to ubfx.
+	* gcc.target/arm/mve/intrinsics/vadciq_u32.c: Update to ubfx.
+	* gcc.target/arm/mve/intrinsics/vadcq_m_s32.c: Update to ubfx.
+	* gcc.target/arm/mve/intrinsics/vadcq_m_u32.c: Update to ubfx.
+	* gcc.target/arm/mve/intrinsics/vadcq_s32.c: Update to ubfx.
+	* gcc.target/arm/mve/intrinsics/vadcq_u32.c: Update to ubfx.
+	* gcc.target/arm/mve/intrinsics/vsbciq_m_s32.c: Update to ubfx.
+	* gcc.target/arm/mve/intrinsics/vsbciq_m_u32.c: Update to ubfx.
+	* gcc.target/arm/mve/intrinsics/vsbciq_s32.c: Update to ubfx.
+	* gcc.target/arm/mve/intrinsics/vsbciq_u32.c: Update to ubfx.
+	* gcc.target/arm/mve/intrinsics/vsbcq_m_s32.c: Update to ubfx.
+	* gcc.target/arm/mve/intrinsics/vsbcq_m_u32.c: Update to ubfx.
+	* gcc.target/arm/mve/intrinsics/vsbcq_s32.c: Update to ubfx.
+	* gcc.target/arm/mve/intrinsics/vsbcq_u32.c: Update to ubfx.
+	* gcc.target/arm/mve/mve_const_shifts.c: New test.
+
+2023-05-18  Stam Markianos-Wright  <stam.markianos-wright@arm.com>
+
+	PR target/109697
+	* gcc.target/arm/mve/intrinsics/vcmpcsq_n_u16.c: XFAIL check.
+	* gcc.target/arm/mve/intrinsics/vcmpcsq_n_u32.c: XFAIL check.
+	* gcc.target/arm/mve/intrinsics/vcmpcsq_n_u8.c: XFAIL check.
+	* gcc.target/arm/mve/intrinsics/vcmpeqq_n_f16.c: XFAIL check.
+	* gcc.target/arm/mve/intrinsics/vcmpeqq_n_f32.c: XFAIL check.
+	* gcc.target/arm/mve/intrinsics/vcmpeqq_n_u16.c: XFAIL check.
+	* gcc.target/arm/mve/intrinsics/vcmpeqq_n_u32.c: XFAIL check.
+	* gcc.target/arm/mve/intrinsics/vcmpeqq_n_u8.c: XFAIL check.
+	* gcc.target/arm/mve/intrinsics/vcmpgeq_n_f16.c: XFAIL check.
+	* gcc.target/arm/mve/intrinsics/vcmpgeq_n_f32.c: XFAIL check.
+	* gcc.target/arm/mve/intrinsics/vcmpgtq_n_f16.c: XFAIL check.
+	* gcc.target/arm/mve/intrinsics/vcmpgtq_n_f32.c: XFAIL check.
+	* gcc.target/arm/mve/intrinsics/vcmphiq_n_u16.c: XFAIL check.
+	* gcc.target/arm/mve/intrinsics/vcmphiq_n_u32.c: XFAIL check.
+	* gcc.target/arm/mve/intrinsics/vcmphiq_n_u8.c: XFAIL check.
+	* gcc.target/arm/mve/intrinsics/vcmpleq_n_f16.c: XFAIL check.
+	* gcc.target/arm/mve/intrinsics/vcmpleq_n_f32.c: XFAIL check.
+	* gcc.target/arm/mve/intrinsics/vcmpltq_n_f16.c: XFAIL check.
+	* gcc.target/arm/mve/intrinsics/vcmpltq_n_f32.c: XFAIL check.
+	* gcc.target/arm/mve/intrinsics/vcmpneq_n_f16.c: XFAIL check.
+	* gcc.target/arm/mve/intrinsics/vcmpneq_n_f32.c: XFAIL check.
+	* gcc.target/arm/mve/intrinsics/vcmpneq_n_u16.c: XFAIL check.
+	* gcc.target/arm/mve/intrinsics/vcmpneq_n_u32.c: XFAIL check.
+	* gcc.target/arm/mve/intrinsics/vcmpneq_n_u8.c: XFAIL check.
+	* gcc.target/arm/mve/pr108177-1.c: Relax registers.
+	* gcc.target/arm/mve/pr108177-10.c: Relax registers.
+	* gcc.target/arm/mve/pr108177-11.c: Relax registers.
+	* gcc.target/arm/mve/pr108177-12.c: Relax registers.
+	* gcc.target/arm/mve/pr108177-13.c: Relax registers.
+	* gcc.target/arm/mve/pr108177-13-run.c: use mve_fp
+	* gcc.target/arm/mve/pr108177-14.c: Relax registers.
+	* gcc.target/arm/mve/pr108177-14-run.c: use mve_fp
+	* gcc.target/arm/mve/pr108177-2.c: Relax registers.
+	* gcc.target/arm/mve/pr108177-3.c: Relax registers.
+	* gcc.target/arm/mve/pr108177-4.c: Relax registers.
+	* gcc.target/arm/mve/pr108177-5.c: Relax registers.
+	* gcc.target/arm/mve/pr108177-6.c: Relax registers.
+	* gcc.target/arm/mve/pr108177-7.c: Relax registers.
+	* gcc.target/arm/mve/pr108177-8.c: Relax registers.
+	* gcc.target/arm/mve/pr108177-9.c: Relax registers.
+
+2023-05-18  Stam Markianos-Wright  <stam.markianos-wright@arm.com>
+
+	* gcc.target/arm/mve/intrinsics/mve_fp_vaddq_n.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vaddq_m.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vaddq_n.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vddupq_m_n_u16.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vddupq_m_n_u32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vddupq_m_n_u8.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vddupq_n_u16.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vddupq_n_u32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vddupq_n_u8.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vddupq_x_n_u16.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vddupq_x_n_u32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vddupq_x_n_u8.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vdwdupq_x_n_u16.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vdwdupq_x_n_u32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vdwdupq_x_n_u8.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vidupq_m_n_u16.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vidupq_m_n_u32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vidupq_m_n_u8.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vidupq_n_u16.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vidupq_n_u32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vidupq_n_u8.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vidupq_x_n_u16.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vidupq_x_n_u32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vidupq_x_n_u8.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_viwdupq_x_n_u16.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_viwdupq_x_n_u32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_viwdupq_x_n_u8.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrdq_gather_offset_s64.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrdq_gather_offset_u64.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrdq_gather_offset_z_s64.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrdq_gather_offset_z_u64.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrdq_gather_shifted_offset_s64.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrdq_gather_shifted_offset_u64.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrdq_gather_shifted_offset_z_s64.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrdq_gather_shifted_offset_z_u64.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrhq_gather_offset_f16.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrhq_gather_offset_s16.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrhq_gather_offset_s32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrhq_gather_offset_u16.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrhq_gather_offset_u32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrhq_gather_offset_z_f16.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrhq_gather_offset_z_s16.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrhq_gather_offset_z_s32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrhq_gather_offset_z_u16.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrhq_gather_offset_z_u32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrhq_gather_shifted_offset_f16.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrhq_gather_shifted_offset_s16.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrhq_gather_shifted_offset_s32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrhq_gather_shifted_offset_u16.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrhq_gather_shifted_offset_u32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrhq_gather_shifted_offset_z_f16.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrhq_gather_shifted_offset_z_s16.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrhq_gather_shifted_offset_z_s32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrhq_gather_shifted_offset_z_u16.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrhq_gather_shifted_offset_z_u32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrwq_gather_offset_f32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrwq_gather_offset_s32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrwq_gather_offset_u32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrwq_gather_offset_z_f32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrwq_gather_offset_z_s32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrwq_gather_offset_z_u32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrwq_gather_shifted_offset_f32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrwq_gather_shifted_offset_s32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrwq_gather_shifted_offset_u32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrwq_gather_shifted_offset_z_f32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrwq_gather_shifted_offset_z_s32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vldrwq_gather_shifted_offset_z_u32.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vstore_scatter_shifted_offset.c: Removed.
+	* gcc.target/arm/mve/intrinsics/mve_vstore_scatter_shifted_offset_p.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vaddq_m_n_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vaddq_m_n_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vaddq_x_n_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vaddq_x_n_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vcmpeqq_m_n_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vcmpeqq_m_n_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vcmpeqq_n_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vcmpeqq_n_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vcmpgeq_m_n_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vcmpgeq_m_n_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vcmpgeq_n_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vcmpgeq_n_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vcmpgtq_m_n_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vcmpgtq_m_n_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vcmpgtq_n_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vcmpgtq_n_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vcmpleq_m_n_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vcmpleq_m_n_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vcmpleq_n_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vcmpleq_n_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vcmpltq_m_n_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vcmpltq_m_n_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vcmpltq_n_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vcmpltq_n_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vcmpneq_m_n_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vcmpneq_m_n_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vcmpneq_n_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vcmpneq_n_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vfmaq_m_n_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vfmaq_m_n_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vfmaq_n_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vfmaq_n_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vfmasq_m_n_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vfmasq_m_n_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vfmasq_n_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vfmasq_n_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vmaxnmavq_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vmaxnmavq_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vmaxnmavq_p_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vmaxnmavq_p_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vmaxnmvq_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vmaxnmvq_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vmaxnmvq_p_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vmaxnmvq_p_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vminnmavq_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vminnmavq_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vminnmavq_p_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vminnmavq_p_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vminnmvq_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vminnmvq_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vminnmvq_p_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vminnmvq_p_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vmulq_m_n_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vmulq_m_n_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vmulq_n_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vmulq_n_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vmulq_x_n_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vmulq_x_n_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vsetq_lane_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vsetq_lane_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vsubq_m_n_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vsubq_m_n_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vsubq_n_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vsubq_n_f32-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vsubq_x_n_f16-1.c: Removed.
+	* gcc.target/arm/mve/intrinsics/vsubq_x_n_f32-1.c: Removed.
+
+2023-05-18  Stam Markianos-Wright  <stam.markianos-wright@arm.com>
+
+	* gcc.target/arm/mve/intrinsics/mve_intrinsic_type_overloads-fp.c: Add testcases.
+	* gcc.target/arm/mve/intrinsics/mve_intrinsic_type_overloads-int.c: Add testcases.
+
+2023-05-18  Stam Markianos-Wright  <stam.markianos-wright@arm.com>
+
+	* gcc.target/arm/mve/mve_vadcq_vsbcq_fpscr_overwrite.c: New.
+
+2023-05-18  Andrea Corallo  <andrea.corallo@arm.com>
+
+	* gcc.target/arm/mve/intrinsics/asrl.c: Use
+	check-function-bodies instead of scan-assembler checks.  Use
+	extern "C" for C++ testing.
+	* gcc.target/arm/mve/intrinsics/lsll.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/sqrshr.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/sqrshrl_sat48.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/sqshl.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/sqshll.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/srshr.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/srshrl.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/uqrshl.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/uqrshll_sat48.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/uqshl.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/uqshll.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/urshr.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/urshrl.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vadciq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vadciq_m_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vadciq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vadciq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vadcq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vadcq_m_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vadcq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vadcq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vandq_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vandq_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vandq_m_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vandq_m_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vandq_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vandq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vandq_m_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vandq_m_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vandq_m_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vandq_m_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vandq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vandq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vandq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vandq_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vandq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vandq_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vandq_x_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vandq_x_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vandq_x_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vandq_x_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vandq_x_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vandq_x_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vandq_x_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vandq_x_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_m_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_m_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_m_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_m_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_m_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_m_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_m_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_m_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_x_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_x_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_x_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_x_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_x_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_x_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_x_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbicq_x_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbrsrq_m_n_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbrsrq_m_n_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbrsrq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbrsrq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbrsrq_m_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbrsrq_m_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbrsrq_m_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbrsrq_m_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbrsrq_n_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbrsrq_n_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbrsrq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbrsrq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbrsrq_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbrsrq_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbrsrq_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbrsrq_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbrsrq_x_n_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbrsrq_x_n_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbrsrq_x_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbrsrq_x_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbrsrq_x_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbrsrq_x_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbrsrq_x_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vbrsrq_x_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcmpgtq_n_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vctp16q.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vctp16q_m.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vctp32q.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vctp32q_m.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vctp64q.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vctp64q_m.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vctp8q.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vctp8q_m.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtaq_m_s16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtaq_m_s32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtaq_m_u16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtaq_m_u32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtaq_s16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtaq_s32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtaq_u16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtaq_u32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtaq_x_s16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtaq_x_s32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtaq_x_u16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtaq_x_u32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtbq_f16_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtbq_f32_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtbq_m_f16_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtbq_m_f32_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtbq_x_f32_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtmq_m_s16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtmq_m_s32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtmq_m_u16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtmq_m_u32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtmq_s16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtmq_s32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtmq_u16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtmq_u32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtmq_x_s16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtmq_x_s32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtmq_x_u16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtmq_x_u32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtnq_m_s16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtnq_m_s32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtnq_m_u16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtnq_m_u32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtnq_s16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtnq_s32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtnq_u16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtnq_u32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtnq_x_s16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtnq_x_s32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtnq_x_u16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtnq_x_u32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtpq_m_s16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtpq_m_s32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtpq_m_u16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtpq_m_u32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtpq_s16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtpq_s32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtpq_u16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtpq_u32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtpq_x_s16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtpq_x_s32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtpq_x_u16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtpq_x_u32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_f16_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_f16_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_f32_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_f32_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_m_f16_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_m_f16_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_m_f32_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_m_f32_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_m_n_f16_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_m_n_f16_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_m_n_f32_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_m_n_f32_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_m_n_s16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_m_n_s32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_m_n_u16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_m_n_u32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_m_s16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_m_s32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_m_u16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_m_u32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_n_f16_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_n_f16_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_n_f32_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_n_f32_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_n_s16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_n_s32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_n_u16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_n_u32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_s16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_s32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_u16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_u32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_x_f16_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_x_f16_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_x_f32_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_x_f32_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_x_n_f16_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_x_n_f16_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_x_n_f32_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_x_n_f32_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_x_n_s16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_x_n_s32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_x_n_u16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_x_n_u32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_x_s16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_x_s32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_x_u16_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvtq_x_u32_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvttq_f16_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvttq_f32_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvttq_m_f16_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvttq_m_f32_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vcvttq_x_f32_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/veorq_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/veorq_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/veorq_m_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/veorq_m_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/veorq_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/veorq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/veorq_m_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/veorq_m_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/veorq_m_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/veorq_m_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/veorq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/veorq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/veorq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/veorq_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/veorq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/veorq_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/veorq_x_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/veorq_x_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/veorq_x_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/veorq_x_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/veorq_x_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/veorq_x_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/veorq_x_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/veorq_x_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vfmaq_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vfmaq_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vfmaq_m_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vfmaq_m_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vfmaq_m_n_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vfmaq_m_n_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vfmaq_n_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vfmaq_n_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vfmasq_m_n_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vfmasq_m_n_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vfmasq_n_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vfmasq_n_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vfmsq_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vfmsq_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vfmsq_m_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vfmsq_m_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vhcaddq_rot270_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vhcaddq_rot270_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vhcaddq_rot270_m_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vhcaddq_rot270_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vhcaddq_rot270_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vhcaddq_rot270_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vhcaddq_rot270_x_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vhcaddq_rot270_x_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vhcaddq_rot270_x_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vhcaddq_rot90_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vhcaddq_rot90_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vhcaddq_rot90_m_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vhcaddq_rot90_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vhcaddq_rot90_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vhcaddq_rot90_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vhcaddq_rot90_x_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vhcaddq_rot90_x_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vhcaddq_rot90_x_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmladavq_p_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmladavq_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmladavq_p_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmladavq_p_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmladavq_p_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmladavq_p_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmladavq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmladavq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmladavq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmladavq_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmladavq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmladavq_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmladavxq_p_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmladavxq_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmladavxq_p_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmladavxq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmladavxq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmladavxq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaldavaq_p_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaldavaq_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaldavaq_p_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaldavaq_p_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaldavaq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaldavaq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaldavaq_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaldavaq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaldavaxq_p_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaldavaxq_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaldavaxq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaldavaxq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaldavq_p_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaldavq_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaldavq_p_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaldavq_p_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaldavq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaldavq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaldavq_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaldavq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaldavxq_p_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaldavxq_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaldavxq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaldavxq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaq_m_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaq_m_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaq_m_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaq_m_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaq_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaq_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaq_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlaq_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsdavaq_p_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsdavaq_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsdavaq_p_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsdavaq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsdavaq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsdavaq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsdavaxq_p_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsdavaxq_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsdavaxq_p_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsdavaxq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsdavaxq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsdavaxq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsdavq_p_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsdavq_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsdavq_p_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsdavq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsdavq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsdavq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsdavxq_p_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsdavxq_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsdavxq_p_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsdavxq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsdavxq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsdavxq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsldavaq_p_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsldavaq_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsldavaq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsldavaq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsldavaxq_p_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsldavaxq_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsldavaxq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsldavaxq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsldavq_p_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsldavq_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsldavq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsldavq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsldavxq_p_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsldavxq_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsldavxq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmlsldavxq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovlbq_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovlbq_m_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovlbq_m_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovlbq_m_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovlbq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovlbq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovlbq_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovlbq_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovlbq_x_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovlbq_x_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovlbq_x_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovlbq_x_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovltq_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovltq_m_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovltq_m_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovltq_m_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovltq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovltq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovltq_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovltq_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovltq_x_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovltq_x_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovltq_x_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovltq_x_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovnbq_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovnbq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovnbq_m_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovnbq_m_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovnbq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovnbq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovnbq_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovnbq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovntq_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovntq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovntq_m_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovntq_m_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovntq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovntq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovntq_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmovntq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_m_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_m_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_m_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_m_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_m_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_m_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_x_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_x_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_x_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_x_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_x_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_x_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_x_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_x_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_x_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vmvnq_x_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vornq_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vornq_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vornq_m_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vornq_m_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vornq_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vornq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vornq_m_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vornq_m_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vornq_m_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vornq_m_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vornq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vornq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vornq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vornq_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vornq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vornq_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vornq_x_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vornq_x_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vornq_x_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vornq_x_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vornq_x_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vornq_x_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vornq_x_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vornq_x_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_m_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_m_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_m_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_m_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_m_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_m_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_m_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_m_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_x_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_x_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_x_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_x_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_x_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_x_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_x_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vorrq_x_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vpnot.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vpselq_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vpselq_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vpselq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vpselq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vpselq_s64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vpselq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vpselq_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vpselq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vpselq_u64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vpselq_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqmovnbq_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqmovnbq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqmovnbq_m_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqmovnbq_m_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqmovnbq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqmovnbq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqmovnbq_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqmovnbq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqmovntq_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqmovntq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqmovntq_m_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqmovntq_m_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqmovntq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqmovntq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqmovntq_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqmovntq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqmovunbq_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqmovunbq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqmovunbq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqmovunbq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqmovuntq_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqmovuntq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqmovuntq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqmovuntq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmladhq_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmladhq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmladhq_m_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmladhq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmladhq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmladhq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmladhxq_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmladhxq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmladhxq_m_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmladhxq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmladhxq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmladhxq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmlahq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmlahq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmlahq_m_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmlahq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmlahq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmlahq_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmlashq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmlashq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmlashq_m_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmlashq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmlashq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmlashq_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmlsdhq_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmlsdhq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmlsdhq_m_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmlsdhq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmlsdhq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmlsdhq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmlsdhxq_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmlsdhxq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmlsdhxq_m_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmlsdhxq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmlsdhxq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmlsdhxq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmulhq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmulhq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmulhq_m_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmulhq_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmulhq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmulhq_m_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmulhq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmulhq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmulhq_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmulhq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmulhq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrdmulhq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshlq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshlq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshlq_m_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshlq_m_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshlq_m_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshlq_m_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshlq_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshlq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshlq_m_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshlq_m_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshlq_m_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshlq_m_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshlq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshlq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshlq_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshlq_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshlq_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshlq_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshlq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshlq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshlq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshlq_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshlq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshlq_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshrnbq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshrnbq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshrnbq_m_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshrnbq_m_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshrnbq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshrnbq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshrnbq_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshrnbq_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshrntq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshrntq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshrntq_m_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshrntq_m_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshrntq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshrntq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshrntq_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshrntq_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshrunbq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshrunbq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshrunbq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshrunbq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshruntq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshruntq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshruntq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqrshruntq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_m_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_m_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_m_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_m_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_m_r_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_m_r_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_m_r_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_m_r_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_m_r_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_m_r_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_m_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_m_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_m_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_m_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_r_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_r_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_r_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_r_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_r_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_r_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshlq_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshluq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshluq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshluq_m_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshluq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshluq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshluq_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshrnbq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshrnbq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshrnbq_m_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshrnbq_m_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshrnbq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshrnbq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshrnbq_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshrnbq_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshrntq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshrntq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshrntq_m_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshrntq_m_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshrntq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshrntq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshrntq_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshrntq_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshrunbq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshrunbq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshrunbq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshrunbq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshruntq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshruntq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshruntq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqshruntq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqsubq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqsubq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqsubq_m_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqsubq_m_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqsubq_m_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqsubq_m_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqsubq_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqsubq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqsubq_m_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqsubq_m_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqsubq_m_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqsubq_m_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqsubq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqsubq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqsubq_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqsubq_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqsubq_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqsubq_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqsubq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqsubq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqsubq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqsubq_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqsubq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vqsubq_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev16q_m_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev16q_m_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev16q_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev16q_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev16q_x_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev16q_x_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev32q_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev32q_m_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev32q_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev32q_m_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev32q_m_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev32q_m_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev32q_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev32q_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev32q_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev32q_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev32q_x_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev32q_x_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev32q_x_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev32q_x_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev32q_x_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev64q_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev64q_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev64q_m_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev64q_m_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev64q_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev64q_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev64q_m_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev64q_m_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev64q_m_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev64q_m_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev64q_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev64q_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev64q_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev64q_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev64q_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev64q_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev64q_x_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev64q_x_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev64q_x_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev64q_x_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev64q_x_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev64q_x_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev64q_x_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrev64q_x_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrhaddq_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrhaddq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrhaddq_m_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrhaddq_m_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrhaddq_m_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrhaddq_m_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrhaddq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrhaddq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrhaddq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrhaddq_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrhaddq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrhaddq_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrhaddq_x_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrhaddq_x_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrhaddq_x_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrhaddq_x_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrhaddq_x_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrhaddq_x_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmlaldavhaq_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmlaldavhaq_p_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmlaldavhaq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmlaldavhaq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmlaldavhaxq_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmlaldavhaxq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmlaldavhq_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmlaldavhq_p_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmlaldavhq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmlaldavhq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmlaldavhxq_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmlaldavhxq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmlsldavhaq_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmlsldavhaq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmlsldavhaxq_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmlsldavhaxq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmlsldavhq_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmlsldavhq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmlsldavhxq_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmlsldavhxq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmulhq_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmulhq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmulhq_m_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmulhq_m_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmulhq_m_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmulhq_m_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmulhq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmulhq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmulhq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmulhq_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmulhq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmulhq_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmulhq_x_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmulhq_x_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmulhq_x_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmulhq_x_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmulhq_x_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrmulhq_x_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndaq_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndaq_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndaq_m_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndaq_m_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndaq_x_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndaq_x_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndmq_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndmq_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndmq_m_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndmq_m_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndmq_x_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndmq_x_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndnq_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndnq_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndnq_m_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndnq_m_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndnq_x_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndnq_x_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndpq_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndpq_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndpq_m_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndpq_m_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndpq_x_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndpq_x_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndq_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndq_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndq_m_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndq_m_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndq_x_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndq_x_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndxq_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndxq_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndxq_m_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndxq_m_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndxq_x_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrndxq_x_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrnbq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrnbq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrnbq_m_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrnbq_m_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrnbq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrnbq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrnbq_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrnbq_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrntq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrntq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrntq_m_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrntq_m_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrntq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrntq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrntq_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrntq_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrq_m_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrq_m_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrq_m_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrq_m_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrq_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrq_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrq_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrq_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrq_x_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrq_x_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrq_x_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrq_x_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrq_x_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vrshrq_x_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsbciq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsbciq_m_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsbciq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsbciq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsbcq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsbcq_m_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsbcq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsbcq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlcq_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlcq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlcq_m_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlcq_m_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlcq_m_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlcq_m_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlcq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlcq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlcq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlcq_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlcq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlcq_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshllbq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshllbq_m_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshllbq_m_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshllbq_m_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshllbq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshllbq_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshllbq_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshllbq_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshllbq_x_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshllbq_x_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshllbq_x_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshllbq_x_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlltq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlltq_m_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlltq_m_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlltq_m_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlltq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlltq_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlltq_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlltq_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlltq_x_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlltq_x_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlltq_x_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlltq_x_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_m_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_m_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_m_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_m_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_m_r_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_m_r_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_m_r_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_m_r_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_m_r_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_m_r_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_m_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_m_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_m_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_m_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_m_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_m_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_r_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_r_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_r_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_r_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_r_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_r_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_x_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_x_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_x_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_x_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_x_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_x_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_x_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_x_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_x_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_x_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_x_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshlq_x_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrnbq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrnbq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrnbq_m_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrnbq_m_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrnbq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrnbq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrnbq_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrnbq_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrntq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrntq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrntq_m_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrntq_m_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrntq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrntq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrntq_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrntq_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrq_m_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrq_m_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrq_m_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrq_m_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrq_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrq_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrq_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrq_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrq_x_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrq_x_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrq_x_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrq_x_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vshrq_x_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsliq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsliq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsliq_m_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsliq_m_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsliq_m_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsliq_m_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsliq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsliq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsliq_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsliq_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsliq_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsliq_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsriq_m_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsriq_m_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsriq_m_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsriq_m_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsriq_m_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsriq_m_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsriq_n_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsriq_n_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsriq_n_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsriq_n_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsriq_n_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vsriq_n_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst1q_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst1q_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst1q_p_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst1q_p_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst1q_p_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst1q_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst1q_p_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst1q_p_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst1q_p_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst1q_p_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst1q_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst1q_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst1q_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst1q_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst1q_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst1q_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrdq_scatter_base_p_s64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrdq_scatter_base_p_u64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrdq_scatter_base_s64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrdq_scatter_base_u64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrdq_scatter_base_wb_p_s64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrdq_scatter_base_wb_p_u64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrdq_scatter_base_wb_s64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrdq_scatter_base_wb_u64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrdq_scatter_offset_p_s64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrdq_scatter_offset_p_u64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrdq_scatter_offset_s64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrdq_scatter_offset_u64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrdq_scatter_shifted_offset_p_s64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrdq_scatter_shifted_offset_p_u64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrdq_scatter_shifted_offset_s64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrdq_scatter_shifted_offset_u64.c: Likewise.
+
+2023-05-18  Andrea Corallo  <andrea.corallo@arm.com>
+
+	* gcc.target/arm/mve/intrinsics/vstrwq_f32.c: Use
+	check-function-bodies instead of scan-assembler checks.  Use
+	extern "C" for C++ testing.
+	* gcc.target/arm/mve/intrinsics/vstrwq_p_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_p_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_scatter_base_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_scatter_base_p_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_scatter_base_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_scatter_base_p_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_scatter_base_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_scatter_base_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_scatter_base_wb_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_scatter_base_wb_p_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_scatter_base_wb_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_scatter_base_wb_p_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_scatter_base_wb_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_scatter_base_wb_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_scatter_offset_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_scatter_offset_p_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_scatter_offset_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_scatter_offset_p_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_scatter_offset_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_scatter_offset_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_scatter_shifted_offset_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_scatter_shifted_offset_p_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_scatter_shifted_offset_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_scatter_shifted_offset_p_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_scatter_shifted_offset_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_scatter_shifted_offset_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrwq_u32.c: Likewise.
+
+2023-05-18  Andrea Corallo  <andrea.corallo@arm.com>
+
+	* gcc.target/arm/mve/intrinsics/vld1q_f16.c: Use
+	check-function-bodies instead of scan-assembler checks.  Use
+	extern "C" for C++ testing.
+	* gcc.target/arm/mve/intrinsics/vld1q_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vld1q_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vld1q_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vld1q_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vld1q_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vld1q_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vld1q_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vld1q_z_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vld1q_z_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vld1q_z_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vld1q_z_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vld1q_z_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vld1q_z_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vld1q_z_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vld1q_z_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vld4q_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vld4q_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vld4q_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vld4q_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vld4q_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vld4q_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vld4q_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vld4q_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrbq_gather_offset_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrbq_gather_offset_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrbq_gather_offset_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrbq_gather_offset_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrbq_gather_offset_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrbq_gather_offset_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrbq_gather_offset_z_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrbq_gather_offset_z_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrbq_gather_offset_z_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrbq_gather_offset_z_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrbq_gather_offset_z_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrbq_gather_offset_z_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrbq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrbq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrbq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrbq_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrbq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrbq_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrbq_z_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrbq_z_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrbq_z_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrbq_z_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrbq_z_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrbq_z_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrdq_gather_base_s64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrdq_gather_base_u64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrdq_gather_base_wb_s64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrdq_gather_base_wb_u64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrdq_gather_base_wb_z_s64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrdq_gather_base_wb_z_u64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrdq_gather_base_z_s64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrdq_gather_base_z_u64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrdq_gather_offset_s64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrdq_gather_offset_u64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrdq_gather_offset_z_s64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrdq_gather_offset_z_u64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrdq_gather_shifted_offset_s64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrdq_gather_shifted_offset_u64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrdq_gather_shifted_offset_z_s64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrdq_gather_shifted_offset_z_u64.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_gather_offset_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_gather_offset_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_gather_offset_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_gather_offset_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_gather_offset_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_gather_offset_z_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_gather_offset_z_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_gather_offset_z_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_gather_offset_z_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_gather_offset_z_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_gather_shifted_offset_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_gather_shifted_offset_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_gather_shifted_offset_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_gather_shifted_offset_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_gather_shifted_offset_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_gather_shifted_offset_z_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_gather_shifted_offset_z_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_gather_shifted_offset_z_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_gather_shifted_offset_z_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_gather_shifted_offset_z_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_z_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_z_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_z_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_z_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrhq_z_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_gather_base_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_gather_base_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_gather_base_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_gather_base_wb_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_gather_base_wb_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_gather_base_wb_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_gather_base_wb_z_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_gather_base_wb_z_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_gather_base_wb_z_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_gather_base_z_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_gather_base_z_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_gather_base_z_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_gather_offset_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_gather_offset_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_gather_offset_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_gather_offset_z_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_gather_offset_z_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_gather_offset_z_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_gather_shifted_offset_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_gather_shifted_offset_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_gather_shifted_offset_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_gather_shifted_offset_z_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_gather_shifted_offset_z_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_gather_shifted_offset_z_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_z_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_z_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vldrwq_z_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst2q_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst2q_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst2q_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst2q_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst2q_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst2q_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst2q_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst2q_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst4q_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst4q_f32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst4q_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst4q_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst4q_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst4q_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst4q_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vst4q_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrbq_p_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrbq_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrbq_p_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrbq_p_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrbq_p_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrbq_p_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrbq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrbq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrbq_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrbq_scatter_offset_p_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrbq_scatter_offset_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrbq_scatter_offset_p_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrbq_scatter_offset_p_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrbq_scatter_offset_p_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrbq_scatter_offset_p_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrbq_scatter_offset_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrbq_scatter_offset_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrbq_scatter_offset_s8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrbq_scatter_offset_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrbq_scatter_offset_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrbq_scatter_offset_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrbq_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrbq_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrbq_u8.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_p_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_p_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_p_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_p_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_scatter_offset_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_scatter_offset_p_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_scatter_offset_p_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_scatter_offset_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_scatter_offset_p_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_scatter_offset_p_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_scatter_offset_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_scatter_offset_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_scatter_offset_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_scatter_offset_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_scatter_shifted_offset_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_scatter_shifted_offset_p_f16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_scatter_shifted_offset_p_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_scatter_shifted_offset_p_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_scatter_shifted_offset_p_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_scatter_shifted_offset_p_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_scatter_shifted_offset_s16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_scatter_shifted_offset_s32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_scatter_shifted_offset_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_scatter_shifted_offset_u32.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_u16.c: Likewise.
+	* gcc.target/arm/mve/intrinsics/vstrhq_u32.c: Likewise.
+
+2023-05-18  Joseph Myers  <joseph@codesourcery.com>
+
+	* gcc.dg/format/c2x-printf-1.c: Test %B here.
+	* gcc.dg/format/ext-9.c: Do not test %B here.
+
+2023-05-17  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/95374
+	PR fortran/104352
+	* gfortran.dg/zero_sized_13.f90: New test.
+
+2023-05-17  Jivan Hakobyan  <jivanhakobyan9@gmail.com>
+
+	* gcc.target/riscv/shift-and-2.c: Fixed test
+	* gcc.target/riscv/zbb-rol-ror-01.c: New test
+	* gcc.target/riscv/zbb-rol-ror-02.c: New test
+	* gcc.target/riscv/zbb-rol-ror-03.c: New test
+	* gcc.target/riscv/zbb-rol-ror-04.c: New test
+	* gcc.target/riscv/zbb-rol-ror-05.c: New test
+	* gcc.target/riscv/zbb-rol-ror-06.c: New test
+	* gcc.target/riscv/zbb-rol-ror-07.c: New test
+
+2023-05-17  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/109884
+	* c-c++-common/pr109884.c: New test.
+
+2023-05-17  Juzhe-Zhong  <juzhe.zhong@rivai.ai>
+
+	* gcc.target/riscv/rvv/base/vxrm-10.c: New test.
+	* gcc.target/riscv/rvv/base/vxrm-6.c: New test.
+	* gcc.target/riscv/rvv/base/vxrm-7.c: New test.
+	* gcc.target/riscv/rvv/base/vxrm-8.c: New test.
+	* gcc.target/riscv/rvv/base/vxrm-9.c: New test.
+
+2023-05-17  Juzhe-Zhong  <juzhe.zhong@rivai.ai>
+
+	* g++.target/riscv/rvv/base/bug-11.C: Adapt testcase.
+	* g++.target/riscv/rvv/base/bug-12.C: Ditto.
+	* g++.target/riscv/rvv/base/bug-14.C: Ditto.
+	* g++.target/riscv/rvv/base/bug-15.C: Ditto.
+	* g++.target/riscv/rvv/base/bug-16.C: Ditto.
+	* g++.target/riscv/rvv/base/bug-17.C: Ditto.
+	* g++.target/riscv/rvv/base/bug-18.C: Ditto.
+	* g++.target/riscv/rvv/base/bug-19.C: Ditto.
+	* g++.target/riscv/rvv/base/bug-20.C: Ditto.
+	* g++.target/riscv/rvv/base/bug-21.C: Ditto.
+	* g++.target/riscv/rvv/base/bug-22.C: Ditto.
+	* g++.target/riscv/rvv/base/bug-23.C: Ditto.
+	* g++.target/riscv/rvv/base/bug-3.C: Ditto.
+	* g++.target/riscv/rvv/base/bug-5.C: Ditto.
+	* g++.target/riscv/rvv/base/bug-6.C: Ditto.
+	* g++.target/riscv/rvv/base/bug-8.C: Ditto.
+	* gcc.target/riscv/rvv/base/binop_vx_constraint-100.c: Ditto.
+	* gcc.target/riscv/rvv/base/binop_vx_constraint-101.c: Ditto.
+	* gcc.target/riscv/rvv/base/binop_vx_constraint-102.c: Ditto.
+	* gcc.target/riscv/rvv/base/binop_vx_constraint-103.c: Ditto.
+	* gcc.target/riscv/rvv/base/binop_vx_constraint-104.c: Ditto.
+	* gcc.target/riscv/rvv/base/binop_vx_constraint-105.c: Ditto.
+	* gcc.target/riscv/rvv/base/binop_vx_constraint-106.c: Ditto.
+	* gcc.target/riscv/rvv/base/binop_vx_constraint-107.c: Ditto.
+	* gcc.target/riscv/rvv/base/binop_vx_constraint-108.c: Ditto.
+	* gcc.target/riscv/rvv/base/binop_vx_constraint-109.c: Ditto.
+	* gcc.target/riscv/rvv/base/binop_vx_constraint-110.c: Ditto.
+	* gcc.target/riscv/rvv/base/binop_vx_constraint-111.c: Ditto.
+	* gcc.target/riscv/rvv/base/binop_vx_constraint-112.c: Ditto.
+	* gcc.target/riscv/rvv/base/binop_vx_constraint-113.c: Ditto.
+	* gcc.target/riscv/rvv/base/binop_vx_constraint-114.c: Ditto.
+	* gcc.target/riscv/rvv/base/binop_vx_constraint-115.c: Ditto.
+	* gcc.target/riscv/rvv/base/binop_vx_constraint-116.c: Ditto.
+	* gcc.target/riscv/rvv/base/binop_vx_constraint-117.c: Ditto.
+	* gcc.target/riscv/rvv/base/binop_vx_constraint-118.c: Ditto.
+	* gcc.target/riscv/rvv/base/binop_vx_constraint-119.c: Ditto.
+	* gcc.target/riscv/rvv/base/binop_vx_constraint-122.c: Ditto.
+	* gcc.target/riscv/rvv/base/binop_vx_constraint-97.c: Ditto.
+	* gcc.target/riscv/rvv/base/binop_vx_constraint-98.c: Ditto.
+	* gcc.target/riscv/rvv/base/merge_constraint-1.c: Ditto.
+	* gcc.target/riscv/rvv/base/narrow_constraint-6.c: Ditto.
+	* gcc.target/riscv/rvv/base/narrow_constraint-7.c: Ditto.
+	* gcc.target/riscv/rvv/base/narrow_constraint-8.c: Ditto.
+	* gcc.target/riscv/rvv/base/narrow_constraint-9.c: Ditto.
+	* gcc.target/riscv/rvv/base/vxrm-2.c: New test.
+	* gcc.target/riscv/rvv/base/vxrm-3.c: New test.
+	* gcc.target/riscv/rvv/base/vxrm-4.c: New test.
+	* gcc.target/riscv/rvv/base/vxrm-5.c: New test.
+
+2023-05-17  Juzhe-Zhong  <juzhe.zhong@rivai.ai>
+
+	* gcc.target/riscv/rvv/base/vxrm-1.c: New test.
+
+2023-05-17  Tobias Burnus  <tobias@codesourcery.com>
+
+	* gfortran.dg/goacc/finalize-1.f: Update dg-tree; shows a fix
+	for 'finalize' as a ptr is now 'delete' instead of 'release'.
+	* gfortran.dg/gomp/pr78260-2.f90: Likewise as elem-size calc moved
+	to if (allocated) block
+	* gfortran.dg/gomp/target-exit-data.f90: Likewise as a var is now a
+	replaced by a MEM< _25 > expression.
+	* gfortran.dg/gomp/map-9.f90: Update dg-scan-tree-dump.
+	* gfortran.dg/gomp/map-10.f90: New test.
+
+2023-05-17  Stefan Schulze Frielinghaus  <stefansf@linux.ibm.com>
+
+	* g++.target/s390/atomic-align-1.C: New test.
+	* gcc.target/s390/atomic-align-1.c: New test.
+	* gcc.target/s390/atomic-align-2.c: New test.
+
+2023-05-17  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/109868
+	* g++.dg/init/pr109868.C: New test.
+
+2023-05-17  Pan Li  <pan2.li@intel.com>
+
+	* gcc.target/riscv/rvv/base/misc_vreinterpret_vbool_vint.c: New test.
+
+2023-05-17  Jiufu Guo  <guojiufu@linux.ibm.com>
+
+	PR target/106708
+	* gcc.target/powerpc/pr106708.c: Add test function.
+
+2023-05-16  Joseph Myers  <joseph@codesourcery.com>
+
+	* gcc.dg/c11-fordecl-1.c, gcc.dg/c11-fordecl-2.c,
+	gcc.dg/c11-fordecl-3.c, gcc.dg/c11-fordecl-4.c,
+	gcc.dg/c2x-fordecl-1.c, gcc.dg/c2x-fordecl-2.c,
+	gcc.dg/c2x-fordecl-3.c, gcc.dg/c2x-fordecl-4.c: New tests.
+	* gcc.dg/c99-fordecl-2.c: Test diagnostic for typedef declaration
+	in for loop here.
+	* gcc.dg/pr67784-2.c, gcc.dg/pr68320.c, objc.dg/foreach-7.m: Do
+	not expect errors for typedef declaration in for loop.
+
+2023-05-16  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/109879
+	* gm2/isolib/run/pass/testreadint.mod: New test.
+
+2023-05-16  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/109774
+	* g++.dg/warn/Wdangling-reference13.C: New test.
+
+2023-05-16  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/109871
+	* g++.dg/cpp2a/desig27.C: New test.
+
+2023-05-16  Carl Love  <cel@us.ibm.com>
+
+	* gcc.target/powerpc/int_128bit-runnable.c: Update expected
+	instruction counts.
+
+2023-05-16  Carl Love  <cel@us.ibm.com>
+
+	* gcc.target/powerpc/rs6000-fpint.c: Update dg-options, drop dg-do
+	compile specifier.
+
+2023-05-16  Richard Sandiford  <richard.sandiford@arm.com>
+
+	* gcc.target/aarch64/advsimd-intrinsics/bfdot-2.c: Allow mves
+	to occur after the intrinsic instruction, rather than requiring
+	them to happen before.
+	* gcc.target/aarch64/advsimd-intrinsics/vdot-3-2.c: Likewise.
+
+2023-05-16  Pan Li  <pan2.li@intel.com>
+
+	* gcc.target/riscv/rvv/autovec/binop/shift-scalar-template.h:
+	Replace stdint.h with stdint-gcc.h.
+	* gcc.target/riscv/rvv/autovec/binop/shift-template.h: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vadd-template.h: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vand-template.h: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vdiv-template.h: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vmax-template.h: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vmin-template.h: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vmul-template.h: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vor-template.h: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vrem-template.h: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vsub-template.h: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vxor-template.h: Ditto.
+	* gcc.target/riscv/rvv/autovec/series-1.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vmv-imm-run.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vmv-imm-template.h: Ditto.
+
+2023-05-16  Stefan Schulze Frielinghaus  <stefansf@linux.ibm.com>
+
+	* gcc.target/s390/memset-1.c: Test case memset1 makes use of
+	vst, now.
+
+2023-05-16  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/105152
+	PR fortran/100193
+	PR fortran/87946
+	PR fortran/103389
+	PR fortran/104429
+	PR fortran/82774
+	* gfortran.dg/pr105152.f90 : New test
+	* gfortran.dg/pr100193.f90 : New test
+	* gfortran.dg/pr87946.f90 : New test
+	* gfortran.dg/pr103389.f90 : New test
+	* gfortran.dg/pr104429.f90 : New test
+	* gfortran.dg/pr82774.f90 : New test
+
+2023-05-16  Senthil Kumar Selvaraj  <saaadhu@gcc.gnu.org>
+
+	* gcc.dg/attr-returns-nonnull.c: Skip if
+	keeps_null_pointer_checks.
+	* gcc.dg/init-compare-1.c: Likewise.
+	* gcc.dg/ipa/pr85734.c: Likewise.
+	* gcc.dg/ipa/propmalloc-1.c: Likewise.
+	* gcc.dg/ipa/propmalloc-2.c: Likewise.
+	* gcc.dg/ipa/propmalloc-3.c: Likewise.
+	* gcc.dg/ipa/propmalloc-4.c: Likewise.
+	* gcc.dg/tree-ssa/evrp11.c: Likewise.
+	* gcc.dg/tree-ssa/pr83648.c: Likewise.
+
+2023-05-16  Andrew Pinski  <apinski@marvell.com>
+
+	PR tree-optimization/109424
+	* gcc.dg/tree-ssa/bool-12.c: New test.
+	* gcc.dg/tree-ssa/bool-13.c: New test.
+	* gcc.dg/tree-ssa/minmax-20.c: New test.
+	* gcc.dg/tree-ssa/minmax-21.c: New test.
+
 2023-05-15  Joseph Myers  <joseph@codesourcery.com>
 
 	* gcc.dg/qual-return-9.c, gcc.dg/qual-return-10.c: New tests.

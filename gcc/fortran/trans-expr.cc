@@ -2862,11 +2862,13 @@ conv_inquiry (gfc_se * se, gfc_ref * ref, gfc_expr *expr, gfc_typespec *ts)
     case INQUIRY_KIND:
       res = build_int_cst (gfc_typenode_for_spec (&expr->ts),
 			   ts->kind);
+      se->string_length = NULL_TREE;
       break;
 
     case INQUIRY_LEN:
       res = fold_convert (gfc_typenode_for_spec (&expr->ts),
 			  se->string_length);
+      se->string_length = NULL_TREE;
       break;
 
     default:
@@ -10234,7 +10236,7 @@ gfc_trans_pointer_assignment (gfc_expr * expr1, gfc_expr * expr2)
 	      gfc_conv_descriptor_data_set (&block, desc, data);
 
 	      /* Copy the span.  */
-	      if (TREE_CODE (rse.expr) == VAR_DECL
+	      if (VAR_P (rse.expr)
 		  && GFC_DECL_PTR_ARRAY_P (rse.expr))
 		span = gfc_conv_descriptor_span_get (rse.expr);
 	      else
@@ -10921,7 +10923,7 @@ gfc_trans_arrayfunc_assign (gfc_expr * expr1, gfc_expr * expr2)
     {
       tmp = sym->backend_decl;
       lhs = sym->backend_decl;
-      if (TREE_CODE (tmp) == INDIRECT_REF)
+      if (INDIRECT_REF_P (tmp))
 	tmp = TREE_OPERAND (tmp, 0);
       sym->backend_decl = gfc_create_var (TREE_TYPE (tmp), "lhs");
       gfc_add_modify (&se.pre, sym->backend_decl, tmp);
@@ -11871,7 +11873,7 @@ gfc_trans_assignment_1 (gfc_expr * expr1, gfc_expr * expr2, bool init_flag,
   if (expr2->ts.type == BT_CHARACTER && !expr1->ts.deferred
       && !(VAR_P (rse.string_length)
 	   || TREE_CODE (rse.string_length) == PARM_DECL
-	   || TREE_CODE (rse.string_length) == INDIRECT_REF))
+	   || INDIRECT_REF_P (rse.string_length)))
     string_length = gfc_evaluate_now (rse.string_length, &rse.pre);
   else if (expr2->ts.type == BT_CHARACTER)
     {

@@ -7634,8 +7634,8 @@ package body Sem_Ch8 is
             elsif
               Present (First_Formal (It.Nam))
                 and then Present (First_Formal (New_S))
-                and then (Base_Type (Etype (First_Formal (It.Nam))) =
-                          Base_Type (Etype (First_Formal (New_S))))
+                and then Base_Type (Etype (First_Formal (It.Nam))) =
+                         Base_Type (Etype (First_Formal (New_S)))
             then
                Candidate_Renaming := It.Nam;
             end if;
@@ -7667,8 +7667,8 @@ package body Sem_Ch8 is
 
          elsif Present (First_Formal (Entity (Nam)))
            and then Present (First_Formal (New_S))
-           and then (Base_Type (Etype (First_Formal (Entity (Nam)))) =
-                     Base_Type (Etype (First_Formal (New_S))))
+           and then Base_Type (Etype (First_Formal (Entity (Nam)))) =
+                    Base_Type (Etype (First_Formal (New_S)))
          then
             Candidate_Renaming := Entity (Nam);
          end if;
@@ -10319,7 +10319,7 @@ package body Sem_Ch8 is
             if Is_Immediately_Visible (Prev)
               and then (not Is_Overloadable (Prev)
                          or else not Is_Overloadable (Id)
-                         or else (Type_Conformant (Id, Prev)))
+                         or else Type_Conformant (Id, Prev))
             then
                if No (Current_Instance) then
 
@@ -10422,7 +10422,7 @@ package body Sem_Ch8 is
          --  On exit, we know entity is not hidden, unless it is private
 
          if not Is_Hidden (Id)
-           and then ((not Is_Child_Unit (Id)) or else Is_Visible_Lib_Unit (Id))
+           and then (not Is_Child_Unit (Id) or else Is_Visible_Lib_Unit (Id))
          then
             Set_Is_Potentially_Use_Visible (Id);
 
@@ -10755,7 +10755,7 @@ package body Sem_Ch8 is
                      Error_Msg_Sloc := Sloc (Clause1);
                      Error_Msg_NE -- CODEFIX
                        ("& is already use-visible through previous "
-                        & "use_type_clause #??", Clause2, T);
+                        & "use_type_clause #?r?", Clause2, T);
                      return;
                   end if;
 
@@ -10827,7 +10827,7 @@ package body Sem_Ch8 is
 
                      Error_Msg_NE -- CODEFIX
                        ("& is already use-visible through previous "
-                        & "use_type_clause #??", Err_No, Id);
+                        & "use_type_clause #?r?", Err_No, Id);
                   end if;
                end Use_Clause_Known;
 
@@ -10837,7 +10837,7 @@ package body Sem_Ch8 is
             else
                Error_Msg_NE -- CODEFIX
                  ("& is already use-visible through previous "
-                  & "use_type_clause??", Id, T);
+                  & "use_type_clause?r?", Id, T);
             end if;
 
          --  The package where T is declared is already used
@@ -10852,7 +10852,7 @@ package body Sem_Ch8 is
                Error_Msg_Sloc :=
                  Sloc (Find_First_Use (Current_Use_Clause (Scope (T))));
                Error_Msg_NE -- CODEFIX
-                 ("& is already use-visible through package use clause #??",
+                 ("& is already use-visible through package use clause #?r?",
                   Id, T);
             end if;
 
@@ -10861,7 +10861,7 @@ package body Sem_Ch8 is
          else
             Error_Msg_Node_2 := Scope (T);
             Error_Msg_NE -- CODEFIX
-              ("& is already use-visible inside package &??", Id, T);
+              ("& is already use-visible inside package &?r?", Id, T);
          end if;
       end if;
    end Use_One_Type;

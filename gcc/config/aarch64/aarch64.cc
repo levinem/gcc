@@ -20474,7 +20474,7 @@ aarch64_short_vector_p (const_tree type,
 {
   poly_int64 size = -1;
 
-  if (type && TREE_CODE (type) == VECTOR_TYPE)
+  if (type && VECTOR_TYPE_P (type))
     {
       if (aarch64_sve::builtin_type_p (type))
 	return false;
@@ -20914,7 +20914,7 @@ aarch64_mangle_type (const_tree type)
     return "St9__va_list";
 
   /* Half-precision floating point types.  */
-  if (TREE_CODE (type) == REAL_TYPE && TYPE_PRECISION (type) == 16)
+  if (SCALAR_FLOAT_TYPE_P (type) && TYPE_PRECISION (type) == 16)
     {
       if (TYPE_MAIN_VARIANT (type) == float16_type_node)
 	return NULL;
@@ -24825,6 +24825,18 @@ aarch64_modes_tieable_p (machine_mode mode1, machine_mode mode2)
     return false;
 
   if (GET_MODE_CLASS (mode1) == GET_MODE_CLASS (mode2))
+    return true;
+
+  /* Allow changes between scalar modes if both modes fit within 64 bits.
+     This is because:
+
+     - We allow all such modes for both FPRs and GPRs.
+     - They occupy a single register for both FPRs and GPRs.
+     - We can reinterpret one mode as another in both types of register.  */
+  if (is_a<scalar_mode> (mode1)
+      && is_a<scalar_mode> (mode2)
+      && known_le (GET_MODE_SIZE (mode1), 8)
+      && known_le (GET_MODE_SIZE (mode2), 8))
     return true;
 
   /* We specifically want to allow elements of "structure" modes to

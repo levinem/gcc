@@ -133,9 +133,7 @@ package body Sem_Ch13 is
    function Build_Predicate_Function_Declaration
       (Typ : Entity_Id) return Node_Id;
    --  Build the declaration for a predicate function. The declaration is built
-   --  at the end of the declarative part containing the type definition, which
-   --  may be before the freeze point of the type. The predicate expression is
-   --  preanalyzed at this point, to catch visibility errors.
+   --  at the same time as the body but inserted before, as explained below.
 
    procedure Build_Predicate_Function (Typ : Entity_Id; N : Node_Id);
    --  If Typ has predicates (indicated by Has_Predicates being set for Typ),
@@ -1412,6 +1410,7 @@ package body Sem_Ch13 is
       --    Attach_Handler
       --    Contract_Cases
       --    Depends
+      --    Exceptional_Cases
       --    Ghost
       --    Global
       --    Initial_Condition
@@ -1668,10 +1667,10 @@ package body Sem_Ch13 is
       --  analyzed right now.
 
       --  Note that there is a special handling for Pre, Post, Test_Case,
-      --  Contract_Cases and Subprogram_Variant aspects. In these cases, we do
-      --  not have to worry about delay issues, since the pragmas themselves
-      --  deal with delay of visibility for the expression analysis. Thus, we
-      --  just insert the pragma after the node N.
+      --  Contract_Cases, Exceptional_Cases and Subprogram_Variant aspects.
+      --  In these cases, we do not have to worry about delay issues, since the
+      --  pragmas themselves deal with delay of visibility for the expression
+      --  analysis. Thus, we just insert the pragma after the node N.
 
       --  Loop through aspects
 
@@ -4289,8 +4288,9 @@ package body Sem_Ch13 is
 
                --  Case 4: Aspects requiring special handling
 
-               --  Pre/Post/Test_Case/Contract_Cases/Subprogram_Variant whose
-               --  corresponding pragmas take care of the delay.
+               --  Pre/Post/Test_Case/Contract_Cases/Exceptional_Cases and
+               --  Subprogram_Variant whose corresponding pragmas take care
+               --  of the delay.
 
                --  Pre/Post
 
@@ -4517,6 +4517,19 @@ package body Sem_Ch13 is
                        Make_Pragma_Argument_Association (Loc,
                          Expression => Relocate_Node (Expr))),
                      Pragma_Name                  => Name_Contract_Cases);
+
+                  Decorate (Aspect, Aitem);
+                  Insert_Pragma (Aitem);
+                  goto Continue;
+
+               --  Exceptional_Cases
+
+               when Aspect_Exceptional_Cases =>
+                  Aitem := Make_Aitem_Pragma
+                    (Pragma_Argument_Associations => New_List (
+                       Make_Pragma_Argument_Association (Loc,
+                         Expression => Relocate_Node (Expr))),
+                     Pragma_Name                  => Name_Exceptional_Cases);
 
                   Decorate (Aspect, Aitem);
                   Insert_Pragma (Aitem);
@@ -9591,7 +9604,7 @@ package body Sem_Ch13 is
 
          --  skip null-range corner cases
 
-         elsif (REntry.Lo > REntry.Hi) or else (TLo > THi) then
+         elsif REntry.Lo > REntry.Hi or else TLo > THi then
             null;
 
          --  warn if no overlap between subtype bounds and the given range
@@ -9923,6 +9936,10 @@ package body Sem_Ch13 is
    procedure Build_Predicate_Function (Typ : Entity_Id; N : Node_Id) is
       Loc : constant Source_Ptr := Sloc (Typ);
 
+      Saved_GM  : constant Ghost_Mode_Type := Ghost_Mode;
+      Saved_IGR : constant Node_Id         := Ignored_Ghost_Region;
+      --  Save the Ghost-related attributes to restore on exit
+
       Expr : Node_Id;
       --  This is the expression for the result of the function. It is
       --  is build by connecting the component predicates with AND THEN.
@@ -9940,6 +9957,9 @@ package body Sem_Ch13 is
 
       SId : Entity_Id;
       --  Its entity
+
+      Restore_Scope : Boolean;
+      --  True if the current scope must be restored on exit
 
       Ancestor_Predicate_Function_Called : Boolean := False;
       --  Does this predicate function include a call to the
@@ -10192,12 +10212,6 @@ package body Sem_Ch13 is
          Replace_Type_References (N, Typ);
       end Replace_Current_Instance_References;
 
-      --  Local variables
-
-      Saved_GM  : constant Ghost_Mode_Type := Ghost_Mode;
-      Saved_IGR : constant Node_Id         := Ignored_Ghost_Region;
-      --  Save the Ghost-related attributes to restore on exit
-
    --  Start of processing for Build_Predicate_Function
 
    begin
@@ -10234,6 +10248,15 @@ package body Sem_Ch13 is
         and then not Has_Static_Predicate_Aspect (Typ)
       then
          return;
+      end if;
+
+      --  Ensure that the declarations are added to the scope of the type
+
+      if Scope (Typ) /= Current_Scope then
+         Push_Scope (Scope (Typ));
+         Restore_Scope := True;
+      else
+         Restore_Scope := False;
       end if;
 
       --  The related type may be subject to pragma Ghost. Set the mode now to
@@ -10654,6 +10677,10 @@ package body Sem_Ch13 is
       end if;
 
       Restore_Ghost_Region (Saved_GM, Saved_IGR);
+
+      if Restore_Scope then
+         Pop_Scope;
+      end if;
    end Build_Predicate_Function;
 
    ------------------------------------------
@@ -10772,7 +10799,7 @@ package body Sem_Ch13 is
       --  Expression from call to Check_Aspect_At_Freeze_Point.
 
       T : constant Entity_Id :=
-            (if Present (Freeze_Expr) and (A_Id /= Aspect_Stable_Properties)
+            (if Present (Freeze_Expr) and A_Id /= Aspect_Stable_Properties
              then Etype (Original_Node (Freeze_Expr))
              else Empty);
       --  Type required for preanalyze call. We use the original expression to
@@ -11268,6 +11295,7 @@ package body Sem_Ch13 is
             | Aspect_Depends
             | Aspect_Dimension
             | Aspect_Dimension_System
+            | Aspect_Exceptional_Cases
             | Aspect_Effective_Reads
             | Aspect_Effective_Writes
             | Aspect_Extensions_Visible
@@ -15966,7 +15994,7 @@ package body Sem_Ch13 is
    begin
       Error_Msg_Ada_2022_Feature ("aspect Stable_Properties", Sloc (N));
 
-      if (not Is_Aspect_Of_Type) and then (not Is_Subprogram (E)) then
+      if not Is_Aspect_Of_Type and then not Is_Subprogram (E) then
          Error_Msg_N ("Stable_Properties aspect can only be specified for "
                       & "a type or a subprogram", N);
       elsif Class_Present then
@@ -16443,7 +16471,7 @@ package body Sem_Ch13 is
 
                   function Matches_Param_Type (Typ : Entity_Id)
                     return Boolean is
-                    ((Base_Type (Typ) = Param_Type)
+                    (Base_Type (Typ) = Param_Type
                      or else
                      (Is_Class_Wide_Type (Param_Type)
                       and then Is_Ancestor (Root_Type (Param_Type),

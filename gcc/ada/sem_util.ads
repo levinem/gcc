@@ -639,17 +639,17 @@ package Sem_Util is
    function Current_Scope return Entity_Id;
    --  Get entity representing current scope
 
+   function Current_Scope_No_Loops return Entity_Id;
+   --  Return the current scope ignoring internally generated loops
+
    procedure Add_Block_Identifier
-       (N : Node_Id;
-        Id : out Entity_Id;
-        Scope : Entity_Id := Current_Scope);
+     (N     : Node_Id;
+      Id    : out Entity_Id;
+      Scope : Entity_Id := Current_Scope);
    --  Given a block statement N, generate an internal E_Block label and make
    --  it the identifier of the block. Scope denotes the scope in which the
    --  generated entity Id is created and defaults to the current scope. If the
    --  block already has an identifier, Id returns the entity of its label.
-
-   function Current_Scope_No_Loops return Entity_Id;
-   --  Return the current scope ignoring internally generated loops
 
    function Current_Subprogram return Entity_Id;
    --  Returns current enclosing subprogram. If Current_Scope is a subprogram,
@@ -1759,10 +1759,6 @@ package Sem_Util is
    function Is_Actual_Parameter (N : Node_Id) return Boolean;
    --  Determines if N is an actual parameter in a subprogram or entry call
 
-   function Is_Actual_Tagged_Parameter (N : Node_Id) return Boolean;
-   --  Determines if N is an actual parameter of a formal of tagged type in a
-   --  subprogram call.
-
    function Is_Aliased_View (Obj : Node_Id) return Boolean;
    --  Determine if Obj is an aliased view, i.e. the name of an object to which
    --  'Access or 'Unchecked_Access can apply. Note that this routine uses the
@@ -2347,6 +2343,7 @@ package Sem_Util is
    --  following subprogram contract annotations:
    --    Contract_Cases
    --    Depends
+   --    Exceptional_Cases
    --    Extensions_Visible
    --    Global
    --    Post
@@ -2646,6 +2643,7 @@ package Sem_Util is
    --
    --        First_Named_Actual
    --        Next_Named_Actual
+   --        Controlling_Argument
    --
    --      If applicable, the Etype field (if any) is updated to refer to a
    --      local itype or type (see below).

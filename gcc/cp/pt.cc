@@ -7488,7 +7488,7 @@ convert_nontype_argument (tree type, tree expr, tsubst_flags_t complain)
      integral promotions (_conv.prom_) and integral conversions
      (_conv.integral_) are applied.  */
   if (INTEGRAL_OR_ENUMERATION_TYPE_P (type)
-      || TREE_CODE (type) == REAL_TYPE)
+      || SCALAR_FLOAT_TYPE_P (type))
     {
       if (cxx_dialect < cxx11)
 	{
@@ -10394,7 +10394,7 @@ lookup_and_finish_template_variable (tree templ, tree targs,
   complain &= ~tf_partial;
   var = finish_template_variable (var, complain);
   mark_used (var);
-  return convert_from_reference (var);
+  return var;
 }
 
 /* If the set of template parameters PARMS contains a template parameter
@@ -20462,6 +20462,7 @@ tsubst_copy_and_build (tree t,
 	  {
 	    tree r = lookup_and_finish_template_variable (templ, targs,
 							  complain);
+	    r = convert_from_reference (r);
 	    r = maybe_wrap_with_location (r, EXPR_LOCATION (t));
 	    RETURN (r);
 	  }

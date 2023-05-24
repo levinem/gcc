@@ -460,6 +460,13 @@ is_a <frange> (vrange &v)
   return v.m_discriminator == VR_FRANGE;
 }
 
+template <>
+inline bool
+is_a <unsupported_range> (vrange &v)
+{
+  return v.m_discriminator == VR_UNKNOWN;
+}
+
 // For resizable ranges, resize the range up to HARD_MAX_RANGES if the
 // NEEDED pairs is greater than the current capacity of the range.
 
@@ -483,7 +490,7 @@ inline
 int_range<N, RESIZABLE>::~int_range ()
 {
   if (RESIZABLE && m_base != m_ranges)
-    delete m_base;
+    delete[] m_base;
 }
 
 // This is an "infinite" precision irange for use in temporary
@@ -516,6 +523,7 @@ public:
   Value_Range (const Value_Range &);
   void set_type (tree type);
   vrange& operator= (const vrange &);
+  Value_Range& operator= (const Value_Range &);
   bool operator== (const Value_Range &r) const;
   bool operator!= (const Value_Range &r) const;
   operator vrange &();
@@ -534,6 +542,9 @@ public:
   bool contains_p (tree cst) const { return m_vrange->contains_p (cst); }
   bool singleton_p (tree *result = NULL) const
     { return m_vrange->singleton_p (result); }
+  void set_zero (tree type) { return m_vrange->set_zero (type); }
+  void set_nonzero (tree type) { return m_vrange->set_nonzero (type); }
+  bool nonzero_p () const { return m_vrange->nonzero_p (); }
   bool zero_p () const { return m_vrange->zero_p (); }
   wide_int lower_bound () const; // For irange/prange comparability.
   wide_int upper_bound () const; // For irange/prange comparability.
@@ -624,10 +635,39 @@ Value_Range::operator= (const vrange &r)
       m_frange = as_a <frange> (r);
       m_vrange = &m_frange;
     }
+  else if (is_a <unsupported_range> (r))
+    {
+      m_unsupported = as_a <unsupported_range> (r);
+      m_vrange = &m_unsupported;
+    }
   else
     gcc_unreachable ();
 
   return *m_vrange;
+}
+
+inline Value_Range &
+Value_Range::operator= (const Value_Range &r)
+{
+  if (r.m_vrange == &r.m_irange)
+    {
+      m_irange = r.m_irange;
+      m_vrange = &m_irange;
+    }
+  else if (r.m_vrange == &r.m_frange)
+    {
+      m_frange = r.m_frange;
+      m_vrange = &m_frange;
+    }
+  else if (r.m_vrange == &r.m_unsupported)
+    {
+      m_unsupported = r.m_unsupported;
+      m_vrange = &m_unsupported;
+    }
+  else
+    gcc_unreachable ();
+
+  return *this;
 }
 
 inline bool

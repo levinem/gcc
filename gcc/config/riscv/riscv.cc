@@ -703,13 +703,18 @@ riscv_split_integer (HOST_WIDE_INT val, machine_mode mode)
   unsigned HOST_WIDE_INT hival = sext_hwi ((val - loval) >> 32, 32);
   rtx hi = gen_reg_rtx (mode), lo = gen_reg_rtx (mode);
 
-  riscv_move_integer (hi, hi, hival, mode);
   riscv_move_integer (lo, lo, loval, mode);
 
-  hi = gen_rtx_fmt_ee (ASHIFT, mode, hi, GEN_INT (32));
-  hi = force_reg (mode, hi);
+  if (loval == hival)
+      hi = gen_rtx_ASHIFT (mode, lo, GEN_INT (32));
+  else
+    {
+      riscv_move_integer (hi, hi, hival, mode);
+      hi = gen_rtx_ASHIFT (mode, hi, GEN_INT (32));
+    }
 
-  return gen_rtx_fmt_ee (PLUS, mode, hi, lo);
+  hi = force_reg (mode, hi);
+  return gen_rtx_PLUS (mode, hi, lo);
 }
 
 /* Return true if X is a thread-local symbol.  */
@@ -1290,13 +1295,13 @@ riscv_const_insns (rtx x)
 		 * accurately according to BASE && STEP.  */
 		return 1;
 	      }
+	    /* Constants from -16 to 15 can be loaded with vmv.v.i.
+	       The Wc0, Wc1 constraints are already covered by the
+	       vi constraint so we do not need to check them here
+	       separately.  */
+	    if (satisfies_constraint_vi (x))
+	      return 1;
 	  }
-	/* Constants from -16 to 15 can be loaded with vmv.v.i.
-	   The Wc0, Wc1 constraints are already covered by the
-	   vi constraint so we do not need to check them here
-	   separately.  */
-	else if (TARGET_VECTOR && satisfies_constraint_vi (x))
-	  return 1;
 
 	/* TODO: We may support more const vector in the future.  */
 	return x == CONST0_RTX (GET_MODE (x)) ? 1 : 0;
@@ -2166,8 +2171,8 @@ riscv_legitimize_move (machine_mode mode, rtx dest, rtx src)
 	}
       return true;
     }
-  /* Expand 
-       (set (reg:QI target) (mem:QI (address))) 
+  /* Expand
+       (set (reg:QI target) (mem:QI (address)))
      to
        (set (reg:DI temp) (zero_extend:DI (mem:QI (address))))
        (set (reg:QI target) (subreg:QI (reg:DI temp) 0))
@@ -2182,7 +2187,7 @@ riscv_legitimize_move (machine_mode mode, rtx dest, rtx src)
 
       temp_reg = gen_reg_rtx (word_mode);
       zero_extend_p = (LOAD_EXTEND_OP (mode) == ZERO_EXTEND);
-      emit_insn (gen_extend_insn (temp_reg, src, word_mode, mode, 
+      emit_insn (gen_extend_insn (temp_reg, src, word_mode, mode,
 				  zero_extend_p));
       riscv_emit_move (dest, gen_lowpart (mode, temp_reg));
       return true;
@@ -3483,7 +3488,7 @@ riscv_expand_conditional_move (rtx dest, rtx op, rtx cons, rtx alt)
       && GET_MODE_CLASS (mode) == MODE_INT
       && reg_or_0_operand (cons, mode)
       && reg_or_0_operand (alt, mode)
-      && GET_MODE (op) == mode
+      && (GET_MODE (op) == mode || GET_MODE (op) == E_VOIDmode)
       && GET_MODE (op0) == mode
       && GET_MODE (op1) == mode
       && (code == EQ || code == NE))
@@ -3492,7 +3497,7 @@ riscv_expand_conditional_move (rtx dest, rtx op, rtx cons, rtx alt)
       return true;
     }
   else if (TARGET_SFB_ALU
-	   && mode == word_mode)
+	   && GET_MODE (op0) == word_mode)
     {
       riscv_emit_int_compare (&code, &op0, &op1);
       rtx cond = gen_rtx_fmt_ee (code, GET_MODE (op0), op0, op1);
@@ -4736,7 +4741,7 @@ riscv_in_small_data_p (const_tree x)
   if (TREE_CODE (x) == STRING_CST || TREE_CODE (x) == FUNCTION_DECL)
     return false;
 
-  if (TREE_CODE (x) == VAR_DECL && DECL_SECTION_NAME (x))
+  if (VAR_P (x) && DECL_SECTION_NAME (x))
     {
       const char *sec = DECL_SECTION_NAME (x);
       return strcmp (sec, ".sdata") == 0 || strcmp (sec, ".sbss") == 0;
@@ -7050,7 +7055,7 @@ static const char *
 riscv_mangle_type (const_tree type)
 {
   /* Half-precision float, _Float16 is "DF16_".  */
-  if (TREE_CODE (type) == REAL_TYPE && TYPE_PRECISION (type) == 16)
+  if (SCALAR_FLOAT_TYPE_P (type) && TYPE_PRECISION (type) == 16)
     return "DF16_";
 
   /* Mangle all vector type for vector extension.  */
@@ -7384,9 +7389,6 @@ vector_zero_call_used_regs (HARD_REG_SET need_zeroed_hardregs)
 	{
 	  rtx target = regno_reg_rtx[regno];
 	  machine_mode mode = GET_MODE (target);
-	  poly_uint16 nunits = GET_MODE_NUNITS (mode);
-	  machine_mode mask_mode
-	    = riscv_vector::get_vector_mode (BImode, nunits).require ();
 
 	  if (!emitted_vlmax_vsetvl)
 	    {
@@ -7394,8 +7396,9 @@ vector_zero_call_used_regs (HARD_REG_SET need_zeroed_hardregs)
 	      emitted_vlmax_vsetvl = true;
 	    }
 
-	  riscv_vector::emit_vlmax_reg_op (code_for_pred_mov (mode), target,
-					   CONST0_RTX (mode), vl, mask_mode);
+	  rtx ops[] = {target, CONST0_RTX (mode), vl};
+	  riscv_vector::emit_vlmax_insn (code_for_pred_mov (mode),
+					 riscv_vector::RVV_UNOP, ops);
 
 	  SET_HARD_REG_BIT (zeroed_hardregs, regno);
 	}
@@ -7511,6 +7514,95 @@ riscv_vectorize_preferred_vector_alignment (const_tree type)
   if (riscv_v_ext_vector_mode_p (TYPE_MODE (type)))
     return TYPE_ALIGN (TREE_TYPE (type));
   return TYPE_ALIGN (type);
+}
+
+/* Implement Mode switching.  */
+
+static void
+riscv_emit_mode_set (int entity, int mode, int prev_mode,
+		     HARD_REG_SET regs_live ATTRIBUTE_UNUSED)
+{
+  switch (entity)
+    {
+    case RISCV_VXRM:
+      if (mode != VXRM_MODE_NONE && mode != prev_mode)
+	emit_insn (gen_vxrmsi (gen_int_mode (mode, SImode)));
+      break;
+    default:
+      gcc_unreachable ();
+    }
+}
+
+/* Return mode that entity must be switched into
+   prior to the execution of insn.  */
+
+static int
+riscv_mode_needed (int entity, rtx_insn *insn)
+{
+  switch (entity)
+    {
+    case RISCV_VXRM:
+      return recog_memoized (insn) >= 0 ? get_attr_vxrm_mode (insn)
+					: VXRM_MODE_NONE;
+    default:
+      gcc_unreachable ();
+    }
+}
+
+/* Return the mode that an insn results in.  */
+
+static int
+riscv_mode_after (int entity, int mode, rtx_insn *insn)
+{
+  switch (entity)
+    {
+    case RISCV_VXRM:
+      if (recog_memoized (insn) >= 0)
+	return reg_mentioned_p (gen_rtx_REG (SImode, VXRM_REGNUM),
+				PATTERN (insn))
+		 ? get_attr_vxrm_mode (insn)
+		 : mode;
+      else
+	return mode;
+    default:
+      gcc_unreachable ();
+    }
+}
+
+/* Return a mode that ENTITY is assumed to be
+   switched to at function entry.  */
+
+static int
+riscv_mode_entry (int entity)
+{
+  switch (entity)
+    {
+    case RISCV_VXRM:
+      return VXRM_MODE_NONE;
+    default:
+      gcc_unreachable ();
+    }
+}
+
+/* Return a mode that ENTITY is assumed to be
+   switched to at function exit.  */
+
+static int
+riscv_mode_exit (int entity)
+{
+  switch (entity)
+    {
+    case RISCV_VXRM:
+      return VXRM_MODE_NONE;
+    default:
+      gcc_unreachable ();
+    }
+}
+
+static int
+riscv_mode_priority (int, int n)
+{
+  return n;
 }
 
 /* Initialize the GCC target structure.  */
@@ -7788,6 +7880,21 @@ riscv_vectorize_preferred_vector_alignment (const_tree type)
 #undef TARGET_VECTORIZE_PREFERRED_VECTOR_ALIGNMENT
 #define TARGET_VECTORIZE_PREFERRED_VECTOR_ALIGNMENT \
   riscv_vectorize_preferred_vector_alignment
+
+/* Mode switching hooks.  */
+
+#undef TARGET_MODE_EMIT
+#define TARGET_MODE_EMIT riscv_emit_mode_set
+#undef TARGET_MODE_NEEDED
+#define TARGET_MODE_NEEDED riscv_mode_needed
+#undef TARGET_MODE_AFTER
+#define TARGET_MODE_AFTER riscv_mode_after
+#undef TARGET_MODE_ENTRY
+#define TARGET_MODE_ENTRY riscv_mode_entry
+#undef TARGET_MODE_EXIT
+#define TARGET_MODE_EXIT riscv_mode_exit
+#undef TARGET_MODE_PRIORITY
+#define TARGET_MODE_PRIORITY riscv_mode_priority
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 

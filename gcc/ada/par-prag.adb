@@ -120,7 +120,7 @@ function Prag (Pragma_Node : Node_Id; Semi : Source_Ptr) return Node_Id is
    procedure Add_List_Pragma_Entry (PT : List_Pragma_Type; Loc : Source_Ptr) is
    begin
       if List_Pragmas.Last < List_Pragmas.First
-        or else (List_Pragmas.Table (List_Pragmas.Last)) /= ((PT, Loc))
+        or else List_Pragmas.Table (List_Pragmas.Last) /= (PT, Loc)
       then
          List_Pragmas.Append ((PT, Loc));
       end if;
@@ -176,7 +176,7 @@ function Prag (Pragma_Node : Node_Id; Semi : Source_Ptr) return Node_Id is
       Error : Boolean := Nkind (Expression (Arg)) /= N_Identifier;
    begin
       if not Error then
-         Error := (Chars (Argx) not in Name_On | Name_Off)
+         Error := Chars (Argx) not in Name_On | Name_Off
            and then not (All_OK_Too and Chars (Argx) = Name_All);
       end if;
       if Error then
@@ -1371,6 +1371,7 @@ begin
          | Pragma_Elaboration_Checks
          | Pragma_Eliminate
          | Pragma_Enable_Atomic_Synchronization
+         | Pragma_Exceptional_Cases
          | Pragma_Export
          | Pragma_Export_Function
          | Pragma_Export_Object

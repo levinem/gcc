@@ -312,11 +312,12 @@ package body Sem_Util is
    --------------------------
 
    procedure Add_Block_Identifier
-       (N : Node_Id;
-        Id : out Entity_Id;
-        Scope : Entity_Id := Current_Scope)
+     (N     : Node_Id;
+      Id    : out Entity_Id;
+      Scope : Entity_Id := Current_Scope)
    is
       Loc : constant Source_Ptr := Sloc (N);
+
    begin
       pragma Assert (Nkind (N) = N_Block_Statement);
 
@@ -331,7 +332,6 @@ package body Sem_Util is
          Id := New_Internal_Entity (E_Block, Scope, Loc, 'B');
          Set_Etype  (Id, Standard_Void_Type);
          Set_Parent (Id, N);
-
          Set_Identifier (N, New_Occurrence_Of (Id, Loc));
          Set_Block_Node (Id, Identifier (N));
       end if;
@@ -2618,7 +2618,8 @@ package body Sem_Util is
 
          function Check_Node (N : Node_Id) return Traverse_Result is
             Is_Writable_Actual : Boolean := False;
-            Id                 : Entity_Id;
+            Id                 : Entity_Id := Empty;
+            --  Default init of Id for CodePeer
 
          begin
             if Nkind (N) = N_Identifier then
@@ -6235,6 +6236,19 @@ package body Sem_Util is
          --  Examine parent type
 
          if Etype (Typ) /= Typ then
+            --  Prevent infinite recursion, which can happen in illegal
+            --  programs. Silently return if illegal. For now, just deal
+            --  with the 2-type cycle case. Larger cycles will get
+            --  SIGSEGV at compile time from running out of stack.
+
+            if Etype (Etype (Typ)) = Typ then
+               if Total_Errors_Detected = 0 then
+                  raise Program_Error;
+               else
+                  return;
+               end if;
+            end if;
+
             Process_Type (Etype (Typ));
          end if;
 
@@ -7325,7 +7339,7 @@ package body Sem_Util is
                 | N_Defining_Program_Unit_Name
       then
          return
-           (Chars (Select_Node (Name1)) = Chars (Select_Node (Name2)))
+           Chars (Select_Node (Name1)) = Chars (Select_Node (Name2))
              and then
                Designate_Same_Unit (Prefix_Node (Name1), Prefix_Node (Name2));
 
@@ -8591,6 +8605,7 @@ package body Sem_Util is
       Context  : constant Node_Id := Parent (N);
       Actual   : Node_Id;
       Call_Nam : Node_Id;
+      Call_Ent : Node_Id := Empty;
 
    begin
       if Nkind (Context) in N_Indexed_Component | N_Selected_Component
@@ -8639,13 +8654,42 @@ package body Sem_Util is
             Call_Nam := Selector_Name (Call_Nam);
          end if;
 
-         if Is_Entity_Name (Call_Nam)
-           and then Present (Entity (Call_Nam))
-           and then (Is_Generic_Subprogram (Entity (Call_Nam))
-                      or else Is_Overloadable (Entity (Call_Nam))
-                      or else Ekind (Entity (Call_Nam)) in E_Entry_Family
-                                                         | E_Subprogram_Body
-                                                         | E_Subprogram_Type)
+         --  If Call_Nam is an entity name, get its entity
+
+         if Is_Entity_Name (Call_Nam) then
+            Call_Ent := Entity (Call_Nam);
+
+         --  If it is a dereference, get the designated subprogram type
+
+         elsif Nkind (Call_Nam) = N_Explicit_Dereference then
+            declare
+               Typ : Entity_Id := Etype (Prefix (Call_Nam));
+            begin
+               if Present (Full_View (Typ)) then
+                  Typ := Full_View (Typ);
+               elsif Is_Private_Type (Typ)
+                 and then Present (Underlying_Full_View (Typ))
+               then
+                  Typ := Underlying_Full_View (Typ);
+               end if;
+
+               if Is_Access_Type (Typ) then
+                  Call_Ent := Directly_Designated_Type (Typ);
+               else
+                  pragma Assert (Has_Implicit_Dereference (Typ));
+                  Formal := Empty;
+                  Call   := Empty;
+                  return;
+               end if;
+            end;
+         end if;
+
+         if Present (Call_Ent)
+           and then (Is_Generic_Subprogram (Call_Ent)
+                      or else Is_Overloadable (Call_Ent)
+                      or else Ekind (Call_Ent) in E_Entry_Family
+                                                | E_Subprogram_Body
+                                                | E_Subprogram_Type)
            and then not Is_Overloaded (Call_Nam)
          then
             --  If node is name in call it is not an actual
@@ -8659,7 +8703,7 @@ package body Sem_Util is
             --  Fall here if we are definitely a parameter
 
             Actual := First_Actual (Call);
-            Formal := First_Formal (Entity (Call_Nam));
+            Formal := First_Formal (Call_Ent);
             while Present (Formal) and then Present (Actual) loop
                if Actual = N then
                   return;
@@ -9861,7 +9905,7 @@ package body Sem_Util is
                --      with Static_Predicate => Null_By_Predicate < 0;
                --  so test for that null case separately.
 
-               if (not Has_Static_Predicate (Discrim_Value_Subtype))
+               if not Has_Static_Predicate (Discrim_Value_Subtype)
                  or else Present (First (Static_Discrete_Predicate
                                            (Discrim_Value_Subtype)))
                then
@@ -10070,7 +10114,7 @@ package body Sem_Util is
       --  Checking the type, not the underlying type, for constrainedness
       --  seems to be necessary. Maybe all the tests should be on the type???
 
-      elsif (not Is_Constrained (Typ))
+      elsif not Is_Constrained (Typ)
            and then (Is_Array_Type (Utyp)
                       or else (Is_Record_Type (Utyp)
                                 and then Has_Discriminants (Utyp)))
@@ -15222,18 +15266,6 @@ package body Sem_Util is
       end case;
    end Is_Actual_Parameter;
 
-   --------------------------------
-   -- Is_Actual_Tagged_Parameter --
-   --------------------------------
-
-   function Is_Actual_Tagged_Parameter (N : Node_Id) return Boolean is
-      Formal : Entity_Id;
-      Call   : Node_Id;
-   begin
-      Find_Actual (N, Formal, Call);
-      return Present (Formal) and then Is_Tagged_Type (Etype (Formal));
-   end Is_Actual_Tagged_Parameter;
-
    ---------------------
    -- Is_Aliased_View --
    ---------------------
@@ -15733,8 +15765,8 @@ package body Sem_Util is
                Item_1 : constant Node_Id := Aspect_Rep_Item (Aspect_Spec_1);
                Item_2 : constant Node_Id := Aspect_Rep_Item (Aspect_Spec_2);
             begin
-               if (Nkind (Item_1) /= N_Attribute_Definition_Clause)
-                 or (Nkind (Item_2) /= N_Attribute_Definition_Clause)
+               if Nkind (Item_1) /= N_Attribute_Definition_Clause
+                 or Nkind (Item_2) /= N_Attribute_Definition_Clause
                then
                   pragma Assert (Serious_Errors_Detected > 0);
                   return True;
@@ -18076,8 +18108,8 @@ package body Sem_Util is
                              Next (First (Expressions (Original_Exp)));
                Else_Expr : constant Node_Id := Next (Then_Expr);
             begin
-               if (Is_NC (Then_Expr) = Bad_Result)
-                 or else (Is_NC (Else_Expr) = Bad_Result)
+               if Is_NC (Then_Expr) = Bad_Result
+                 or else Is_NC (Else_Expr) = Bad_Result
                then
                   return Bad_Result;
                else
@@ -20544,6 +20576,7 @@ package body Sem_Util is
 
       return    Nam = Name_Contract_Cases
         or else Nam = Name_Depends
+        or else Nam = Name_Exceptional_Cases
         or else Nam = Name_Extensions_Visible
         or else Nam = Name_Global
         or else Nam = Name_Post
@@ -21139,11 +21172,8 @@ package body Sem_Util is
                return Is_Variable_Prefix (Prefix (Orig_Node));
 
             when N_Selected_Component =>
-               return (Is_Variable (Selector_Name (Orig_Node))
-                        and then Is_Variable_Prefix (Prefix (Orig_Node)))
-                 or else
-                   (Nkind (N) = N_Expanded_Name
-                     and then Scope (Entity (N)) = Entity (Prefix (N)));
+               return Is_Variable (Selector_Name (Orig_Node))
+                       and then Is_Variable_Prefix (Prefix (Orig_Node));
 
             --  For an explicit dereference, the type of the prefix cannot
             --  be an access to constant or an access to subprogram.
@@ -23123,6 +23153,13 @@ package body Sem_Util is
       pragma Inline (Update_CFS_Sloc);
       --  Update the Comes_From_Source and Sloc attributes of node or entity N
 
+      procedure Update_Controlling_Argument
+        (Old_Call : Node_Id;
+         New_Call : Node_Id);
+      pragma Inline (Update_Controlling_Argument);
+      --  Update Controlling_Argument of New_Call base on Old_Call to make it
+      --  points to the corresponding newly copied actual parameter.
+
       procedure Update_Named_Associations
         (Old_Call : Node_Id;
          New_Call : Node_Id);
@@ -23561,16 +23598,21 @@ package body Sem_Util is
               (Old_Assoc => N,
                New_Assoc => Result);
 
-            --  Update the First/Next_Named_Association chain for a replicated
-            --  call.
+            --  Update the First/Next_Named_Association chain and the
+            --  Controlling_Argument for a replicated call.
 
             if Nkind (N) in N_Entry_Call_Statement
-                          | N_Function_Call
-                          | N_Procedure_Call_Statement
+                          | N_Subprogram_Call
             then
                Update_Named_Associations
                  (Old_Call => N,
                   New_Call => Result);
+
+               if Nkind (N) in N_Subprogram_Call then
+                  Update_Controlling_Argument
+                    (Old_Call => N,
+                     New_Call => Result);
+               end if;
 
             --  Update the Renamed_Object attribute of a replicated object
             --  declaration.
@@ -23680,6 +23722,59 @@ package body Sem_Util is
             Set_Sloc              (N, New_Sloc);
          end if;
       end Update_CFS_Sloc;
+
+      ---------------------------------
+      -- Update_Controlling_Argument --
+      ---------------------------------
+
+      procedure Update_Controlling_Argument
+        (Old_Call : Node_Id;
+         New_Call : Node_Id)
+      is
+         New_Act : Node_Id;
+         Old_Act : Node_Id;
+
+         Old_Ctrl_Arg : constant Node_Id := Controlling_Argument (Old_Call);
+         --  Controlling argument of the old call node
+
+         Replaced : Boolean := False;
+         --  Flag to make sure that replacement works as expected
+
+      begin
+         if No (Old_Ctrl_Arg) then
+            return;
+         end if;
+
+         --  Recreate the Controlling_Argument of a call by traversing both the
+         --  old and new actual parameters in parallel.
+
+         New_Act := First (Parameter_Associations (New_Call));
+         Old_Act := First (Parameter_Associations (Old_Call));
+         while Present (Old_Act) loop
+
+            --  Actual parameter appears either in a named parameter
+            --  association or directly.
+
+            if Nkind (Old_Act) = N_Parameter_Association then
+               if Explicit_Actual_Parameter (Old_Act) = Old_Ctrl_Arg then
+                  Set_Controlling_Argument
+                    (New_Call, Explicit_Actual_Parameter (New_Act));
+                  Replaced := True;
+                  exit;
+               end if;
+
+            elsif Old_Act = Old_Ctrl_Arg then
+               Set_Controlling_Argument (New_Call, New_Act);
+               Replaced := True;
+               exit;
+            end if;
+
+            Next (New_Act);
+            Next (Old_Act);
+         end loop;
+
+         pragma Assert (Replaced);
+      end Update_Controlling_Argument;
 
       -------------------------------
       -- Update_Named_Associations --
@@ -27149,6 +27244,15 @@ package body Sem_Util is
          then
             return True;
 
+         --  The body of a protected operation is within the protected type
+
+         elsif Is_Subprogram (Curr)
+           and then Present (Protected_Subprogram (Curr))
+           and then Is_Protected_Type (Outer)
+           and then Scope (Protected_Subprogram (Curr)) = Outer
+         then
+            return True;
+
          --  Outside of its scope, a synchronized type may just be private
 
          elsif Is_Private_Type (Curr)
@@ -27187,6 +27291,13 @@ package body Sem_Util is
 
          elsif Is_Subprogram (Curr)
            and then Outer = Protected_Body_Subprogram (Curr)
+         then
+            return True;
+
+         elsif Is_Subprogram (Curr)
+           and then Present (Protected_Subprogram (Curr))
+           and then Is_Protected_Type (Outer)
+           and then Scope (Protected_Subprogram (Curr)) = Outer
          then
             return True;
 
@@ -27463,7 +27574,7 @@ package body Sem_Util is
       --  call to Ada.Task_Identification.Abort_Task.
 
       if Restriction_Check_Required (No_Abort_Statements)
-        and then (Is_RTE (Val, RE_Abort_Task))
+        and then Is_RTE (Val, RE_Abort_Task)
 
         --  A special extra check, don't complain about a reference from within
         --  the Ada.Task_Identification package itself!
@@ -27967,8 +28078,8 @@ package body Sem_Util is
                      High_Value   : constant Uint :=
                        Expr_Value (Type_High_Bound (Index_Subtype));
                   begin
-                     if (Index_Value < Low_Value)
-                       or (Index_Value > High_Value)
+                     if Index_Value < Low_Value
+                       or Index_Value > High_Value
                      then
                         return False;
                      end if;
@@ -27976,8 +28087,8 @@ package body Sem_Util is
 
                   Next_Index (Indx);
                   Expr := Next (Expr);
-                  pragma Assert ((Present (Indx) = Present (Expr))
-                    or else (Serious_Errors_Detected > 0));
+                  pragma Assert (Present (Indx) = Present (Expr)
+                    or else Serious_Errors_Detected > 0);
                   exit when not (Present (Indx) and Present (Expr));
                end loop;
             end;

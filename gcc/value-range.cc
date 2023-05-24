@@ -203,7 +203,10 @@ vrange::operator= (const vrange &src)
   else if (is_a <frange> (src))
     as_a <frange> (*this) = as_a <frange> (src);
   else
-    gcc_unreachable ();
+    {
+      gcc_checking_assert (is_a <unsupported_range> (src));
+      m_kind = src.m_kind;
+    }
   return *this;
 }
 
@@ -1647,14 +1650,6 @@ irange::invert ()
   wide_int type_min = wi::min_value (prec, sign);
   wide_int type_max = wi::max_value (prec, sign);
   m_nonzero_mask = wi::minus_one (prec);
-  if (m_num_ranges == m_max_ranges
-      && lower_bound () != type_min
-      && upper_bound () != type_max)
-    {
-      m_base[1] = type_max;
-      m_num_ranges = 1;
-      return;
-    }
 
   // At this point, we need one extra sub-range to represent the
   // inverse.

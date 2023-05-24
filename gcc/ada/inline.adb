@@ -315,6 +315,7 @@ package body Inline is
    --    Contract_Cases
    --    Global
    --    Depends
+   --    Exceptional_Cases
    --    Postcondition
    --    Precondition
    --    Refined_Global
@@ -2824,27 +2825,6 @@ package body Inline is
       while Present (Elmt) loop
          Scop := Node (Elmt);
 
-         if Ekind (Scop) = E_Entry then
-            Scop := Protected_Body_Subprogram (Scop);
-
-         elsif Is_Subprogram (Scop)
-           and then Is_Protected_Type (Underlying_Type (Scope (Scop)))
-           and then Present (Protected_Body_Subprogram (Scop))
-         then
-            --  If a protected operation contains an instance, its cleanup
-            --  operations have been delayed, and the subprogram has been
-            --  rewritten in the expansion of the enclosing protected body. It
-            --  is the corresponding subprogram that may require the cleanup
-            --  operations, so propagate the information that triggers cleanup
-            --  activity.
-
-            Set_Uses_Sec_Stack
-              (Protected_Body_Subprogram (Scop),
-                Uses_Sec_Stack (Scop));
-
-            Scop := Protected_Body_Subprogram (Scop);
-         end if;
-
          if Ekind (Scop) = E_Block then
             Decl := Parent (Block_Node (Scop));
 
@@ -5186,6 +5166,7 @@ package body Inline is
               and then Chars (Item_Id) in Name_Contract_Cases
                                         | Name_Global
                                         | Name_Depends
+                                        | Name_Exceptional_Cases
                                         | Name_Postcondition
                                         | Name_Precondition
                                         | Name_Refined_Global

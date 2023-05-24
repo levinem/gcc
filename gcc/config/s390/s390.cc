@@ -450,6 +450,14 @@ s390_preserve_fpr_arg_p (int regno)
 	  && regno >= FPR0_REGNUM);
 }
 
+#undef TARGET_ATOMIC_ALIGN_FOR_MODE
+#define TARGET_ATOMIC_ALIGN_FOR_MODE s390_atomic_align_for_mode
+static unsigned int
+s390_atomic_align_for_mode (machine_mode mode)
+{
+  return GET_MODE_BITSIZE (mode);
+}
+
 /* A couple of shortcuts.  */
 #define CONST_OK_FOR_J(x) \
 	CONST_OK_FOR_CONSTRAINT_P((x), 'J', "J")
@@ -604,7 +612,7 @@ s390_check_type_for_vector_abi (const_tree type, bool arg_p, bool in_struct_p)
 	 true here.  */
       s390_check_type_for_vector_abi (TREE_TYPE (type), arg_p, in_struct_p);
     }
-  else if (TREE_CODE (type) == FUNCTION_TYPE || TREE_CODE (type) == METHOD_TYPE)
+  else if (FUNC_OR_METHOD_TYPE_P (type))
     {
       tree arg_chain;
 
@@ -12758,7 +12766,7 @@ s390_function_arg_integer (machine_mode mode, const_tree type)
       || POINTER_TYPE_P (type)
       || TREE_CODE (type) == NULLPTR_TYPE
       || TREE_CODE (type) == OFFSET_TYPE
-      || (TARGET_SOFT_FLOAT && TREE_CODE (type) == REAL_TYPE))
+      || (TARGET_SOFT_FLOAT && SCALAR_FLOAT_TYPE_P (type)))
     return true;
 
   /* We also accept structs of size 1, 2, 4, 8 that are not
@@ -12927,7 +12935,7 @@ s390_return_in_memory (const_tree type, const_tree fundecl ATTRIBUTE_UNUSED)
   if (INTEGRAL_TYPE_P (type)
       || POINTER_TYPE_P (type)
       || TREE_CODE (type) == OFFSET_TYPE
-      || TREE_CODE (type) == REAL_TYPE)
+      || SCALAR_FLOAT_TYPE_P (type))
     return int_size_in_bytes (type) > 8;
 
   /* vector types which fit into a VR.  */
@@ -13694,7 +13702,7 @@ s390_encode_section_info (tree decl, rtx rtl, int first)
 {
   default_encode_section_info (decl, rtl, first);
 
-  if (TREE_CODE (decl) == VAR_DECL)
+  if (VAR_P (decl))
     {
       /* Store the alignment to be able to check if we can use
 	 a larl/load-relative instruction.  We only handle the cases

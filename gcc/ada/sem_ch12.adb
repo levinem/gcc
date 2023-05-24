@@ -263,7 +263,8 @@ package body Sem_Ch12 is
    --     package                  subprogram [body]
    --       Abstract_State           Contract_Cases
    --       Initial_Condition        Depends
-   --       Initializes              Extensions_Visible
+   --       Initializes              Exceptional_Cases
+   --                                Extensions_Visible
    --                                Global
    --     package body               Post
    --       Refined_State            Post_Class
@@ -3186,6 +3187,7 @@ package body Sem_Ch12 is
          Renaming_In_Par :=
            Make_Defining_Identifier (Loc, Chars (Gen_Unit));
          Mutate_Ekind (Renaming_In_Par, E_Package);
+         Set_Is_Not_Self_Hidden (Renaming_In_Par);
          Set_Etype (Renaming_In_Par, Standard_Void_Type);
          Set_Scope (Renaming_In_Par, Parent_Instance);
          Set_Parent (Renaming_In_Par, Parent (Formal));
@@ -3846,6 +3848,7 @@ package body Sem_Ch12 is
 
       Enter_Name (Id);
       Mutate_Ekind (Id, E_Generic_Package);
+      Set_Is_Not_Self_Hidden (Id);
       Set_Etype (Id, Standard_Void_Type);
 
       --  Set SPARK_Mode from context
@@ -4093,6 +4096,8 @@ package body Sem_Ch12 is
          Set_Etype (Id, Standard_Void_Type);
       end if;
 
+      Set_Is_Not_Self_Hidden (Id);
+
       --  Analyze the aspects of the generic copy to ensure that all generated
       --  pragmas (if any) perform their semantic effects.
 
@@ -4336,6 +4341,7 @@ package body Sem_Ch12 is
 
       Generate_Definition (Act_Decl_Id);
       Mutate_Ekind (Act_Decl_Id, E_Package);
+      Set_Is_Not_Self_Hidden (Act_Decl_Id);
 
       --  Initialize list of incomplete actuals before analysis
 
@@ -4805,16 +4811,7 @@ package body Sem_Ch12 is
                   Scope_Loop : while Enclosing_Master /= Standard_Standard loop
                      if Ekind (Enclosing_Master) = E_Package then
                         if Is_Compilation_Unit (Enclosing_Master) then
-                           if In_Package_Body (Enclosing_Master) then
-                              Set_Delay_Subprogram_Descriptors
-                                (Body_Entity (Enclosing_Master));
-                           else
-                              Set_Delay_Subprogram_Descriptors
-                                (Enclosing_Master);
-                           end if;
-
                            exit Scope_Loop;
-
                         else
                            Enclosing_Master := Scope (Enclosing_Master);
                         end if;
@@ -4830,35 +4827,19 @@ package body Sem_Ch12 is
                         exit Scope_Loop;
 
                      else
-                        if Ekind (Enclosing_Master) = E_Entry
-                          and then
-                            Ekind (Scope (Enclosing_Master)) = E_Protected_Type
-                        then
-                           if not Expander_Active then
-                              exit Scope_Loop;
-                           else
-                              Enclosing_Master :=
-                                Protected_Body_Subprogram (Enclosing_Master);
-                           end if;
-                        end if;
-
                         Set_Delay_Cleanups (Enclosing_Master);
 
                         while Ekind (Enclosing_Master) = E_Block loop
                            Enclosing_Master := Scope (Enclosing_Master);
                         end loop;
 
-                        if Is_Subprogram (Enclosing_Master) then
-                           Set_Delay_Subprogram_Descriptors (Enclosing_Master);
-
-                        elsif Is_Task_Type (Enclosing_Master) then
+                        if Is_Task_Type (Enclosing_Master) then
                            declare
                               TBP : constant Node_Id :=
                                       Get_Task_Body_Procedure
                                         (Enclosing_Master);
                            begin
                               if Present (TBP) then
-                                 Set_Delay_Subprogram_Descriptors (TBP);
                                  Set_Delay_Cleanups (TBP);
                               end if;
                            end;
@@ -5002,10 +4983,12 @@ package body Sem_Ch12 is
          Set_First_Private_Entity (Defining_Unit_Name (Unit_Renaming),
            First_Private_Entity (Act_Decl_Id));
 
-         --  If the instantiation will receive a body, the unit will be
-         --  transformed into a package body, and receive its own elaboration
-         --  entity. Otherwise, the nature of the unit is now a package
-         --  declaration.
+         --  If the instantiation needs a body, the unit will be turned into
+         --  a package body and receive its own elaboration entity. Otherwise,
+         --  the nature of the unit is now a package declaration.
+
+         --  Note that the below rewriting means that Act_Decl, which has been
+         --  analyzed and expanded, will be re-expanded as the rewritten N.
 
          if Nkind (Parent (N)) = N_Compilation_Unit
            and then not Needs_Body
@@ -5324,7 +5307,7 @@ package body Sem_Ch12 is
                   Par : Entity_Id;
                begin
                   Par := Scope (Curr_Scope);
-                  while (Present (Par)) and then Par /= Standard_Standard loop
+                  while Present (Par) and then Par /= Standard_Standard loop
                      Install_Private_Declarations (Par);
                      Par := Scope (Par);
                   end loop;

@@ -407,6 +407,26 @@
 	   (symbol_ref "INTVAL (operands[4])")]
 	(const_int INVALID_ATTRIBUTE)))
 
+;; Defines rounding mode of an fixed-point operation.
+
+(define_attr "vxrm_mode" "rnu,rne,rdn,rod,none"
+  (cond [(and (eq_attr "type" "vsalu,vaalu,vsmul,vsshift,vnclip")
+	      (match_test "INTVAL(operands[9]) == riscv_vector::VXRM_RNU"))
+	 (const_string "rnu")
+
+	 (and (eq_attr "type" "vsalu,vaalu,vsmul,vsshift,vnclip")
+	      (match_test "INTVAL(operands[9]) == riscv_vector::VXRM_RNE"))
+	 (const_string "rne")
+
+	 (and (eq_attr "type" "vsalu,vaalu,vsmul,vsshift,vnclip")
+	      (match_test "INTVAL(operands[9]) == riscv_vector::VXRM_RDN"))
+	 (const_string "rdn")
+
+	 (and (eq_attr "type" "vsalu,vaalu,vsmul,vsshift,vnclip")
+	      (match_test "INTVAL(operands[9]) == riscv_vector::VXRM_ROD"))
+	 (const_string "rod")]
+	 (const_string "none")))
+
 ;; -----------------------------------------------------------------
 ;; ---- Miscellaneous Operations
 ;; -----------------------------------------------------------------
@@ -426,6 +446,16 @@
 (define_expand "@vreinterpret<mode>"
   [(set (match_operand:V 0 "register_operand")
 	(match_operand 1 "vector_any_register_operand"))]
+  "TARGET_VECTOR"
+  {
+    emit_move_insn (operands[0], gen_lowpart (<MODE>mode, operands[1]));
+    DONE;
+  }
+)
+
+(define_expand "@vreinterpret<mode>"
+  [(set (match_operand:VB 0 "register_operand")
+	(match_operand    1 "vector_any_register_operand"))]
   "TARGET_VECTOR"
   {
     emit_move_insn (operands[0], gen_lowpart (<MODE>mode, operands[1]));
@@ -584,6 +614,15 @@
   "TARGET_VECTOR"
   "")
 
+;; Set VXRM
+(define_insn "vxrmsi"
+  [(set (reg:SI VXRM_REGNUM)
+	(match_operand:SI 0 "const_int_operand" "i"))]
+  "TARGET_VECTOR"
+  "csrwi\tvxrm,%0"
+  [(set_attr "type" "wrvxrm")
+   (set_attr "mode" "SI")])
+
 ;; -----------------------------------------------------------------
 ;; ---- Moves Operations
 ;; -----------------------------------------------------------------
@@ -623,7 +662,7 @@
 	 before spilling. The clobber scratch is used by spilling fractional
 	 registers in IRA/LRA so it's too early.  */
 
-  if (riscv_vector::legitimize_move (operands[0], operands[1], <VM>mode))
+  if (riscv_vector::legitimize_move (operands[0], operands[1]))
     DONE;
 })
 
@@ -679,7 +718,7 @@
 	(match_operand:VB 1 "general_operand"))]
   "TARGET_VECTOR"
 {
-  if (riscv_vector::legitimize_move (operands[0], operands[1], <MODE>mode))
+  if (riscv_vector::legitimize_move (operands[0], operands[1]))
     DONE;
 })
 
@@ -721,9 +760,8 @@
   else
     {
       riscv_vector::emit_vlmax_vsetvl (<V_FRACT:MODE>mode, operands[2]);
-      riscv_vector::emit_vlmax_reg_op (code_for_pred_mov (<V_FRACT:MODE>mode),
-				       operands[0], operands[1], operands[2],
-				       <VM>mode);
+      riscv_vector::emit_vlmax_insn (code_for_pred_mov (<V_FRACT:MODE>mode),
+				     riscv_vector::RVV_UNOP, operands, operands[2]);
     }
   DONE;
 })
@@ -742,9 +780,8 @@
   else
     {
       riscv_vector::emit_vlmax_vsetvl (<VB:MODE>mode, operands[2]);
-      riscv_vector::emit_vlmax_reg_op (code_for_pred_mov (<VB:MODE>mode),
-				       operands[0], operands[1], operands[2],
-				       <VB:MODE>mode);
+      riscv_vector::emit_vlmax_insn (code_for_pred_mov (<VB:MODE>mode),
+				     riscv_vector::RVV_UNOP, operands, operands[2]);
     }
   DONE;
 })
@@ -767,7 +804,7 @@
 
     if (GET_CODE (operands[1]) == CONST_VECTOR)
       {
-        riscv_vector::expand_tuple_move (<VM>mode, operands);
+        riscv_vector::expand_tuple_move (operands);
         DONE;
       }
 
@@ -787,7 +824,7 @@
   "&& reload_completed"
   [(const_int 0)]
   {
-    riscv_vector::expand_tuple_move (<VM>mode, operands);
+    riscv_vector::expand_tuple_move (operands);
     DONE;
   }
   [(set_attr "type" "vmov,vlde,vste")
@@ -807,8 +844,8 @@
 	  (match_operand:<VEL> 1 "direct_broadcast_operand")))]
   "TARGET_VECTOR"
   {
-    riscv_vector::emit_vlmax_op (code_for_pred_broadcast (<MODE>mode),
-				 operands[0], operands[1], <VM>mode);
+    riscv_vector::emit_vlmax_insn (code_for_pred_broadcast (<MODE>mode),
+				   riscv_vector::RVV_UNOP, operands);
     DONE;
   }
 )
@@ -1233,7 +1270,6 @@
 	/* scalar op */&operands[3],
 	/* vl */operands[5],
 	<MODE>mode,
-	<VM>mode,
 	riscv_vector::simm5_p (operands[3]),
 	[] (rtx *operands, rtx boardcast_scalar) {
 	  emit_insn (gen_pred_merge<mode> (operands[0], operands[1],
@@ -1944,7 +1980,6 @@
 	/* scalar op */&operands[4],
 	/* vl */operands[5],
 	<MODE>mode,
-	<VM>mode,
 	riscv_vector::has_vi_variant_p (<CODE>, operands[4]),
 	[] (rtx *operands, rtx boardcast_scalar) {
 	  emit_insn (gen_pred_<optab><mode> (operands[0], operands[1],
@@ -2020,7 +2055,6 @@
 	/* scalar op */&operands[4],
 	/* vl */operands[5],
 	<MODE>mode,
-	<VM>mode,
 	riscv_vector::has_vi_variant_p (<CODE>, operands[4]),
 	[] (rtx *operands, rtx boardcast_scalar) {
 	  emit_insn (gen_pred_<optab><mode> (operands[0], operands[1],
@@ -2096,7 +2130,6 @@
 	/* scalar op */&operands[4],
 	/* vl */operands[5],
 	<MODE>mode,
-	<VM>mode,
 	riscv_vector::neg_simm5_p (operands[4]),
 	[] (rtx *operands, rtx boardcast_scalar) {
 	  emit_insn (gen_pred_sub<mode> (operands[0], operands[1],
@@ -2214,7 +2247,6 @@
 	/* scalar op */&operands[4],
 	/* vl */operands[5],
 	<MODE>mode,
-	<VM>mode,
 	false,
 	[] (rtx *operands, rtx boardcast_scalar) {
 	  emit_insn (gen_pred_mulh<v_su><mode> (operands[0], operands[1],
@@ -2389,7 +2421,6 @@
 	/* scalar op */&operands[3],
 	/* vl */operands[5],
 	<MODE>mode,
-	<VM>mode,
 	riscv_vector::simm5_p (operands[3]),
 	[] (rtx *operands, rtx boardcast_scalar) {
 	  emit_insn (gen_pred_adc<mode> (operands[0], operands[1],
@@ -2473,7 +2504,6 @@
 	/* scalar op */&operands[3],
 	/* vl */operands[5],
 	<MODE>mode,
-	<VM>mode,
 	false,
 	[] (rtx *operands, rtx boardcast_scalar) {
 	  emit_insn (gen_pred_sbc<mode> (operands[0], operands[1],
@@ -2632,7 +2662,6 @@
 	/* scalar op */&operands[2],
 	/* vl */operands[4],
 	<MODE>mode,
-	<VM>mode,
 	riscv_vector::simm5_p (operands[2]),
 	[] (rtx *operands, rtx boardcast_scalar) {
 	  emit_insn (gen_pred_madc<mode> (operands[0], operands[1],
@@ -2702,7 +2731,6 @@
 	/* scalar op */&operands[2],
 	/* vl */operands[4],
 	<MODE>mode,
-	<VM>mode,
 	false,
 	[] (rtx *operands, rtx boardcast_scalar) {
 	  emit_insn (gen_pred_msbc<mode> (operands[0], operands[1],
@@ -2845,7 +2873,6 @@
 	/* scalar op */&operands[2],
 	/* vl */operands[3],
 	<MODE>mode,
-	<VM>mode,
 	riscv_vector::simm5_p (operands[2]),
 	[] (rtx *operands, rtx boardcast_scalar) {
 	  emit_insn (gen_pred_madc<mode>_overflow (operands[0], operands[1],
@@ -2912,7 +2939,6 @@
 	/* scalar op */&operands[2],
 	/* vl */operands[3],
 	<MODE>mode,
-	<VM>mode,
 	false,
 	[] (rtx *operands, rtx boardcast_scalar) {
 	  emit_insn (gen_pred_msbc<mode>_overflow (operands[0], operands[1],
@@ -3410,7 +3436,6 @@
 	/* scalar op */&operands[4],
 	/* vl */operands[5],
 	<MODE>mode,
-	<VM>mode,
 	riscv_vector::has_vi_variant_p (<CODE>, operands[4]),
 	[] (rtx *operands, rtx boardcast_scalar) {
 	  emit_insn (gen_pred_<optab><mode> (operands[0], operands[1],
@@ -3492,7 +3517,6 @@
 	/* scalar op */&operands[4],
 	/* vl */operands[5],
 	<MODE>mode,
-	<VM>mode,
 	riscv_vector::has_vi_variant_p (<CODE>, operands[4]),
 	[] (rtx *operands, rtx boardcast_scalar) {
 	  emit_insn (gen_pred_<optab><mode> (operands[0], operands[1],
@@ -3642,7 +3666,6 @@
 	/* scalar op */&operands[4],
 	/* vl */operands[5],
 	<MODE>mode,
-	<VM>mode,
 	false,
 	[] (rtx *operands, rtx boardcast_scalar) {
 	  emit_insn (gen_pred_<sat_op><mode> (operands[0], operands[1],
@@ -4102,7 +4125,6 @@
 	/* scalar op */&operands[5],
 	/* vl */operands[6],
 	<MODE>mode,
-	<VM>mode,
 	riscv_vector::has_vi_variant_p (code, operands[5]),
 	code == LT || code == LTU ?
 	  [] (rtx *operands, rtx boardcast_scalar) {
@@ -4142,7 +4164,6 @@
 	/* scalar op */&operands[5],
 	/* vl */operands[6],
 	<MODE>mode,
-	<VM>mode,
 	riscv_vector::has_vi_variant_p (code, operands[5]),
 	[] (rtx *operands, rtx boardcast_scalar) {
 	  emit_insn (gen_pred_cmp<mode> (operands[0], operands[1],
@@ -4841,7 +4862,6 @@
 	/* scalar op */&operands[2],
 	/* vl */operands[6],
 	<MODE>mode,
-	<VM>mode,
 	false,
 	[] (rtx *operands, rtx boardcast_scalar) {
 	  emit_insn (gen_pred_mul_plus<mode> (operands[0], operands[1],
@@ -5262,7 +5282,6 @@
 	/* scalar op */&operands[2],
 	/* vl */operands[6],
 	<MODE>mode,
-	<VM>mode,
 	false,
 	[] (rtx *operands, rtx boardcast_scalar) {
 	  emit_insn (gen_pred_minus_mul<mode> (operands[0], operands[1],

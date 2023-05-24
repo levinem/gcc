@@ -120,7 +120,7 @@ package body Sem_Ch11 is
                elsif Nkind (Id1) /= N_Others_Choice
                  and then
                    (Id_Entity = Entity (Id1)
-                     or else (Id_Entity = Renamed_Entity (Entity (Id1))))
+                     or else Id_Entity = Renamed_Entity (Entity (Id1)))
                then
                   if Handler /= Parent (Id) then
                      Error_Msg_Sloc := Sloc (Id1);
@@ -136,10 +136,10 @@ package body Sem_Ch11 is
                   end if;
                end if;
 
-               Next_Non_Pragma (Id1);
+               Next (Id1);
             end loop;
 
-            Next (Handler);
+            Next_Non_Pragma (Handler);
          end loop;
       end Check_Duplication;
 
@@ -151,15 +151,13 @@ package body Sem_Ch11 is
          H : Node_Id;
 
       begin
-         H := First (L);
+         H := First_Non_Pragma (L);
          while Present (H) loop
-            if Nkind (H) /= N_Pragma
-              and then Nkind (First (Exception_Choices (H))) = N_Others_Choice
-            then
+            if Nkind (First (Exception_Choices (H))) = N_Others_Choice then
                return True;
             end if;
 
-            Next (H);
+            Next_Non_Pragma (H);
          end loop;
 
          return False;
@@ -234,6 +232,7 @@ package body Sem_Ch11 is
 
                Enter_Name (Choice);
                Mutate_Ekind (Choice, E_Variable);
+               Set_Is_Not_Self_Hidden (Choice);
 
                if RTE_Available (RE_Exception_Occurrence) then
                   Set_Etype (Choice, RTE (RE_Exception_Occurrence));
