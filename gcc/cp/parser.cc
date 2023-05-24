@@ -17428,10 +17428,9 @@ cp_parser_operator (cp_parser* parser, location_t start_loc)
       op = LE_EXPR;
       break;
 
-      // TODO ML: maybe reneable this.
-    // case CPP_LIFT:
-    //     op = LIFT_EXPR;
-    //     break;
+    case CPP_LIFT:
+        op = LIFT_EXPR;
+        break;
 
     case CPP_GREATER_EQ:
       op = GE_EXPR;
