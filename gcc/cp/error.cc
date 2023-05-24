@@ -756,7 +756,7 @@ dump_typename (cxx_pretty_printer *pp, tree t, int flags)
 const char *
 class_key_or_enum_as_string (tree t)
 {
-  if (TREE_CODE (t) == ENUMERAL_TYPE) 
+  if (TREE_CODE (t) == ENUMERAL_TYPE)
     {
       if (SCOPED_ENUM_P (t))
         return "enum class";
@@ -818,7 +818,7 @@ dump_aggr_type (cxx_pretty_printer *pp, tree t, int flags)
 		&& TYPE_LANG_SPECIFIC (t) && CLASSTYPE_TEMPLATE_INFO (t)
 		&& (TREE_CODE (CLASSTYPE_TI_TEMPLATE (t)) != TEMPLATE_DECL
 		    || PRIMARY_TEMPLATE_P (CLASSTYPE_TI_TEMPLATE (t)));
-      
+
       if (! (flags & TFF_UNQUALIFIED_NAME))
 	dump_scope (pp, CP_DECL_CONTEXT (decl), flags | TFF_SCOPE);
       flags &= ~TFF_UNQUALIFIED_NAME;
@@ -1161,7 +1161,7 @@ dump_simple_decl (cxx_pretty_printer *pp, tree t, tree type, int flags)
     dump_scope (pp, CP_DECL_CONTEXT (t), flags);
   flags &= ~TFF_UNQUALIFIED_NAME;
   if ((flags & TFF_DECL_SPECIFIERS)
-      && DECL_TEMPLATE_PARM_P (t) 
+      && DECL_TEMPLATE_PARM_P (t)
       && TEMPLATE_PARM_PARAMETER_PACK (DECL_INITIAL (t)))
     pp_string (pp, "...");
   if (DECL_NAME (t))
@@ -2094,7 +2094,7 @@ dump_template_parms (cxx_pretty_printer *pp, tree info,
               && (!ARGUMENT_PACK_P (arg)
                   || TREE_VEC_LENGTH (ARGUMENT_PACK_ARGS (arg)) > 0))
             pp_separate_with_comma (pp);
-          
+
           if (!arg)
             pp_string (pp, M_("<template parameter error>"));
           else
@@ -2139,7 +2139,7 @@ dump_call_expr_args (cxx_pretty_printer *pp, tree t, int flags, bool skipfirst)
 {
   tree arg;
   call_expr_arg_iterator iter;
-  
+
   pp_cxx_left_paren (pp);
   FOR_EACH_CALL_EXPR_ARG (arg, iter, t)
     {
@@ -2165,7 +2165,7 @@ dump_aggr_init_expr_args (cxx_pretty_printer *pp, tree t, int flags,
 {
   tree arg;
   aggr_init_expr_arg_iterator iter;
-  
+
   pp_cxx_left_paren (pp);
   FOR_EACH_AGGR_INIT_EXPR_ARG (arg, iter, t)
     {
@@ -2599,6 +2599,7 @@ dump_expr (cxx_pretty_printer *pp, tree t, int flags)
       break;
 
     case NEGATE_EXPR:
+    case LIFT_EXPR:
     case BIT_NOT_EXPR:
     case TRUTH_NOT_EXPR:
     case PREDECREMENT_EXPR:
@@ -3795,7 +3796,7 @@ print_instantiation_partial_context (diagnostic_context *context,
   t = t0;
 
   if (template_backtrace_limit
-      && n_total > template_backtrace_limit) 
+      && n_total > template_backtrace_limit)
     {
       int skip = n_total - template_backtrace_limit;
       int head = template_backtrace_limit / 2;
@@ -3806,7 +3807,7 @@ print_instantiation_partial_context (diagnostic_context *context,
          skip = 2;
          head = (template_backtrace_limit - 1) / 2;
        }
-     
+
       for (n = 0; n < head; n++)
 	{
 	  gcc_assert (t != NULL);
@@ -3832,14 +3833,14 @@ print_instantiation_partial_context (diagnostic_context *context,
 			   "contexts, use -ftemplate-backtrace-limit=0 to "
 			   "disable ]\n"),
 			 "locus", xloc.file, xloc.line, skip);
-	  
+
 	  do {
 	    loc = t->locus;
 	    t = t->next;
 	  } while (t != NULL && --skip > 0);
 	}
     }
-  
+
   while (t != NULL)
     {
       while (t->next != NULL && t->locus == t->next->locus)

@@ -2043,6 +2043,7 @@ enum cp_parser_declarator_kind
 
 enum cp_parser_prec
 {
+  PREC_LIFT_EXPRESSION,
   PREC_NOT_OPERATOR,
   PREC_LOGICAL_OR_EXPRESSION,
   PREC_LOGICAL_AND_EXPRESSION,
@@ -2126,6 +2127,8 @@ static const cp_parser_binary_operations_map_node binops[] = {
   { CPP_RSHIFT, RSHIFT_EXPR, PREC_SHIFT_EXPRESSION },
 
   { CPP_SPACESHIP, SPACESHIP_EXPR, PREC_SPACESHIP_EXPRESSION },
+
+  { CPP_LIFT, LIFT_EXPR, PREC_LIFT_EXPRESSION },
 
   { CPP_LESS, LT_EXPR, PREC_RELATIONAL_EXPRESSION },
   { CPP_GREATER, GT_EXPR, PREC_RELATIONAL_EXPRESSION },
@@ -9124,6 +9127,7 @@ cp_parser_unary_expression (cp_parser *parser, cp_id_kind * pidk,
 	  /* Fall through.  */
 	case UNARY_PLUS_EXPR:
 	case TRUTH_NOT_EXPR:
+        case LIFT_EXPR:
 	  expression = finish_unary_op_expr (loc, unary_operator,
 					     cast_expression, complain);
 	  break;
@@ -9171,6 +9175,9 @@ cp_parser_unary_operator (cp_token* token)
 
     case CPP_COMPL:
       return BIT_NOT_EXPR;
+
+    case CPP_LIFT:
+        return LIFT_EXPR;
 
     default:
       return ERROR_MARK;

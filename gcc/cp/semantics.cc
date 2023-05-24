@@ -2691,7 +2691,7 @@ perform_koenig_lookup (cp_expr fn_expr, vec<tree, va_gc> *args,
 
   if (fn && template_id && fn != error_mark_node)
     fn = build2 (TEMPLATE_ID_EXPR, unknown_type_node, fn, tmpl_args);
-  
+
   return cp_expr (fn, loc);
 }
 
@@ -9138,7 +9138,7 @@ finish_omp_clauses (tree clauses, enum c_omp_region_type ort)
 	      && OMP_CLAUSE_CODE (c) != OMP_CLAUSE_SHARED
 	      && DECL_P (t))
 	    bitmap_clear_bit (&aligned_head, DECL_UID (t));
-	    
+
 	  if (VAR_P (t) && CP_DECL_THREAD_LOCAL_P (t))
 	    share_name = "threadprivate";
 	  else switch (cxx_omp_predetermined_sharing_1 (t))
@@ -10187,6 +10187,7 @@ handle_omp_for_class_iterator (int i, location_t locus, enum tree_code code,
 	incr = integer_minus_one_node;
       break;
     case MODIFY_EXPR:
+
       if (TREE_OPERAND (incr, 0) != iter)
 	incr = error_mark_node;
       else if (TREE_CODE (TREE_OPERAND (incr, 1)) == PLUS_EXPR
@@ -11591,7 +11592,7 @@ pointer_interconvertible_base_of_p (tree base, tree derived)
   if (!NON_UNION_CLASS_TYPE_P (base)
       || !NON_UNION_CLASS_TYPE_P (derived))
     return false;
-    
+
   if (same_type_p (base, derived))
     return true;
 
