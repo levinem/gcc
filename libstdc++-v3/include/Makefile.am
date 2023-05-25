@@ -776,6 +776,7 @@ experimental_headers = \
 	${experimental_srcdir}/executor \
 	${experimental_srcdir}/forward_list \
 	${experimental_srcdir}/functional \
+	${experimental_srcdir}/meta \
 	${experimental_srcdir}/internet \
 	${experimental_srcdir}/io_context \
 	${experimental_srcdir}/iterator \
