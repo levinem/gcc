@@ -50,7 +50,6 @@ struct _cpp_file;
    add or remove anything in the first group.  */
 
 #define TTYPE_TABLE							\
-  OP(LIFT,              "^")    /* reflection */                        \
   OP(EQ,		"=")                                            \
   OP(NOT,		"!")						\
   OP(GREATER,		">")	/* compare */				\

@@ -2128,8 +2128,6 @@ static const cp_parser_binary_operations_map_node binops[] = {
 
   { CPP_SPACESHIP, SPACESHIP_EXPR, PREC_SPACESHIP_EXPRESSION },
 
-  { CPP_LIFT, LIFT_EXPR, PREC_LIFT_EXPRESSION },
-
   { CPP_LESS, LT_EXPR, PREC_RELATIONAL_EXPRESSION },
   { CPP_GREATER, GT_EXPR, PREC_RELATIONAL_EXPRESSION },
   { CPP_LESS_EQ, LE_EXPR, PREC_RELATIONAL_EXPRESSION },
@@ -9158,6 +9156,9 @@ cp_parser_unary_operator (cp_token* token)
 {
   switch (token->type)
     {
+    case CPP_XOR:
+        return LIFT_EXPR;
+
     case CPP_MULT:
       return INDIRECT_REF;
 
@@ -9175,9 +9176,6 @@ cp_parser_unary_operator (cp_token* token)
 
     case CPP_COMPL:
       return BIT_NOT_EXPR;
-
-    case CPP_LIFT:
-        return LIFT_EXPR;
 
     default:
       return ERROR_MARK;
@@ -17427,10 +17425,6 @@ cp_parser_operator (cp_parser* parser, location_t start_loc)
     case CPP_LESS_EQ:
       op = LE_EXPR;
       break;
-
-    case CPP_LIFT:
-        op = LIFT_EXPR;
-        break;
 
     case CPP_GREATER_EQ:
       op = GE_EXPR;
