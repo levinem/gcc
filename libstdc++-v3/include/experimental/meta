@@ -30,7 +30,7 @@
 
 #pragma GCC system_header
 
-#if __cpp_if_consteval=202106L
+#if __cpp_if_consteval >= 202106L
 
 #include <cassert>
 #include <cstddef>
