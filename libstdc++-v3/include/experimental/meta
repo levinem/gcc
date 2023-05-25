@@ -30,6 +30,8 @@
 
 #pragma GCC system_header
 
+#if __cpp_if_consteval=202106L
+
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -45,7 +47,7 @@ inline namespace meta_v1
 {
 
 // An opaque handle to a reflected entity.
-using info = decltype(reflexpr(void));
+using info = decltype(^void);
 
 // Placeholder for constexpr string.
 using string_type = const char*;
