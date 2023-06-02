@@ -3526,9 +3526,6 @@ cp_parser_non_integral_constant_expression (cp_parser  *parser,
 	      case NIC_DEL:
 		msg = "delete";
 		break;
-            case NIC_LIFT:
-                msg = "^";
-                break;
 	      default:
 		gcc_unreachable ();
 	    }
