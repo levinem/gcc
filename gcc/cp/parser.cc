@@ -112,8 +112,8 @@ enum non_integral_constant {
   NIC_CONSTRUCTOR,
   /* a transaction expression */
   NIC_TRANSACTION,
-  /* a reflection expression */
-  NIC_REFLECTION
+  /* a lift expression */
+  NIC_LIFT
 };
 
 /* The various kinds of errors about name-lookup failing. */
@@ -3526,6 +3526,9 @@ cp_parser_non_integral_constant_expression (cp_parser  *parser,
 	      case NIC_DEL:
 		msg = "delete";
 		break;
+            case NIC_LIFT:
+                msg = "^";
+                break;
 	      default:
 		gcc_unreachable ();
 	    }
@@ -9123,9 +9126,11 @@ cp_parser_unary_expression (cp_parser *parser, cp_id_kind * pidk,
 		}
 	    }
 	  /* Fall through.  */
+        case LIFT_EXPR:
+            non_constant_p = NIC_LIFT;
+            /* Fall through.  */
 	case UNARY_PLUS_EXPR:
 	case TRUTH_NOT_EXPR:
-        case LIFT_EXPR:
 	  expression = finish_unary_op_expr (loc, unary_operator,
 					     cast_expression, complain);
 	  break;
