@@ -9124,8 +9124,6 @@ cp_parser_unary_expression (cp_parser *parser, cp_id_kind * pidk,
 	    }
 	  /* Fall through.  */
         case LIFT_EXPR:
-            non_constant_p = NIC_LIFT;
-            /* Fall through.  */
 	case UNARY_PLUS_EXPR:
 	case TRUTH_NOT_EXPR:
 	  expression = finish_unary_op_expr (loc, unary_operator,
