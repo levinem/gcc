@@ -4135,7 +4135,7 @@ make_pack_expansion (tree arg, tsubst_flags_t complain)
          class initializer.  In this case, the TREE_PURPOSE will be a
          _TYPE node (representing the base class expansion we're
          initializing) and the TREE_VALUE will be a TREE_LIST
-         containing the initialization arguments. 
+         containing the initialization arguments.
 
          The resulting expansion looks somewhat different from most
          expansions. Rather than returning just one _EXPANSION, we
@@ -4180,7 +4180,7 @@ make_pack_expansion (tree arg, tsubst_flags_t complain)
             {
               /* Determine which parameter packs will be expanded in this
                  argument.  */
-              cp_walk_tree (&TREE_VALUE (value), &find_parameter_packs_r, 
+              cp_walk_tree (&TREE_VALUE (value), &find_parameter_packs_r,
                             &ppd, ppd.visited);
             }
         }
@@ -12221,7 +12221,7 @@ instantiate_class_template (tree type)
 
           if (PACK_EXPANSION_P (BINFO_TYPE (pbase_binfo)))
             {
-              expanded_bases = 
+              expanded_bases =
 		tsubst_pack_expansion (BINFO_TYPE (pbase_binfo),
 				       args, tf_error, NULL_TREE);
               if (expanded_bases == error_mark_node)
@@ -12237,7 +12237,7 @@ instantiate_class_template (tree type)
                 base = TREE_VEC_ELT (expanded_bases, idx);
               else
                 /* Substitute to figure out the base class.  */
-                base = tsubst (BINFO_TYPE (pbase_binfo), args, tf_error, 
+                base = tsubst (BINFO_TYPE (pbase_binfo), args, tf_error,
                                NULL_TREE);
 
               if (base == error_mark_node)
@@ -12484,7 +12484,7 @@ instantiate_class_template (tree type)
 		/* friend class C<T>;  */
 		friend_type = tsubst (friend_type, args,
 				      tf_warning_or_error, NULL_TREE);
-	      
+
 	      /* Otherwise it's
 
 		   friend class C;
@@ -13434,7 +13434,7 @@ tsubst_pack_expansion (tree t, tree args, tsubst_flags_t complain,
 
       if (arg_pack)
         {
-          int my_len = 
+          int my_len =
             TREE_VEC_LENGTH (ARGUMENT_PACK_ARGS (arg_pack));
 
 	  /* Don't bother trying to do a partial substitution with
@@ -14903,7 +14903,7 @@ tsubst_decl (tree t, tree args, tsubst_flags_t complain)
                return the local specialization (which will be a single
                parm).  */
             tree spec = retrieve_local_specialization (t);
-            if (spec 
+            if (spec
                 && TREE_CODE (spec) == PARM_DECL
                 && TREE_CODE (TREE_TYPE (spec)) != TYPE_PACK_EXPANSION)
               RETURN (spec);
@@ -15785,7 +15785,7 @@ tsubst_exception_specification (tree fntype,
                   spec = tsubst (TREE_VALUE (specs), args, complain, in_decl);
                 if (spec == error_mark_node)
                   return spec;
-                new_specs = add_exception_specifier (new_specs, spec, 
+                new_specs = add_exception_specifier (new_specs, spec,
                                                      complain);
               }
 
@@ -16705,6 +16705,7 @@ tsubst (tree t, tree args, tsubst_flags_t complain, tree in_decl)
     case PLUS_EXPR:
     case MINUS_EXPR:
     case NEGATE_EXPR:
+    case LIFT_EXPR:
     case NOP_EXPR:
     case INDIRECT_REF:
     case ADDR_EXPR:
@@ -17598,6 +17599,7 @@ tsubst_copy (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 
     case INDIRECT_REF:
     case NEGATE_EXPR:
+    case LIFT_EXPR:
     case TRUTH_NOT_EXPR:
     case BIT_NOT_EXPR:
     case ADDR_EXPR:
@@ -18483,7 +18485,7 @@ tsubst_omp_for_iterator (tree t, int i, tree declv, tree &orig_declv,
 	      TREE_VEC_ELT (rhs, 1) = RECUR (TREE_VEC_ELT (rhs, 1));
 	      TREE_VEC_ELT (rhs, 2) = RECUR (TREE_VEC_ELT (rhs, 2));
 	      cond = build2 (TREE_CODE (cond), TREE_TYPE (cond),
-			     lhs, rhs);	      
+			     lhs, rhs);
 	    }
 	  else
 	    cond = RECUR (cond);
@@ -20617,6 +20619,7 @@ tsubst_copy_and_build (tree t,
     case PREDECREMENT_EXPR:
     case PREINCREMENT_EXPR:
     case NEGATE_EXPR:
+    case LIFT_EXPR:
     case BIT_NOT_EXPR:
     case ABS_EXPR:
     case TRUTH_NOT_EXPR:
@@ -24168,7 +24171,7 @@ unify_pack_expansion (tree tparms, tree targs, tree packed_parms,
           int idx, level;
           template_parm_level_and_index (TREE_PURPOSE (pack), &level, &idx);
 
-          TREE_VEC_ELT (TREE_TYPE (pack), i - start) = 
+          TREE_VEC_ELT (TREE_TYPE (pack), i - start) =
             TMPL_ARG (targs, level, idx);
         }
     }
@@ -24227,7 +24230,7 @@ unify_pack_expansion (tree tparms, tree targs, tree packed_parms,
           TMPL_ARG (targs, level, idx) = result;
         }
       else if (ARGUMENT_PACK_INCOMPLETE_P (old_pack)
-               && (ARGUMENT_PACK_ARGS (old_pack) 
+               && (ARGUMENT_PACK_ARGS (old_pack)
                    == ARGUMENT_PACK_EXPLICIT_ARGS (old_pack)))
         {
           /* We only had the explicitly-provided arguments before, but
@@ -27420,7 +27423,7 @@ tsubst_initializer_list (tree t, tree argvec)
           else
             {
 	      tree tmp;
-              decl = tsubst_copy (TREE_PURPOSE (t), argvec, 
+              decl = tsubst_copy (TREE_PURPOSE (t), argvec,
                                   tf_warning_or_error, NULL_TREE);
 
               decl = expand_member_init (decl);

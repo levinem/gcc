@@ -341,6 +341,9 @@ struct GTY(()) cp_parser {
      alternatives.  */
   bool in_type_id_in_expr_p;
 
+  /* TRUE if we are parsing a lift in an expression context.  */
+  bool in_lift_in_expr_p;
+
   /* TRUE if strings in expressions should be translated to the execution
      character set.  */
   bool translate_strings_p;
