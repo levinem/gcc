@@ -48,6 +48,9 @@ build_lift_op_expr(location_t loc, tree expr, tsubst_flags_t complain)
 {
     // TODO
     tree operand_expr = get_operand_from_unary_expression(expr);
+
+    tree parsed_operand_expr = parse_lift_op_expr_operand(operand_expr, complain);
+
     if (is_valid_lift_op_operand(operand_expr, complain))
     {
         return expr;
@@ -62,10 +65,29 @@ get_operand_from_unary_expression(tree expr)
     return expr;
 }
 
+tree
+parse_lift_op_expr_operand(tree operand_expr, tsubst_flags_t complain)
+{
+    // Tentatively parse a template-name.
+    tree parsed_template = parse_template_name_operand(operand_expr, complain);
+    if (is_valid_parsed_template(parsed_template)) {
+        return act_on_reflected_template(parsed_template, complain);
+    }
+
+    // Otherwise, check for the global namespace
+    if (is_the_current_token_a_colon_colon && is_next_token_a_right_parenthesize) {
+        stripped_operand_expr = consume_the_colon_colon_token(operand_expr);
+        return act_on_reflected_namespace(stripped_operand_expr, complain);
+    }
+
+}
+
 bool
 is_valid_lift_op_operand(tree operand_expr, tsubst_flags_t complain)
 {
-    // TODO
+    if (
+        is_a_template_name_expression ()
+       )
     return true;
 }
 
