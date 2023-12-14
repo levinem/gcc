@@ -83,6 +83,18 @@ parse_lift_op_expr_operand(tree operand_expr, tsubst_flags_t complain)
 }
 
 bool
+is_valid_parsed_template(parsed_template_expr, complain)
+{
+    return true;
+}
+
+tree
+parse_template_name_operand(operand_expr, complain)
+{
+    return operand_expr;
+}
+
+bool
 is_valid_lift_op_operand(tree operand_expr, tsubst_flags_t complain)
 {
     if (
