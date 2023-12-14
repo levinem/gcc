@@ -51,7 +51,7 @@ build_lift_op_expr(location_t loc, tree expr, tsubst_flags_t complain)
 
     tree parsed_operand_expr = parse_lift_op_expr_operand(operand_expr, complain);
 
-    if (is_valid_lift_op_operand(operand_expr, complain))
+    if (is_valid_lift_op_operand(parsed_operand_expr, complain))
     {
         return expr;
     }
@@ -69,21 +69,52 @@ tree
 parse_lift_op_expr_operand(tree operand_expr, tsubst_flags_t complain)
 {
     // Tentatively parse a template-name.
-    tree parsed_template = parse_template_name_operand(operand_expr, complain);
-    if (is_valid_parsed_template(parsed_template)) {
-        return act_on_reflected_template(parsed_template, complain);
+    tree parsed_template_expr = parse_template_name_operand(operand_expr, complain);
+    if (is_valid_parsed_template_expr(parsed_template_expr)) {
+        return act_on_reflected_template(parsed_template_expr, complain);
     }
 
     // Otherwise, check for the global namespace
-    if (is_the_current_token_a_colon_colon && is_next_token_a_right_parenthesize) {
-        stripped_operand_expr = consume_the_colon_colon_token(operand_expr);
+    if (is_the_current_token_a_colon_colon(operand_expr) && is_the_next_token_a_right_parenthesize(operand_expr)) {
+        reflected_namespace_expr = consume_the_colon_colon_token(operand_expr);
         return act_on_reflected_namespace(stripped_operand_expr, complain);
+    }
+
+    // Otherwise, parse a namespace-name.
+    if (is_namespace_name(operand_expr))
+    {
+        tree parsed_namespace_name_expr = parse_namespace_name_expr(operand_expr);
+        return act_on_reflected_namespace(parsed_namespace_name_expr);
     }
 
 }
 
 bool
-is_valid_parsed_template(parsed_template_expr, complain)
+is_namespace_name(tree operand_expr)
+{
+    return true;
+}
+
+tree
+parse_namespace_name_expr(operand_expr)
+{
+    return operand_expr;
+}
+
+bool
+is_the_current_token_a_colon_colon(tree operand_expr)
+{
+    return true;
+}
+
+bool
+is_the_next_token_a_right_parenthesize(tree operand_expr)
+{
+    return true;
+}
+
+bool
+is_valid_parsed_template_expr(tree parsed_template_expr, tsubst_flags_t complain)
 {
     return true;
 }
