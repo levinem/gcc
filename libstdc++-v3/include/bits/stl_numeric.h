@@ -59,7 +59,6 @@
 #include <bits/concept_check.h>
 #include <debug/debug.h>
 #include <bits/move.h> // For _GLIBCXX_MOVE
-#include <bits/ranges_base.h> // For _Range as used by std::ranges::iota
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
