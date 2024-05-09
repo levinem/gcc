@@ -43,6 +43,32 @@
 namespace std _GLIBCXX_VISIBILITY(default)
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
+
+#if __glibcxx_ranges_iota >= 202202L // C++ >= 23
+
+    template<typename _Out, typename _Tp>
+    struct out_value_result
+{
+    [[no_unique_address]] _Out out;
+    [[no_unique_address]] _Tp value;
+
+    template<typename _Out2, typename _Tp2>
+    requires convertible_to<const _Out&, _Out2>
+    && convertible_to<const _Tp&, _Tp2>
+    constexpr
+    operator out_value_result<_Out2, _Tp2>() const &
+    { return {out, value}; }
+
+    template<typename _Out2, typename _Tp2>
+    requires convertible_to<_Out, _Out2>
+    && convertible_to<_Tp, _Tp2>
+    constexpr
+    operator out_value_result<_Out2, _Tp2>() &&
+    { return {std::move(out), std::move(value)}; }
+};
+
+#endif // __glibcxx_ranges_iota
+
 namespace ranges
 {
   namespace __detail
