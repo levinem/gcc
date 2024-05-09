@@ -66,8 +66,7 @@
 #endif
 
 #if __glibcxx_ranges_iota >= 202202L // C++ >= 23
-#include <bits/ranges_base.h> // for _Range as used by std::ranges::iota
-#include <bits/ranges_algobase.h> // for std::out_value_result as used by std::ranges::iota
+#include <bits/ranges_algobase.h> // for std::out_value_result as used by std::ranges::iota.  It transitively also brings in <bits/ranges_base.h>, from which _Range is used by std::ranges::iota
 #endif // __glibcxx_ranges_iota
 
 #if __cplusplus >= 201402L
@@ -736,28 +735,7 @@ namespace ranges
 #if __glibcxx_ranges_iota >= 202202L // C++ >= 23
 
   template<typename _Out, typename _Tp>
-    struct out_value_result
-    {
-      [[no_unique_address]] _Out out;
-      [[no_unique_address]] _Tp value;
-
-      template<typename _Out2, typename _Tp2>
-	requires convertible_to<const _Out&, _Out2>
-	  && convertible_to<const _Tp&, _Tp2>
-	constexpr
-	operator out_value_result<_Out2, _Tp2>() const &
-	{ return {out, value}; }
-
-      template<typename _Out2, typename _Tp2>
-	requires convertible_to<_Out, _Out2>
-	  && convertible_to<_Tp, _Tp2>
-	constexpr
-	operator out_value_result<_Out2, _Tp2>() &&
-	{ return {std::move(out), std::move(value)}; }
-    };
-
-  template<typename _Out, typename _Tp>
-    using iota_result = out_value_result<_Out, _Tp>;
+  using iota_result = std::out_value_result<_Out, _Tp>;
 
   struct __iota_fn
   {
