@@ -735,7 +735,7 @@ namespace ranges
 #if __glibcxx_ranges_iota >= 202202L // C++ >= 23
 
   template<typename _Out, typename _Tp>
-  using iota_result = std::out_value_result<_Out, _Tp>;
+  using iota_result = out_value_result<_Out, _Tp>;
 
   struct __iota_fn
   {
