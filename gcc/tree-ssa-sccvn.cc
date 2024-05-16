@@ -438,7 +438,7 @@ static void init_vn_nary_op_from_pieces (vn_nary_op_t, unsigned int,
 					 enum tree_code, tree, tree *);
 static tree vn_lookup_simplify_result (gimple_match_op *);
 static vn_reference_t vn_reference_lookup_or_insert_for_pieces
-	  (tree, alias_set_type, alias_set_type, tree,
+	  (tree, alias_set_type, alias_set_type, poly_int64, poly_int64, tree,
 	   vec<vn_reference_op_s, va_heap>, tree);
 
 /* Return whether there is value numbering information for a given SSA name.  */
@@ -748,6 +748,8 @@ vn_reference_compute_hash (const vn_reference_t vr1)
 	    vn_reference_op_compute_hash (vro, hstate);
 	}
     }
+  /* Do not hash vr1->offset or vr1->max_size, we want to get collisions
+     to be able to identify compatible results.  */
   result = hstate.end ();
   /* ??? We would ICE later if we hash instead of adding that in. */
   if (vr1->vuse)
@@ -771,6 +773,16 @@ vn_reference_eq (const_vn_reference_t const vr1, const_vn_reference_t const vr2)
   /* The VOP needs to be the same.  */
   if (vr1->vuse != vr2->vuse)
     return false;
+
+  /* The offset/max_size used for the ao_ref during lookup has to be
+     the same.  */
+  if (maybe_ne (vr1->offset, vr2->offset)
+      || maybe_ne (vr1->max_size, vr2->max_size))
+    {
+      /* But nothing known in the prevailing entry is OK to be used.  */
+      if (maybe_ne (vr1->offset, 0) || known_size_p (vr1->max_size))
+	return false;
+    }
 
   /* If the operands are the same we are done.  */
   if (vr1->operands == vr2->operands)
@@ -900,8 +912,6 @@ copy_reference_ops_from_ref (tree ref, vec<vn_reference_op_s> *result)
 {
   /* For non-calls, store the information that makes up the address.  */
   tree orig = ref;
-  unsigned start = result->length ();
-  bool seen_variable_array_ref = false;
   while (ref)
     {
       vn_reference_op_s temp;
@@ -988,12 +998,6 @@ copy_reference_ops_from_ref (tree ref, vec<vn_reference_op_s> *result)
 	    tree eltype = TREE_TYPE (TREE_TYPE (TREE_OPERAND (ref, 0)));
 	    /* Record index as operand.  */
 	    temp.op0 = TREE_OPERAND (ref, 1);
-	    /* When the index is not constant we have to apply the same
-	       logic as get_ref_base_and_extent which eventually uses
-	       global ranges to refine the overall ref extent.  Record
-	       we've seen such a case, fixup below.  */
-	    if (TREE_CODE (temp.op0) == SSA_NAME)
-	      seen_variable_array_ref = true;
 	    /* Always record lower bounds and element size.  */
 	    temp.op1 = array_ref_low_bound (ref);
 	    /* But record element size in units of the type alignment.  */
@@ -1086,130 +1090,6 @@ copy_reference_ops_from_ref (tree ref, vec<vn_reference_op_s> *result)
       else
 	ref = NULL_TREE;
     }
-  poly_int64 offset, size, max_size;
-  tree base;
-  bool rev;
-  if (seen_variable_array_ref
-      && handled_component_p (orig)
-      && (base = get_ref_base_and_extent (orig,
-					  &offset, &size, &max_size, &rev))
-      && known_size_p (max_size)
-      && known_eq (size, max_size))
-    {
-      poly_int64 orig_offset = offset;
-      poly_int64 tem;
-      if (TREE_CODE (base) == MEM_REF
-	  && mem_ref_offset (base).to_shwi (&tem))
-	offset += tem * BITS_PER_UNIT;
-      HOST_WIDE_INT coffset = offset.to_constant ();
-      /* When get_ref_base_and_extent computes an offset constrained to
-	 a constant position we have to fixup variable array indexes in
-	 the ref to avoid the situation where based on context we'd have
-	 to value-number the same vn_reference ops differently.  Make
-	 the vn_reference ops differ by adjusting those indexes to
-	 appropriate constants.  */
-      poly_int64 off = 0;
-      bool oob_index = false;
-      for (unsigned i = result->length (); i > start; --i)
-	{
-	  auto &op = (*result)[i-1];
-	  if (flag_checking
-	      && op.opcode == ARRAY_REF
-	      && TREE_CODE (op.op0) == INTEGER_CST)
-	    {
-	      /* The verifier below chokes on inconsistencies of handling
-		 out-of-bound accesses so disable it in that case.  */
-	      tree atype = (*result)[i].type;
-	      if (TREE_CODE (atype) == ARRAY_TYPE)
-		if (tree dom = TYPE_DOMAIN (atype))
-		  if ((TYPE_MIN_VALUE (dom)
-		       && TREE_CODE (TYPE_MIN_VALUE (dom)) == INTEGER_CST
-		       && (wi::to_widest (op.op0)
-			   < wi::to_widest (TYPE_MIN_VALUE (dom))))
-		      || (TYPE_MAX_VALUE (dom)
-			  && TREE_CODE (TYPE_MAX_VALUE (dom)) == INTEGER_CST
-			  && (wi::to_widest (op.op0)
-			      > wi::to_widest (TYPE_MAX_VALUE (dom)))))
-		    oob_index = true;
-	    }
-	  if ((op.opcode == ARRAY_REF
-	       || op.opcode == ARRAY_RANGE_REF)
-	      && TREE_CODE (op.op0) == SSA_NAME)
-	    {
-	      /* There's a single constant index that get's 'off' closer
-		 to 'offset'.  */
-	      unsigned HOST_WIDE_INT elsz
-		= tree_to_uhwi (op.op2) * vn_ref_op_align_unit (&op);
-	      unsigned HOST_WIDE_INT idx
-		= (coffset - off.to_constant ()) / BITS_PER_UNIT / elsz;
-	      if (idx == 0)
-		op.op0 = op.op1;
-	      else
-		op.op0 = wide_int_to_tree (TREE_TYPE (op.op0),
-					   wi::to_poly_wide (op.op1) + idx);
-	      op.off = idx * elsz;
-	      off += op.off * BITS_PER_UNIT;
-	    }
-	  else
-	    {
-	      if (op.opcode == ERROR_MARK)
-		/* two-ops codes have the offset in the first op.  */
-		;
-	      else if (op.opcode == ADDR_EXPR
-		       || op.opcode == SSA_NAME
-		       || op.opcode == CONSTRUCTOR
-		       || TREE_CODE_CLASS (op.opcode) == tcc_declaration
-		       || TREE_CODE_CLASS (op.opcode) == tcc_constant)
-		/* end-of ref.  */
-		gcc_assert (i == result->length ());
-	      else if (op.opcode == COMPONENT_REF)
-		{
-		  /* op.off is tracked in bytes, re-do it manually
-		     because of bitfields.  */
-		  tree field = op.op0;
-		  /* We do not have a complete COMPONENT_REF tree here so we
-		     cannot use component_ref_field_offset.  Do the interesting
-		     parts manually.  */
-		  tree this_offset = DECL_FIELD_OFFSET (field);
-		  if (op.op1 || !poly_int_tree_p (this_offset))
-		    gcc_unreachable ();
-		  else
-		    {
-		      poly_offset_int woffset
-			= (wi::to_poly_offset (this_offset)
-			   << LOG2_BITS_PER_UNIT);
-		      woffset += wi::to_offset (DECL_FIELD_BIT_OFFSET (field));
-		      off += woffset.force_shwi ();
-		    }
-		}
-	      else
-		{
-		  gcc_assert (known_ne (op.off, -1)
-			      /* Out-of-bound indices can compute to
-				 a known -1 offset.  */
-			      || ((op.opcode == ARRAY_REF
-				   || op.opcode == ARRAY_RANGE_REF)
-				  && poly_int_tree_p (op.op0)
-				  && poly_int_tree_p (op.op1)
-				  && TREE_CODE (op.op2) == INTEGER_CST));
-		  off += op.off * BITS_PER_UNIT;
-		}
-	    }
-	}
-      if (flag_checking && !oob_index)
-	{
-	  ao_ref r;
-	  if (start != 0)
-	    ;
-	  else if (ao_ref_init_from_vn_reference (&r, 0, 0, TREE_TYPE (orig),
-						  *result))
-	    gcc_assert (known_eq (r.offset, orig_offset)
-			&& known_eq (r.size, size)
-			&& known_eq (r.max_size, max_size));
-	  else
-	    gcc_unreachable ();
-	}
-    }
 }
 
 /* Build a alias-oracle reference abstraction in *REF from the vn_reference
@@ -1268,8 +1148,29 @@ ao_ref_init_from_vn_reference (ao_ref *ref,
     {
       switch (op->opcode)
 	{
-	/* These may be in the reference ops, but we cannot do anything
-	   sensible with them here.  */
+	case CALL_EXPR:
+	  return false;
+
+	/* Record the base objects.  */
+	case MEM_REF:
+	  *op0_p = build2 (MEM_REF, op->type,
+			   NULL_TREE, op->op0);
+	  MR_DEPENDENCE_CLIQUE (*op0_p) = op->clique;
+	  MR_DEPENDENCE_BASE (*op0_p) = op->base;
+	  op0_p = &TREE_OPERAND (*op0_p, 0);
+	  break;
+
+	case TARGET_MEM_REF:
+	  *op0_p = build5 (TARGET_MEM_REF, op->type,
+			   NULL_TREE, op->op2, op->op0,
+			   op->op1, ops[i+1].op0);
+	  MR_DEPENDENCE_CLIQUE (*op0_p) = op->clique;
+	  MR_DEPENDENCE_BASE (*op0_p) = op->base;
+	  op0_p = &TREE_OPERAND (*op0_p, 0);
+	  ++i;
+	  break;
+
+	/* Unwrap some of the wrapped decls.  */
 	case ADDR_EXPR:
 	  /* Apart from ADDR_EXPR arguments to MEM_REF.  */
 	  if (base != NULL_TREE
@@ -1290,23 +1191,24 @@ ao_ref_init_from_vn_reference (ao_ref *ref,
 	      break;
 	    }
 	  /* Fallthru.  */
-	case CALL_EXPR:
-	  return false;
-
-	/* Record the base objects.  */
-	case MEM_REF:
-	  *op0_p = build2 (MEM_REF, op->type,
-			   NULL_TREE, op->op0);
-	  MR_DEPENDENCE_CLIQUE (*op0_p) = op->clique;
-	  MR_DEPENDENCE_BASE (*op0_p) = op->base;
-	  op0_p = &TREE_OPERAND (*op0_p, 0);
+	case PARM_DECL:
+	case CONST_DECL:
+	case RESULT_DECL:
+	  /* ???  We shouldn't see these, but un-canonicalize what
+	     copy_reference_ops_from_ref does when visiting MEM_REF.  */
+	case VAR_DECL:
+	  /* ???  And for this only have DECL_HARD_REGISTER.  */
+	case STRING_CST:
+	  /* This can show up in ARRAY_REF bases.  */
+	case INTEGER_CST:
+	  *op0_p = op->op0;
+	  op0_p = NULL;
 	  break;
 
-	case VAR_DECL:
-	case PARM_DECL:
-	case RESULT_DECL:
 	case SSA_NAME:
-	  *op0_p = op->op0;
+	  /* SSA names we have to get at one available since it contains
+	     flow-sensitive info.  */
+	  *op0_p = vn_valueize (op->op0);
 	  op0_p = NULL;
 	  break;
 
@@ -1341,7 +1243,7 @@ ao_ref_init_from_vn_reference (ao_ref *ref,
 	  if (maybe_eq (op->off, -1))
 	    max_size = -1;
 	  else
-	    offset += op->off << LOG2_BITS_PER_UNIT;
+	    offset += op->off * BITS_PER_UNIT;
 	  break;
 
 	case REALPART_EXPR:
@@ -1354,13 +1256,12 @@ ao_ref_init_from_vn_reference (ao_ref *ref,
 	case VIEW_CONVERT_EXPR:
 	  break;
 
-	case STRING_CST:
-	case INTEGER_CST:
+	case POLY_INT_CST:
 	case COMPLEX_CST:
 	case VECTOR_CST:
 	case REAL_CST:
+	case FIXED_CST:
 	case CONSTRUCTOR:
-	case CONST_DECL:
 	  return false;
 
 	default:
@@ -2059,6 +1960,7 @@ vn_walk_cb_data::finish (alias_set_type set, alias_set_type base_set, tree val)
   vec<vn_reference_op_s> &operands
     = saved_operands.exists () ? saved_operands : vr->operands;
   return vn_reference_lookup_or_insert_for_pieces (last_vuse, set, base_set,
+						   vr->offset, vr->max_size,
 						   vr->type, operands, val);
 }
 
@@ -2535,6 +2437,8 @@ static vn_reference_t
 vn_reference_lookup_or_insert_for_pieces (tree vuse,
 					  alias_set_type set,
 					  alias_set_type base_set,
+					  poly_int64 offset,
+					  poly_int64 max_size,
 					  tree type,
 					  vec<vn_reference_op_s,
 					        va_heap> operands,
@@ -2548,15 +2452,18 @@ vn_reference_lookup_or_insert_for_pieces (tree vuse,
   vr1.type = type;
   vr1.set = set;
   vr1.base_set = base_set;
+  vr1.offset = offset;
+  vr1.max_size = max_size;
   vr1.hashcode = vn_reference_compute_hash (&vr1);
   if (vn_reference_lookup_1 (&vr1, &result))
     return result;
+
   if (TREE_CODE (value) == SSA_NAME)
     value_id = VN_INFO (value)->value_id;
   else
     value_id = get_or_alloc_constant_value_id (value);
-  return vn_reference_insert_pieces (vuse, set, base_set, type,
-				     operands.copy (), value, value_id);
+  return vn_reference_insert_pieces (vuse, set, base_set, offset, max_size,
+				     type, operands.copy (), value, value_id);
 }
 
 /* Return a value-number for RCODE OPS... either by looking up an existing
@@ -2824,7 +2731,6 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *data_,
 	  copy_reference_ops_from_ref (lhs, &lhs_ops);
 	  valueize_refs_1 (&lhs_ops, &valueized_anything, true);
 	}
-      vn_context_bb = saved_rpo_bb;
       ao_ref_init (&lhs_ref, lhs);
       lhs_ref_ok = true;
       if (valueized_anything
@@ -2833,9 +2739,11 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *data_,
 		ao_ref_base_alias_set (&lhs_ref), TREE_TYPE (lhs), lhs_ops)
 	  && !refs_may_alias_p_1 (ref, &lhs_ref, data->tbaa_p))
 	{
+	  vn_context_bb = saved_rpo_bb;
 	  *disambiguate_only = TR_VALUEIZE_AND_DISAMBIGUATE;
 	  return NULL;
 	}
+      vn_context_bb = saved_rpo_bb;
 
       /* When the def is a CLOBBER we can optimistically disambiguate
 	 against it since any overlap it would be undefined behavior.
@@ -3733,13 +3641,19 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *data_,
       /* Adjust *ref from the new operands.  */
       ao_ref rhs1_ref;
       ao_ref_init (&rhs1_ref, rhs1);
+      basic_block saved_rpo_bb = vn_context_bb;
+      vn_context_bb = gimple_bb (def_stmt);
       if (!ao_ref_init_from_vn_reference (&r,
 					  force_no_tbaa ? 0
 					  : ao_ref_alias_set (&rhs1_ref),
 					  force_no_tbaa ? 0
 					  : ao_ref_base_alias_set (&rhs1_ref),
 					  vr->type, vr->operands))
-	return (void *)-1;
+	{
+	  vn_context_bb = saved_rpo_bb;
+	  return (void *)-1;
+	}
+      vn_context_bb = saved_rpo_bb;
       /* This can happen with bitfields.  */
       if (maybe_ne (ref->size, r.size))
 	{
@@ -3754,6 +3668,8 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *data_,
 	    return (void *)-1;
 	}
       *ref = r;
+      vr->offset = r.offset;
+      vr->max_size = r.max_size;
 
       /* Do not update last seen VUSE after translating.  */
       data->last_vuse_ptr = NULL;
@@ -3936,12 +3852,20 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *data_,
 	return data->finish (0, 0, val);
 
       /* Adjust *ref from the new operands.  */
+      basic_block saved_rpo_bb = vn_context_bb;
+      vn_context_bb = gimple_bb (def_stmt);
       if (!ao_ref_init_from_vn_reference (&r, 0, 0, vr->type, vr->operands))
-	return (void *)-1;
+	{
+	  vn_context_bb = saved_rpo_bb;
+	  return (void *)-1;
+	}
+      vn_context_bb = saved_rpo_bb;
       /* This can happen with bitfields.  */
       if (maybe_ne (ref->size, r.size))
 	return (void *)-1;
       *ref = r;
+      vr->offset = r.offset;
+      vr->max_size = r.max_size;
 
       /* Do not update last seen VUSE after translating.  */
       data->last_vuse_ptr = NULL;
@@ -4006,6 +3930,10 @@ vn_reference_lookup_pieces (tree vuse, alias_set_type set,
   vr1.type = type;
   vr1.set = set;
   vr1.base_set = base_set;
+  /* We can pretend there's no extra info fed in since the ao_refs offset
+     and max_size are computed only from the VN reference ops.  */
+  vr1.offset = 0;
+  vr1.max_size = -1;
   vr1.hashcode = vn_reference_compute_hash (&vr1);
   if ((cst = fully_constant_vn_reference_p (&vr1)))
     return cst;
@@ -4019,31 +3947,13 @@ vn_reference_lookup_pieces (tree vuse, alias_set_type set,
       unsigned limit = param_sccvn_max_alias_queries_per_access;
       vn_walk_cb_data data (&vr1, NULL_TREE, NULL, kind, true, NULL_TREE,
 			    false);
-      vec<vn_reference_op_s> ops_for_ref;
-      if (!valueized_p)
-	ops_for_ref = vr1.operands;
-      else
-	{
-	  /* For ao_ref_from_mem we have to ensure only available SSA names
-	     end up in base and the only convenient way to make this work
-	     for PRE is to re-valueize with that in mind.  */
-	  ops_for_ref.create (operands.length ());
-	  ops_for_ref.quick_grow (operands.length ());
-	  memcpy (ops_for_ref.address (),
-		  operands.address (),
-		  sizeof (vn_reference_op_s)
-		  * operands.length ());
-	  valueize_refs_1 (&ops_for_ref, &valueized_p, true);
-	}
       if (ao_ref_init_from_vn_reference (&r, set, base_set, type,
-					 ops_for_ref))
+					 vr1.operands))
 	*vnresult
 	  = ((vn_reference_t)
 	     walk_non_aliased_vuses (&r, vr1.vuse, true, vn_reference_lookup_2,
 				     vn_reference_lookup_3, vuse_valueize,
 				     limit, &data));
-      if (ops_for_ref != shared_lookup_references)
-	ops_for_ref.release ();
       gcc_checking_assert (vr1.operands == shared_lookup_references);
       if (*vnresult
 	  && data.same_val
@@ -4132,6 +4042,8 @@ vn_reference_lookup (tree op, tree vuse, vn_lookup_kind kind,
   ao_ref_init (&op_ref, op);
   vr1.set = ao_ref_alias_set (&op_ref);
   vr1.base_set = ao_ref_base_alias_set (&op_ref);
+  vr1.offset = 0;
+  vr1.max_size = -1;
   vr1.hashcode = vn_reference_compute_hash (&vr1);
   if (mask == NULL_TREE)
     if (tree cst = fully_constant_vn_reference_p (&vr1))
@@ -4142,19 +4054,16 @@ vn_reference_lookup (tree op, tree vuse, vn_lookup_kind kind,
       vn_reference_t wvnresult;
       ao_ref r;
       unsigned limit = param_sccvn_max_alias_queries_per_access;
-      auto_vec<vn_reference_op_s> ops_for_ref;
-      if (valueized_anything)
-	{
-	  copy_reference_ops_from_ref (op, &ops_for_ref);
-	  bool tem;
-	  valueize_refs_1 (&ops_for_ref, &tem, true);
-	}
-      /* Make sure to use a valueized reference if we valueized anything.
-         Otherwise preserve the full reference for advanced TBAA.  */
       if (!valueized_anything
 	  || !ao_ref_init_from_vn_reference (&r, vr1.set, vr1.base_set,
-					     vr1.type, ops_for_ref))
-	ao_ref_init (&r, op);
+					     vr1.type, vr1.operands))
+	{
+	  ao_ref_init (&r, op);
+	  /* Record the extra info we're getting from the full ref.  */
+	  ao_ref_base (&r);
+	  vr1.offset = r.offset;
+	  vr1.max_size = r.max_size;
+	}
       vn_walk_cb_data data (&vr1, r.ref ? NULL_TREE : op,
 			    last_vuse_ptr, kind, tbaa_p, mask,
 			    redundant_store_removal_p);
@@ -4210,6 +4119,8 @@ vn_reference_lookup_call (gcall *call, vn_reference_t *vnresult,
   vr->punned = false;
   vr->set = 0;
   vr->base_set = 0;
+  vr->offset = 0;
+  vr->max_size = -1;
   vr->hashcode = vn_reference_compute_hash (vr);
   vn_reference_lookup_1 (vr, vnresult);
 }
@@ -4273,6 +4184,10 @@ vn_reference_insert (tree op, tree result, tree vuse, tree vdef)
   ao_ref_init (&op_ref, op);
   vr1->set = ao_ref_alias_set (&op_ref);
   vr1->base_set = ao_ref_base_alias_set (&op_ref);
+  /* Specifically use an unknown extent here, we're not doing any lookup
+     and assume the caller didn't either (or it went VARYING).  */
+  vr1->offset = 0;
+  vr1->max_size = -1;
   vr1->hashcode = vn_reference_compute_hash (vr1);
   vr1->result = TREE_CODE (result) == SSA_NAME ? SSA_VAL (result) : result;
   vr1->result_vdef = vdef;
@@ -4315,7 +4230,8 @@ vn_reference_insert (tree op, tree result, tree vuse, tree vdef)
 
 vn_reference_t
 vn_reference_insert_pieces (tree vuse, alias_set_type set,
-			    alias_set_type base_set, tree type,
+			    alias_set_type base_set,
+			    poly_int64 offset, poly_int64 max_size, tree type,
 			    vec<vn_reference_op_s> operands,
 			    tree result, unsigned int value_id)
 
@@ -4332,6 +4248,8 @@ vn_reference_insert_pieces (tree vuse, alias_set_type set,
   vr1->punned = false;
   vr1->set = set;
   vr1->base_set = base_set;
+  vr1->offset = offset;
+  vr1->max_size = max_size;
   vr1->hashcode = vn_reference_compute_hash (vr1);
   if (result && TREE_CODE (result) == SSA_NAME)
     result = SSA_VAL (result);
@@ -5850,6 +5768,8 @@ visit_reference_op_call (tree lhs, gcall *stmt)
       vr2->type = vr1.type;
       vr2->punned = vr1.punned;
       vr2->set = vr1.set;
+      vr2->offset = vr1.offset;
+      vr2->max_size = vr1.max_size;
       vr2->base_set = vr1.base_set;
       vr2->hashcode = vr1.hashcode;
       vr2->result = lhs;
@@ -6066,7 +5986,7 @@ visit_phi (gimple *phi, bool *inserted, bool backedges_varying_p)
   if (SSA_NAME_OCCURS_IN_ABNORMAL_PHI (PHI_RESULT (phi)))
     return set_ssa_val_to (PHI_RESULT (phi), PHI_RESULT (phi));
 
-  /* We track whether a PHI was CSEd to to avoid excessive iterations
+  /* We track whether a PHI was CSEd to avoid excessive iterations
      that would be necessary only because the PHI changed arguments
      but not value.  */
   if (!inserted)

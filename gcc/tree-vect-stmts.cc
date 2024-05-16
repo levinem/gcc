@@ -4210,6 +4210,16 @@ vectorizable_simd_clone_call (vec_info *vinfo, stmt_vec_info stmt_info,
 				     " supported for mismatched vector sizes.\n");
 		  return false;
 		}
+	      if (!expand_vec_cond_expr_p (clone_arg_vectype,
+					   arginfo[i].vectype, ERROR_MARK))
+		{
+		  if (dump_enabled_p ())
+		    dump_printf_loc (MSG_MISSED_OPTIMIZATION,
+				     vect_location,
+				     "cannot compute mask argument for"
+				     " in-branch vector clones.\n");
+		  return false;
+		}
 	    }
 	  else if (SCALAR_INT_MODE_P (bestn->simdclone->mask_mode))
 	    {
@@ -5945,14 +5955,17 @@ vectorizable_assignment (vec_info *vinfo,
   if (!vectype_in)
     vectype_in = get_vectype_for_scalar_type (vinfo, TREE_TYPE (op), slp_node);
 
-  /* We can handle NOP_EXPR conversions that do not change the number
-     of elements or the vector size.  */
-  if ((CONVERT_EXPR_CODE_P (code)
-       || code == VIEW_CONVERT_EXPR)
-      && (!vectype_in
-	  || maybe_ne (TYPE_VECTOR_SUBPARTS (vectype_in), nunits)
-	  || maybe_ne (GET_MODE_SIZE (TYPE_MODE (vectype)),
-		       GET_MODE_SIZE (TYPE_MODE (vectype_in)))))
+  /* We can handle VIEW_CONVERT conversions that do not change the number
+     of elements or the vector size or other conversions when the component
+     types are nop-convertible.  */
+  if (!vectype_in
+      || maybe_ne (TYPE_VECTOR_SUBPARTS (vectype_in), nunits)
+      || (code == VIEW_CONVERT_EXPR
+	  && maybe_ne (GET_MODE_SIZE (TYPE_MODE (vectype)),
+		       GET_MODE_SIZE (TYPE_MODE (vectype_in))))
+      || (CONVERT_EXPR_CODE_P (code)
+	  && !tree_nop_conversion_p (TREE_TYPE (vectype),
+				     TREE_TYPE (vectype_in))))
     return false;
 
   if (VECTOR_BOOLEAN_TYPE_P (vectype) != VECTOR_BOOLEAN_TYPE_P (vectype_in))
@@ -6657,7 +6670,8 @@ vectorizable_operation (vec_info *vinfo,
 
   nunits_out = TYPE_VECTOR_SUBPARTS (vectype_out);
   nunits_in = TYPE_VECTOR_SUBPARTS (vectype);
-  if (maybe_ne (nunits_out, nunits_in))
+  if (maybe_ne (nunits_out, nunits_in)
+      || !tree_nop_conversion_p (TREE_TYPE (vectype_out), TREE_TYPE (vectype)))
     return false;
 
   tree vectype2 = NULL_TREE, vectype3 = NULL_TREE;
@@ -6675,7 +6689,9 @@ vectorizable_operation (vec_info *vinfo,
       is_invariant &= (dt[1] == vect_external_def
 		       || dt[1] == vect_constant_def);
       if (vectype2
-	  && maybe_ne (nunits_out, TYPE_VECTOR_SUBPARTS (vectype2)))
+	  && (maybe_ne (nunits_out, TYPE_VECTOR_SUBPARTS (vectype2))
+	      || !tree_nop_conversion_p (TREE_TYPE (vectype_out),
+					 TREE_TYPE (vectype2))))
 	return false;
     }
   if (op_type == ternary_op)
@@ -6691,7 +6707,9 @@ vectorizable_operation (vec_info *vinfo,
       is_invariant &= (dt[2] == vect_external_def
 		       || dt[2] == vect_constant_def);
       if (vectype3
-	  && maybe_ne (nunits_out, TYPE_VECTOR_SUBPARTS (vectype3)))
+	  && (maybe_ne (nunits_out, TYPE_VECTOR_SUBPARTS (vectype3))
+	      || !tree_nop_conversion_p (TREE_TYPE (vectype_out),
+					 TREE_TYPE (vectype3))))
 	return false;
     }
 
@@ -6756,7 +6774,8 @@ vectorizable_operation (vec_info *vinfo,
 	 those through even when the mode isn't word_mode.  For
 	 ops we have to lower the lowering code assumes we are
 	 dealing with word_mode.  */
-      if ((((code == PLUS_EXPR || code == MINUS_EXPR || code == NEGATE_EXPR)
+      if (!INTEGRAL_TYPE_P (TREE_TYPE (vectype))
+	  || (((code == PLUS_EXPR || code == MINUS_EXPR || code == NEGATE_EXPR)
 	    || !target_support_p)
 	   && maybe_ne (GET_MODE_SIZE (vec_mode), UNITS_PER_WORD))
 	  /* Check only during analysis.  */
@@ -8686,8 +8705,13 @@ vectorizable_store (vec_info *vinfo,
        ? &LOOP_VINFO_LENS (loop_vinfo)
        : NULL);
 
-  /* Shouldn't go with length-based approach if fully masked.  */
-  gcc_assert (!loop_lens || !loop_masks);
+  /* The vect_transform_stmt and vect_analyze_stmt will go here but there
+     are some difference here.  We cannot enable both the lens and masks
+     during transform but it is allowed during analysis.
+     Shouldn't go with length-based approach if fully masked.  */
+  if (cost_vec == NULL)
+    /* The cost_vec is NULL during transfrom.  */
+    gcc_assert ((!loop_lens || !loop_masks));
 
   /* Targets with store-lane instructions must not require explicit
      realignment.  vect_supportable_dr_alignment always returns either
@@ -9971,8 +9995,7 @@ vectorizable_load (vec_info *vinfo,
 
       /* Invalidate assumptions made by dependence analysis when vectorization
 	 on the unrolled body effectively re-orders stmts.  */
-      if (!PURE_SLP_STMT (stmt_info)
-	  && STMT_VINFO_MIN_NEG_DIST (stmt_info) != 0
+      if (STMT_VINFO_MIN_NEG_DIST (stmt_info) != 0
 	  && maybe_gt (LOOP_VINFO_VECT_FACTOR (loop_vinfo),
 		       STMT_VINFO_MIN_NEG_DIST (stmt_info)))
 	{
@@ -10062,6 +10085,14 @@ vectorizable_load (vec_info *vinfo,
 	  if (dump_enabled_p ())
 	    dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
 			     "unsupported masked emulated gather.\n");
+	  return false;
+	}
+      else if (memory_access_type == VMAT_ELEMENTWISE
+	       || memory_access_type == VMAT_STRIDED_SLP)
+	{
+	  if (dump_enabled_p ())
+	    dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
+			     "unsupported masked strided access.\n");
 	  return false;
 	}
     }
@@ -10566,8 +10597,13 @@ vectorizable_load (vec_info *vinfo,
        ? &LOOP_VINFO_LENS (loop_vinfo)
        : NULL);
 
-  /* Shouldn't go with length-based approach if fully masked.  */
-  gcc_assert (!loop_lens || !loop_masks);
+  /* The vect_transform_stmt and vect_analyze_stmt will go here but there
+     are some difference here.  We cannot enable both the lens and masks
+     during transform but it is allowed during analysis.
+     Shouldn't go with length-based approach if fully masked.  */
+  if (cost_vec == NULL)
+    /* The cost_vec is NULL during transfrom.  */
+    gcc_assert ((!loop_lens || !loop_masks));
 
   /* Targets with store-lane instructions must not require explicit
      realignment.  vect_supportable_dr_alignment always returns either
@@ -12859,7 +12895,9 @@ vectorizable_early_exit (vec_info *vinfo, stmt_vec_info stmt_info,
     ncopies = vect_get_num_copies (loop_vinfo, vectype);
 
   vec_loop_masks *masks = &LOOP_VINFO_MASKS (loop_vinfo);
+  vec_loop_lens *lens = &LOOP_VINFO_LENS (loop_vinfo);
   bool masked_loop_p = LOOP_VINFO_FULLY_MASKED_P (loop_vinfo);
+  bool len_loop_p = LOOP_VINFO_FULLY_WITH_LENGTH_P (loop_vinfo);
 
   /* Now build the new conditional.  Pattern gimple_conds get dropped during
      codegen so we must replace the original insn.  */
@@ -12923,11 +12961,10 @@ vectorizable_early_exit (vec_info *vinfo, stmt_vec_info stmt_info,
 	{
 	  if (direct_internal_fn_supported_p (IFN_VCOND_MASK_LEN, vectype,
 					      OPTIMIZE_FOR_SPEED))
-	    return false;
+	    vect_record_loop_len (loop_vinfo, lens, ncopies, vectype, 1);
 	  else
 	    vect_record_loop_mask (loop_vinfo, masks, ncopies, vectype, NULL);
 	}
-
 
       return true;
     }
@@ -12981,6 +13018,15 @@ vectorizable_early_exit (vec_info *vinfo, stmt_vec_info stmt_info,
 				  stmts[i], &cond_gsi);
 	    workset.quick_push (stmt_mask);
 	  }
+      else if (len_loop_p)
+	for (unsigned i = 0; i < stmts.length (); i++)
+	  {
+	    tree len_mask = vect_gen_loop_len_mask (loop_vinfo, gsi, &cond_gsi,
+						    lens, ncopies, vectype,
+						    stmts[i], i, 1);
+
+	    workset.quick_push (len_mask);
+	  }
       else
 	workset.splice (stmts);
 
@@ -13005,6 +13051,9 @@ vectorizable_early_exit (vec_info *vinfo, stmt_vec_info stmt_info,
 	  new_temp = prepare_vec_mask (loop_vinfo, TREE_TYPE (mask), mask,
 				       new_temp, &cond_gsi);
 	}
+      else if (len_loop_p)
+	new_temp = vect_gen_loop_len_mask (loop_vinfo, gsi, &cond_gsi, lens,
+					   ncopies, vectype, new_temp, 0, 1);
     }
 
   gcc_assert (new_temp);

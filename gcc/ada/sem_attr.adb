@@ -982,15 +982,13 @@ package body Sem_Attr is
          if Is_Entity_Name (P) then
             Typ := Entity (P);
 
-            --  The reference may appear in an aggregate that has been expanded
-            --  into a loop. Locate scope of type definition, if any.
-
-            Scop := Current_Scope;
-            while Ekind (Scop) = E_Loop loop
-               Scop := Scope (Scop);
-            end loop;
-
             if Is_Type (Typ) then
+
+               --  The reference may appear in an aggregate that has been
+               --  expanded into a loop. Locate scope of type definition,
+               --  if any.
+
+               Scop := Current_Scope_No_Loops;
 
                --  OK if we are within the scope of a limited type
                --  let's mark the component as having per object constraint
@@ -1014,16 +1012,20 @@ package body Sem_Attr is
                      Q : Node_Id := Parent (N);
 
                   begin
-                     while Present (Q)
-                       and then Nkind (Q) /= N_Component_Declaration
-                     loop
+                     while Present (Q) loop
+                        if Nkind (Q) = N_Component_Declaration then
+                           Set_Has_Per_Object_Constraint
+                             (Defining_Identifier (Q), True);
+                           exit;
+
+                        --  Prevent the search from going too far
+
+                        elsif Is_Body_Or_Package_Declaration (Q) then
+                           exit;
+                        end if;
+
                         Q := Parent (Q);
                      end loop;
-
-                     if Present (Q) then
-                        Set_Has_Per_Object_Constraint
-                          (Defining_Identifier (Q), True);
-                     end if;
                   end;
 
                   if Nkind (P) = N_Expanded_Name then
@@ -6255,7 +6257,12 @@ package body Sem_Attr is
 
       when Attribute_Round =>
          Check_E1;
-         Check_Decimal_Fixed_Point_Type;
+         Check_Type;
+
+         if not Is_Fixed_Point_Type (P_Type) then
+            Error_Attr_P ("prefix of % attribute must be fixed point type");
+         end if;
+
          Set_Etype (N, P_Base_Type);
 
          --  Because the context is universal_real (3.5.10(12)) it is a
@@ -6675,6 +6682,62 @@ package body Sem_Attr is
       ----------
 
       --  Shares processing with Pred attribute
+
+      -----------
+      -- Super --
+      -----------
+
+      when Attribute_Super =>
+         Error_Msg_Name_1 := Aname;
+         Error_Msg_GNAT_Extension ("attribute %", Sloc (N));
+
+         Check_E0;
+
+         --  Verify that we are looking at a type with ancestors
+
+         if not Is_Record_Type (P_Type)
+           or else not Is_Tagged_Type (P_Type)
+         then
+            Error_Attr_P
+              ("prefix type of % attribute must be tagged or class-wide");
+         end if;
+
+         --  Verify that the immediate parent type is suitable for 'Super
+
+         declare
+            Parents : constant Elist_Id :=
+              --  Grab all immediate ancestor types of the prefix's type
+
+              Visible_Ancestors
+                ((if Ekind (P_Type) = E_Class_Wide_Type then Etype (P_Type)
+                  else P_Type));
+         begin
+            --  No parent type to reference
+
+            if Is_Empty_Elmt_List (Parents) then
+               Error_Attr_P ("prefix type of % must be type extension");
+
+            --  We can't grant access of a child to a parent's private part
+
+            elsif Depends_On_Private (P_Type) then
+               Error_Attr_P ("prefix type of % is a private extension");
+
+            --  Check that we don't view convert to an abstract type
+
+            elsif Is_Abstract_Type (Node (First_Elmt (Parents))) then
+               Error_Attr_P ("type of % cannot be abstract");
+            end if;
+
+            --  Generate a view conversion and analyze it
+
+            Rewrite (N,
+              Make_Type_Conversion (Loc,
+                Expression   => Relocate_Node (P),
+                Subtype_Mark =>
+                  New_Occurrence_Of (Node (First_Elmt (Parents)), Loc)));
+
+            Analyze_And_Resolve (N);
+         end;
 
       --------------------------------
       -- System_Allocator_Alignment --
@@ -8678,10 +8741,20 @@ package body Sem_Attr is
       --  If the root type or base type is generic, then we cannot fold. This
       --  test is needed because subtypes of generic types are not always
       --  marked as being generic themselves (which seems odd???)
+      --
+      --  Should this situation be addressed instead by either
+      --     a) setting Is_Generic_Type in more cases
+      --  or b) replacing preceding calls to Is_Generic_Type with calls to
+      --        Sem_Util.Some_New_Function
+      --  so that we wouldn't have to deal with these cases here ???
 
       if Is_Generic_Type (P_Root_Type)
         or else Is_Generic_Type (P_Base_Type)
+        or else (Present (Associated_Node_For_Itype (P_Base_Type))
+                  and then Is_Generic_Type (Defining_Identifier
+                             (Associated_Node_For_Itype (P_Base_Type))))
       then
+         Set_Is_Static_Expression (N, False);
          return;
       end if;
 
@@ -8722,14 +8795,15 @@ package body Sem_Attr is
       --  Unconstrained_Array are again exceptions, because they apply as well
       --  to unconstrained types.
 
+      --  Folding can also be done for Preelaborable_Initialization based on
+      --  whether the prefix type has preelaborable initialization, even though
+      --  the attribute is nonstatic.
+
       --  In addition Component_Size is an exception since it is possibly
       --  foldable, even though it is never static, and it does apply to
       --  unconstrained arrays. Furthermore, it is essential to fold this
       --  in the packed case, since otherwise the value will be incorrect.
-
-      --  Folding can also be done for Preelaborable_Initialization based on
-      --  whether the prefix type has preelaborable initialization, even though
-      --  the attribute is nonstatic.
+      --  Moreover, the exact same reasoning can be applied to Alignment.
 
       elsif Id = Attribute_Atomic_Always_Lock_Free      or else
             Id = Attribute_Definite                     or else
@@ -8740,7 +8814,8 @@ package body Sem_Attr is
             Id = Attribute_Preelaborable_Initialization or else
             Id = Attribute_Type_Class                   or else
             Id = Attribute_Unconstrained_Array          or else
-            Id = Attribute_Component_Size
+            Id = Attribute_Component_Size               or else
+            Id = Attribute_Alignment
       then
          Static := False;
          Set_Is_Static_Expression (N, False);
@@ -10959,6 +11034,7 @@ package body Sem_Attr is
          | Attribute_Storage_Size
          | Attribute_Storage_Unit
          | Attribute_Stub_Type
+         | Attribute_Super
          | Attribute_System_Allocator_Alignment
          | Attribute_Tag
          | Attribute_Target_Name

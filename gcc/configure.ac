@@ -1088,9 +1088,16 @@ AC_ARG_WITH(documentation-root-url,
       no)  AC_MSG_ERROR([documentation root URL not specified]) ;;
       */)  DOCUMENTATION_ROOT_URL="$withval" ;;
       *)   AC_MSG_ERROR([documentation root URL does not end with /]) ;;
-     esac],
-     DOCUMENTATION_ROOT_URL="https://gcc.gnu.org/onlinedocs/"
-)
+     esac],[
+     docroot_url_suffix=
+changequote(,)dnl
+     case "$gcc_version" in
+       *.[123456].0) docroot_url_suffix="gcc-$gcc_version/";;
+       *.[123456].1) docroot_url_suffix="gcc-`echo $gcc_version | sed 's/1$/0/'`/";;
+     esac
+changequote([,])dnl
+     DOCUMENTATION_ROOT_URL="https://gcc.gnu.org/onlinedocs/$docroot_url_suffix"
+])
 AC_DEFINE_UNQUOTED(DOCUMENTATION_ROOT_URL,"$DOCUMENTATION_ROOT_URL",
 	[Define to the root for documentation URLs.])
 
@@ -1426,15 +1433,6 @@ AC_SEARCH_LIBS(kstat_open, kstat)
 EXTRA_GCC_LIBS="$LIBS"
 LIBS="$save_LIBS"
 AC_SUBST(EXTRA_GCC_LIBS)
-
-# Solaris needs libsocket and libnsl for socket functions before 11.4.
-# C++ needs those for libcody.
-save_LIBS="$LIBS"
-LIBS=
-AX_LIB_SOCKET_NSL
-NETLIBS="$LIBS"
-LIBS="$save_LIBS"
-AC_SUBST(NETLIBS)
 
 # Some systems put ldexp and frexp in libm instead of libc; assume
 # they're both in the same place.  jcf-dump needs them.
@@ -3592,21 +3590,6 @@ AC_DEFINE_UNQUOTED(HAVE_GAS_SHF_MERGE,
   [`if test $gcc_cv_as_shf_merge = yes; then echo 1; else echo 0; fi`],
 [Define 0/1 if your assembler supports marking sections with SHF_MERGE flag.])
 
-gcc_cv_ld_aligned_shf_merge=yes
-case "$target" in
-  # SHF_MERGE support is broken in Solaris ld up to Solaris 11.3/SPARC for
-  # alignment > 1.
-  sparc*-*-solaris2.11*)
-    if test x"$gnu_ld" = xno \
-       && test "$ld_vers_major" -lt 2 && test "$ld_vers_minor" -lt 3159; then
-      gcc_cv_ld_aligned_shf_merge=no
-    fi
-    ;;
-esac
-AC_DEFINE_UNQUOTED(HAVE_LD_ALIGNED_SHF_MERGE,
-  [`if test $gcc_cv_ld_aligned_shf_merge = yes; then echo 1; else echo 0; fi`],
-[Define 0/1 if your linker supports the SHF_MERGE flag with section alignment > 1.])
-
 gcc_GAS_CHECK_FEATURE([COMDAT group support (GNU as)],
  gcc_cv_as_comdat_group,
  [--fatal-warnings],
@@ -3715,31 +3698,6 @@ AC_DEFINE_UNQUOTED(HAVE_COMDAT_GROUP,
     || test $gcc_cv_as_comdat_group_percent = yes \
     || test $gcc_cv_as_comdat_group_group = yes; then echo 1; else echo 0; fi`],
 [Define 0/1 if your assembler and linker support COMDAT groups.])
-
-# Restrict this test to Solaris/x86: other targets define this statically.
-case "${target}" in
-  i?86-*-solaris2* | x86_64-*-solaris2*)
-    AC_MSG_CHECKING(support for hidden thunks in linkonce sections)
-    if test $in_tree_ld = yes || echo "$ld_ver" | grep GNU > /dev/null; then
-      hidden_linkonce=yes
-    else
-      case "${target}" in
-	# Full support for hidden thunks in linkonce sections only appeared in
-	# Solaris 11/OpenSolaris.
-        *-*-solaris2.1[[1-9]]*)
-	  hidden_linkonce=yes
-	  ;;
-	*)
-	  hidden_linkonce=no
-	  ;;
-      esac
-    fi
-    AC_MSG_RESULT($hidden_linkonce)
-    AC_DEFINE_UNQUOTED(USE_HIDDEN_LINKONCE,
-      [`if test $hidden_linkonce = yes; then echo 1; else echo 0; fi`],
-    [Define 0/1 if your linker supports hidden thunks in linkonce sections.])
-  ;;
-esac
 
 gcc_GAS_CHECK_FEATURE([line table is_stmt support],
  gcc_cv_as_is_stmt,,
@@ -5057,6 +5015,50 @@ _start:
       [`if test x"$gcc_cv_as_ix86_got32x" = xyes; then echo 1; else echo 0; fi`],
       [Define 0/1 if your assembler and linker support @GOT.])
 
+    # Check if gas and gld support "addq %r23,foo@GOTTPOFF(%rip), %r15"
+    # with R_X86_64_CODE_6_GOTTPOFF relocation.
+    if echo "$ld_ver" | grep GNU > /dev/null; then
+      if $gcc_cv_ld -V 2>/dev/null | grep elf_x86_64_sol2 > /dev/null; then
+        ld_ix86_gld_64_opt="-melf_x86_64_sol2"
+      else
+        ld_ix86_gld_64_opt="-melf_x86_64"
+      fi
+    fi
+    # Enforce 64-bit output with gas and gld.
+    if test x$gas = xyes; then
+      as_ix86_gas_64_opt="--64"
+    fi
+    conftest_s='
+	.text
+	.globl	_start
+	.type _start, @function
+_start:
+	addq	%r23,foo@GOTTPOFF(%rip), %r15
+	.section .tdata,"awT",@progbits
+	.type foo, @object
+foo:
+	.quad 0'
+    gcc_GAS_CHECK_FEATURE([R_X86_64_CODE_6_GOTTPOFF reloc],
+	gcc_cv_as_x86_64_code_6_gottpoff,
+	[$as_ix86_gas_64_opt],
+	[$conftest_s],
+	[if test x$gcc_cv_ld != x && test x$gcc_cv_objdump != x \
+	    && test x$gcc_cv_readelf != x \
+	    && $gcc_cv_readelf --relocs --wide conftest.o 2>&1 \
+	       | grep R_X86_64_CODE_6_GOTTPOFF > /dev/null 2>&1 \
+	    && $gcc_cv_ld $ld_ix86_gld_64_opt -o conftest conftest.o > /dev/null 2>&1; then
+	   if $gcc_cv_objdump -dw conftest 2>&1 \
+	      | grep "add \+\$0xf\+8,%r23,%r15" > /dev/null 2>&1; then
+	     gcc_cv_as_x86_64_code_6_gottpoff=yes
+	   else
+	     gcc_cv_as_x86_64_code_6_gottpoff=no
+	   fi
+	 fi
+	 rm -f conftest])
+    AC_DEFINE_UNQUOTED(HAVE_AS_R_X86_64_CODE_6_GOTTPOFF,
+      [`if test x"$gcc_cv_as_x86_64_code_6_gottpoff" = xyes; then echo 1; else echo 0; fi`],
+      [Define 0/1 if your assembler and linker support R_X86_64_CODE_6_GOTTPOFF.])
+
     gcc_GAS_CHECK_FEATURE([GOTOFF in data],
       gcc_cv_as_ix86_gotoff_in_data,
       [$as_ix86_gas_32_opt],
@@ -5486,7 +5488,7 @@ x:
 		[Define if your assembler supports -mrelax option.])])
     gcc_GAS_CHECK_FEATURE([conditional branch relaxation support],
       gcc_cv_as_loongarch_cond_branch_relax,
-      [],
+      [--fatal-warnings],
       [a:
        .rept 32769
        nop
@@ -7102,14 +7104,7 @@ AC_MSG_CHECKING(dl_iterate_phdr in target C library)
 gcc_cv_target_dl_iterate_phdr=unknown
 case "$target" in
   *-*-solaris2*)
-    # <link.h> needs both a dl_iterate_phdr declaration and support for
-    # compilation with largefile support.
-    if grep dl_iterate_phdr $target_header_dir/link.h > /dev/null 2>&1 \
-      && grep 'large file capable' $target_header_dir/link.h > /dev/null 2>&1; then
-      gcc_cv_target_dl_iterate_phdr=yes
-    else
-      gcc_cv_target_dl_iterate_phdr=no
-    fi
+    gcc_cv_target_dl_iterate_phdr=yes
     ;;
   *-*-dragonfly* | *-*-freebsd*)
     if grep dl_iterate_phdr $target_header_dir/sys/link_elf.h > /dev/null 2>&1; then

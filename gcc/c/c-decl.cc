@@ -2069,7 +2069,7 @@ locate_old_decl (tree decl)
 
 
 /* Helper function.  For a tagged type, it finds the declaration
-   for a visible tag declared in the the same scope if such a
+   for a visible tag declared in the same scope if such a
    declaration exists.  */
 static tree
 previous_tag (tree type)
@@ -2316,7 +2316,7 @@ diagnose_mismatched_decls (tree newdecl, tree olddecl,
      (C23 6.7.2.2/5), but may pose portability problems.  */
   else if (enum_and_int_p
 	   && TREE_CODE (newdecl) != TYPE_DECL
-	   /* Don't warn about about acc_on_device built-in redeclaration,
+	   /* Don't warn about acc_on_device built-in redeclaration,
 	      the built-in is declared with int rather than enum because
 	      the enum isn't intrinsic.  */
 	   && !(TREE_CODE (olddecl) == FUNCTION_DECL
@@ -5051,6 +5051,8 @@ shadow_tag_warned (const struct c_declspecs *declspecs, int warned)
 	      if (t == NULL_TREE)
 		{
 		  t = make_node (code);
+		  if (flag_isoc23 && code != ENUMERAL_TYPE)
+		    SET_TYPE_STRUCTURAL_EQUALITY (t);
 		  pushtag (input_location, name, t);
 		}
 	    }
@@ -5337,8 +5339,9 @@ zero_length_array_type_p (const_tree type)
 }
 
 /* INIT is a constructor that forms DECL's initializer.  If the final
-   element initializes a flexible array field, add the size of that
-   initializer to DECL's size.  */
+   element initializes a flexible array field, adjust the size of the
+   DECL with the initializer based on whether the DECL is a union or
+   a structure.  */
 
 static void
 add_flexible_array_elts_to_size (tree decl, tree init)
@@ -5353,10 +5356,26 @@ add_flexible_array_elts_to_size (tree decl, tree init)
   if (flexible_array_member_type_p (type))
     {
       complete_array_type (&type, elt, false);
-      DECL_SIZE (decl)
-	= size_binop (PLUS_EXPR, DECL_SIZE (decl), TYPE_SIZE (type));
-      DECL_SIZE_UNIT (decl)
-	= size_binop (PLUS_EXPR, DECL_SIZE_UNIT (decl), TYPE_SIZE_UNIT (type));
+      /* For a structure, add the size of the initializer to the DECL's
+	 size.  */
+      if (TREE_CODE (TREE_TYPE (decl)) == RECORD_TYPE)
+	{
+	  DECL_SIZE (decl)
+	    = size_binop (PLUS_EXPR, DECL_SIZE (decl), TYPE_SIZE (type));
+	  DECL_SIZE_UNIT (decl)
+	    = size_binop (PLUS_EXPR, DECL_SIZE_UNIT (decl),
+			  TYPE_SIZE_UNIT (type));
+	}
+      /* For a union, the DECL's size is the maximum of the current size
+	 and the size of the initializer.  */
+      else
+	{
+	  DECL_SIZE (decl)
+	    = size_binop (MAX_EXPR, DECL_SIZE (decl), TYPE_SIZE (type));
+	  DECL_SIZE_UNIT (decl)
+	    = size_binop (MAX_EXPR, DECL_SIZE_UNIT (decl),
+			  TYPE_SIZE_UNIT (type));
+	}
     }
 }
 
@@ -8809,6 +8828,8 @@ parser_xref_tag (location_t loc, enum tree_code code, tree name,
      the forward-reference will be altered into a real type.  */
 
   ref = make_node (code);
+  if (flag_isoc23 && code != ENUMERAL_TYPE)
+    SET_TYPE_STRUCTURAL_EQUALITY (ref);
   if (code == ENUMERAL_TYPE)
     {
       /* Give the type a default layout like unsigned int
@@ -8910,6 +8931,8 @@ start_struct (location_t loc, enum tree_code code, tree name,
   if (ref == NULL_TREE || TREE_CODE (ref) != code)
     {
       ref = make_node (code);
+      if (flag_isoc23)
+	SET_TYPE_STRUCTURAL_EQUALITY (ref);
       pushtag (loc, name, ref);
     }
 
@@ -9347,6 +9370,45 @@ is_flexible_array_member_p (bool is_last_field,
   return false;
 }
 
+/* Recompute TYPE_CANONICAL for variants of the type including qualified
+   versions of the type and related pointer types after an aggregate type
+   has been finalized.
+   Will not update array types, pointers to array types, function
+   types and other derived types created while the type was still
+   incomplete, those will remain TYPE_STRUCTURAL_EQUALITY_P.  */
+
+static void
+c_update_type_canonical (tree t)
+{
+  for (tree x = TYPE_MAIN_VARIANT (t); x; x = TYPE_NEXT_VARIANT (x))
+    {
+      if (x != t && TYPE_STRUCTURAL_EQUALITY_P (x))
+	{
+	  if (TYPE_QUALS (x) == TYPE_QUALS (t))
+	    TYPE_CANONICAL (x) = TYPE_CANONICAL (t);
+	  else if (TYPE_CANONICAL (t) != t
+		   || check_qualified_type (x, t, TYPE_QUALS (x)))
+	    TYPE_CANONICAL (x)
+	      = build_qualified_type (TYPE_CANONICAL (t), TYPE_QUALS (x));
+	  else
+	    TYPE_CANONICAL (x) = x;
+	}
+      else if (x != t)
+	continue;
+      for (tree p = TYPE_POINTER_TO (x); p; p = TYPE_NEXT_PTR_TO (p))
+	{
+	  if (!TYPE_STRUCTURAL_EQUALITY_P (p))
+	    continue;
+	  if (TYPE_CANONICAL (x) != x || TYPE_REF_CAN_ALIAS_ALL (p))
+	    TYPE_CANONICAL (p)
+	      = build_pointer_type_for_mode (TYPE_CANONICAL (x), TYPE_MODE (p),
+					     false);
+	  else
+	    TYPE_CANONICAL (p) = p;
+	  c_update_type_canonical (p);
+	}
+    }
+}
 
 /* Fill in the fields of a RECORD_TYPE or UNION_TYPE node, T.
    LOC is the location of the RECORD_TYPE or UNION_TYPE's definition.
@@ -9471,11 +9533,8 @@ finish_struct (location_t loc, tree t, tree fieldlist, tree attributes,
       if (flexible_array_member_type_p (TREE_TYPE (x)))
 	{
 	  if (TREE_CODE (t) == UNION_TYPE)
-	    {
-	      error_at (DECL_SOURCE_LOCATION (x),
-			"flexible array member in union");
-	      TREE_TYPE (x) = error_mark_node;
-	    }
+	    pedwarn (DECL_SOURCE_LOCATION (x), OPT_Wpedantic,
+		     "flexible array member in union is a GCC extension");
 	  else if (!is_last_field)
 	    {
 	      error_at (DECL_SOURCE_LOCATION (x),
@@ -9483,12 +9542,9 @@ finish_struct (location_t loc, tree t, tree fieldlist, tree attributes,
 	      TREE_TYPE (x) = error_mark_node;
 	    }
 	  else if (!saw_named_field)
-	    {
-	      error_at (DECL_SOURCE_LOCATION (x),
-			"flexible array member in a struct with no named "
-			"members");
-	      TREE_TYPE (x) = error_mark_node;
-	    }
+	    pedwarn (DECL_SOURCE_LOCATION (x), OPT_Wpedantic,
+		     "flexible array member in a struct with no named "
+		     "members is a GCC extension");
 	}
 
       if (pedantic && TREE_CODE (t) == RECORD_TYPE
@@ -9695,11 +9751,12 @@ finish_struct (location_t loc, tree t, tree fieldlist, tree attributes,
   /* Set type canonical based on equivalence class.  */
   if (flag_isoc23)
     {
-      if (NULL == c_struct_htab)
+      if (c_struct_htab == NULL)
 	c_struct_htab = hash_table<c_struct_hasher>::create_ggc (61);
 
       hashval_t hash = c_struct_hasher::hash (t);
 
+      gcc_checking_assert (TYPE_STRUCTURAL_EQUALITY_P (t));
       tree *e = c_struct_htab->find_slot_with_hash (t, hash, INSERT);
       if (*e)
 	TYPE_CANONICAL (t) = *e;
@@ -9708,6 +9765,7 @@ finish_struct (location_t loc, tree t, tree fieldlist, tree attributes,
 	  TYPE_CANONICAL (t) = t;
 	  *e = t;
 	}
+      c_update_type_canonical (t);
     }
 
   tree incomplete_vars = C_TYPE_INCOMPLETE_VARS (TYPE_MAIN_VARIANT (t));

@@ -330,7 +330,7 @@ check_nul_terminated_array (GimpleOrTree expr, tree src, tree bound)
   wide_int bndrng[2];
   if (bound)
     {
-      Value_Range r (TREE_TYPE (bound));
+      int_range_max r (TREE_TYPE (bound));
 
       get_range_query (cfun)->range_of_expr (r, bound);
 
@@ -1701,6 +1701,7 @@ new_delete_mismatch_p (const demangle_component &newc,
 
     case DEMANGLE_COMPONENT_FUNCTION_PARAM:
     case DEMANGLE_COMPONENT_TEMPLATE_PARAM:
+    case DEMANGLE_COMPONENT_UNNAMED_TYPE:
       return newc.u.s_number.number != delc.u.s_number.number;
 
     case DEMANGLE_COMPONENT_CHARACTER:
@@ -2815,7 +2816,7 @@ memmodel_to_uhwi (tree ord, gimple *stmt, unsigned HOST_WIDE_INT *cstval)
     {
       /* Use the range query to determine constant values in the absence
 	 of constant propagation (such as at -O0).  */
-      Value_Range rng (TREE_TYPE (ord));
+      int_range_max rng (TREE_TYPE (ord));
       if (!get_range_query (cfun)->range_of_expr (rng, ord, stmt)
 	  || !rng.singleton_p (&ord))
 	return false;
@@ -4212,7 +4213,7 @@ pass_waccess::check_pointer_uses (gimple *stmt, tree ptr,
 		 where the realloc call is known to have failed are valid.
 		 Ignore pointers that nothing is known about.  Those could
 		 have escaped along with their nullness.  */
-	      value_range vr;
+	      prange vr;
 	      if (m_ptr_qry.rvals->range_of_expr (vr, realloc_lhs, use_stmt))
 		{
 		  if (vr.zero_p ())

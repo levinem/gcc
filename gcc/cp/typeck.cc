@@ -2400,6 +2400,7 @@ is_bitfield_expr_with_lowered_type (const_tree exp)
     case NEGATE_EXPR:
     case NON_LVALUE_EXPR:
     case BIT_NOT_EXPR:
+    case CLEANUP_POINT_EXPR:
       return is_bitfield_expr_with_lowered_type (TREE_OPERAND (exp, 0));
 
     case COMPONENT_REF:
@@ -5500,6 +5501,7 @@ cp_build_binary_op (const op_location_t &location,
 	  if (!TYPE_P (type1))
 	    type1 = TREE_TYPE (type1);
 	  if (type0
+	      && type1
 	      && INDIRECT_TYPE_P (type0)
 	      && same_type_p (TREE_TYPE (type0), type1))
 	    {
@@ -10626,8 +10628,10 @@ maybe_warn_about_returning_address_of_local (tree retval, location_t loc)
       || TREE_CODE (whats_returned) == TARGET_EXPR)
     {
       if (TYPE_REF_P (valtype))
-	warning_at (loc, OPT_Wreturn_local_addr,
-		    "returning reference to temporary");
+	/* P2748 made this an error in C++26.  */
+	emit_diagnostic (cxx_dialect >= cxx26 ? DK_PERMERROR : DK_WARNING,
+			 loc, OPT_Wreturn_local_addr,
+			 "returning reference to temporary");
       else if (TYPE_PTR_P (valtype))
 	warning_at (loc, OPT_Wreturn_local_addr,
 		    "returning pointer to temporary");
@@ -10647,8 +10651,7 @@ maybe_warn_about_returning_address_of_local (tree retval, location_t loc)
       && !(TREE_STATIC (whats_returned)
 	   || TREE_PUBLIC (whats_returned)))
     {
-      if (VAR_P (whats_returned)
-	  && DECL_DECOMPOSITION_P (whats_returned)
+      if (DECL_DECOMPOSITION_P (whats_returned)
 	  && DECL_DECOMP_BASE (whats_returned)
 	  && DECL_HAS_VALUE_EXPR_P (whats_returned))
 	{

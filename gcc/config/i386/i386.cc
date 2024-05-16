@@ -984,8 +984,9 @@ ix86_function_ok_for_sibcall (tree decl, tree exp)
 
   /* Sibling call isn't OK if callee has no callee-saved registers
      and the calling function has callee-saved registers.  */
-  if ((cfun->machine->call_saved_registers
-       != TYPE_NO_CALLEE_SAVED_REGISTERS)
+  if (cfun->machine->call_saved_registers != TYPE_NO_CALLEE_SAVED_REGISTERS
+      && (cfun->machine->call_saved_registers
+	  != TYPE_NO_CALLEE_SAVED_REGISTERS_EXCEPT_BP)
       && lookup_attribute ("no_callee_saved_registers",
 			   TYPE_ATTRIBUTES (type)))
     return false;
@@ -4642,7 +4643,8 @@ ix86_setup_incoming_varargs (cumulative_args_t cum_v,
   /* For varargs, we do not want to skip the dummy va_dcl argument.
      For stdargs, we do want to skip the last named argument.  */
   next_cum = *cum;
-  if (!TYPE_NO_NAMED_ARGS_STDARG_P (TREE_TYPE (current_function_decl))
+  if ((!TYPE_NO_NAMED_ARGS_STDARG_P (TREE_TYPE (current_function_decl))
+       || arg.type != NULL_TREE)
       && stdarg_p (fntype))
     ix86_function_arg_advance (pack_cumulative_args (&next_cum), arg);
 
@@ -5974,12 +5976,10 @@ ix86_setup_frame_addresses (void)
   cfun->machine->accesses_prev_frame = 1;
 }
 
-#ifndef USE_HIDDEN_LINKONCE
-# if defined(HAVE_GAS_HIDDEN) && (SUPPORTS_ONE_ONLY - 0)
-#  define USE_HIDDEN_LINKONCE 1
-# else
-#  define USE_HIDDEN_LINKONCE 0
-# endif
+#if defined(HAVE_GAS_HIDDEN) && (SUPPORTS_ONE_ONLY - 0)
+# define USE_HIDDEN_LINKONCE 1
+#else
+# define USE_HIDDEN_LINKONCE 0
 #endif
 
 /* Label count for call and return thunks.  It is used to make unique
@@ -6649,6 +6649,11 @@ ix86_save_reg (unsigned int regno, bool maybe_eh_return, bool ignore_outlined)
 
     case TYPE_NO_CALLEE_SAVED_REGISTERS:
       return false;
+
+    case TYPE_NO_CALLEE_SAVED_REGISTERS_EXCEPT_BP:
+      if (regno != HARD_FRAME_POINTER_REGNUM)
+	return false;
+      break;
     }
 
   if (regno == REAL_PIC_OFFSET_TABLE_REGNUM
@@ -20350,7 +20355,8 @@ ix86_hardreg_mov_ok (rtx dst, rtx src)
 	   ? standard_sse_constant_p (src, GET_MODE (dst))
 	   : x86_64_immediate_operand (src, GET_MODE (dst)))
       && ix86_class_likely_spilled_p (REGNO_REG_CLASS (REGNO (dst)))
-      && !reload_completed)
+      && !reload_completed
+      && !lra_in_progress)
     return false;
   return true;
 }
@@ -22127,6 +22133,8 @@ ix86_rtx_costs (rtx x, machine_mode mode, int outer_code_i, int opno,
 	*total = cost->fabs;
       else if (FLOAT_MODE_P (mode))
 	*total = ix86_vec_cost (mode, cost->sse_op);
+      else if (GET_MODE_CLASS (mode) == MODE_VECTOR_INT)
+	*total = cost->sse_op;
       return false;
 
     case SQRT:
@@ -22230,7 +22238,7 @@ ix86_rtx_costs (rtx x, machine_mode mode, int outer_code_i, int opno,
 	{
 	  /* cmov.  */
 	  *total = COSTS_N_INSNS (1);
-	  if (!REG_P (XEXP (x, 0)))
+	  if (!COMPARISON_P (XEXP (x, 0)) && !REG_P (XEXP (x, 0)))
 	    *total += rtx_cost (XEXP (x, 0), mode, code, 0, speed);
 	  if (!REG_P (XEXP (x, 1)))
 	    *total += rtx_cost (XEXP (x, 1), mode, code, 1, speed);
@@ -22909,7 +22917,7 @@ x86_function_profiler (FILE *file, int labelno ATTRIBUTE_UNUSED)
 	      if (!ix86_direct_extern_access)
 		{
 		  if (ASSEMBLER_DIALECT == ASM_INTEL)
-		    fprintf (file, "1:\tcall\t[QWORD PTR %s@GOTPCREL[rip]]",
+		    fprintf (file, "1:\tcall\t[QWORD PTR %s@GOTPCREL[rip]]\n",
 			     mcount_name);
 		  else
 		    fprintf (file, "1:\tcall\t*%s@GOTPCREL(%%rip)\n",
@@ -24462,7 +24470,8 @@ ix86_reassociation_width (unsigned int op, machine_mode mode)
       /* Integer vector instructions execute in FP unit
 	 and can execute 3 additions and one multiplication per cycle.  */
       if ((ix86_tune == PROCESSOR_ZNVER1 || ix86_tune == PROCESSOR_ZNVER2
-	   || ix86_tune == PROCESSOR_ZNVER3 || ix86_tune == PROCESSOR_ZNVER4)
+	   || ix86_tune == PROCESSOR_ZNVER3 || ix86_tune == PROCESSOR_ZNVER4
+	   || ix86_tune == PROCESSOR_ZNVER5)
    	  && INTEGRAL_MODE_P (mode) && op != PLUS && op != MINUS)
 	return 1;
 
@@ -25777,13 +25786,11 @@ ix86_get_excess_precision (enum excess_precision_type type)
 bool
 ix86_bitint_type_info (int n, struct bitint_info *info)
 {
-  if (!TARGET_64BIT)
-    return false;
   if (n <= 8)
     info->limb_mode = QImode;
   else if (n <= 16)
     info->limb_mode = HImode;
-  else if (n <= 32)
+  else if (n <= 32 || (!TARGET_64BIT && n > 64))
     info->limb_mode = SImode;
   else
     info->limb_mode = DImode;
@@ -25791,6 +25798,20 @@ ix86_bitint_type_info (int n, struct bitint_info *info)
   info->big_endian = false;
   info->extended = false;
   return true;
+}
+
+/* Returns modified FUNCTION_TYPE for cdtor callabi.  */
+tree
+ix86_cxx_adjust_cdtor_callabi_fntype (tree fntype)
+{
+  if (TARGET_64BIT
+      || TARGET_RTD
+      || ix86_function_type_abi (fntype) != MS_ABI)
+    return fntype;
+  /* For 32-bit MS ABI add thiscall attribute.  */
+  tree attribs = tree_cons (get_identifier ("thiscall"), NULL_TREE,
+			    TYPE_ATTRIBUTES (fntype));
+  return build_type_attribute_variant (fntype, attribs);
 }
 
 /* Implement PUSH_ROUNDING.  On 386, we have pushw instruction that
@@ -26404,6 +26425,8 @@ static const scoped_attribute_specs *const ix86_attribute_table[] =
 #define TARGET_C_EXCESS_PRECISION ix86_get_excess_precision
 #undef TARGET_C_BITINT_TYPE_INFO
 #define TARGET_C_BITINT_TYPE_INFO ix86_bitint_type_info
+#undef TARGET_CXX_ADJUST_CDTOR_CALLABI_FNTYPE
+#define TARGET_CXX_ADJUST_CDTOR_CALLABI_FNTYPE ix86_cxx_adjust_cdtor_callabi_fntype
 #undef TARGET_PROMOTE_PROTOTYPES
 #define TARGET_PROMOTE_PROTOTYPES hook_bool_const_tree_true
 #undef TARGET_PUSH_ARGUMENT

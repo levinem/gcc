@@ -42,6 +42,8 @@ extensions, accepted by GCC in C90 mode and in C++.
 * Named Address Spaces::Named address spaces.
 * Zero Length::         Zero-length arrays.
 * Empty Structures::    Structures with no members.
+* Flexible Array Members in Unions::  Unions with Flexible Array Members.
+* Flexible Array Members alone in Structures::  Structures with only Flexible Array Members.
 * Variable Length::     Arrays whose length is computed at run time.
 * Variadic Macros::     Macros with a variable number of arguments.
 * Escaped Newlines::    Slightly looser rules for escaped newlines.
@@ -1872,6 +1874,38 @@ struct empty @{
 The structure has size zero.  In C++, empty structures are part
 of the language.  G++ treats empty structures as if they had a single
 member of type @code{char}.
+
+@node Flexible Array Members in Unions
+@section Unions with Flexible Array Members
+@cindex unions with flexible array members
+@cindex unions with FAMs
+
+GCC permits a C99 flexible array member (FAM) to be in a union:
+
+@smallexample
+union with_fam @{
+  int a;
+  int b[];
+@};
+@end smallexample
+
+If every member of a union is a flexible array member, the size of
+such a union is zero.
+
+@node Flexible Array Members alone in Structures
+@section Structures with only Flexible Array Members
+@cindex structures with only flexible array members
+@cindex structures with only FAMs
+
+GCC permits a C99 flexible array member (FAM) to be alone in a structure:
+
+@smallexample
+struct only_fam @{
+  int b[];
+@};
+@end smallexample
+
+The size of such a structure is zero.
 
 @node Variable Length
 @section Arrays of Variable Length
@@ -6313,6 +6347,16 @@ void f (void) __attribute__ ((interrupt ("user")));
 Permissible values for this parameter are @code{user}, @code{supervisor},
 and @code{machine}.  If there is no parameter, then it defaults to
 @code{machine}.
+
+@cindex @code{riscv_vector_cc} function attribute, RISC-V
+@item riscv_vector_cc
+Use this attribute to force the function to use the vector calling
+convention variant.
+
+@smallexample
+void foo() __attribute__((riscv_vector_cc));
+[[riscv::vector_cc]] void foo(); // For C++11 and C23
+@end smallexample
 
 @end table
 
@@ -12626,10 +12670,7 @@ In C, writing:
 @end smallexample
 
 suppresses warnings about using @samp{[[]]} attributes in C versions
-that predate C23@.  Since the scope token @samp{::} is not a single
-lexing token in earlier versions of C, this construct also allows two colons
-to be used in place of @code{::}.  GCC does not check whether the two
-colons are immediately adjacent.
+that predate C23@.
 @end itemize
 
 @code{__extension__} has no effect aside from this.
@@ -12894,12 +12935,13 @@ typedef int v4si __attribute__ ((vector_size (16)));
 @end smallexample
 
 @noindent
-The @code{int} type specifies the @dfn{base type}, while the attribute specifies
-the vector size for the variable, measured in bytes.  For example, the
-declaration above causes the compiler to set the mode for the @code{v4si}
-type to be 16 bytes wide and divided into @code{int} sized units.  For
-a 32-bit @code{int} this means a vector of 4 units of 4 bytes, and the
-corresponding mode of @code{foo} is @acronym{V4SI}.
+The @code{int} type specifies the @dfn{base type} (which can be a
+@code{typedef}), while the attribute specifies the vector size for the
+variable, measured in bytes. For example, the declaration above causes
+the compiler to set the mode for the @code{v4si} type to be 16 bytes wide
+and divided into @code{int} sized units.  For a 32-bit @code{int} this
+means a vector of 4 units of 4 bytes, and the corresponding mode of
+@code{foo} is @acronym{V4SI}.
 
 The @code{vector_size} attribute is only applicable to integral and
 floating scalars, although arrays, pointers, and function return values
@@ -21381,8 +21423,8 @@ available on the PowerPC family of processors starting with ISA 2.07
 or later.  Unless specific options are explicitly disabled on the
 command line, specifying option @option{-mcpu=power8} has the effect of
 enabling all the same options as for @option{-mcpu=power7} in
-addition to the @option{-mpower8-fusion}, @option{-mpower8-vector},
-@option{-mcrypto}, @option{-mhtm}, @option{-mquad-memory}, and
+addition to the @option{-mpower8-fusion}, @option{-mcrypto},
+@option{-mhtm}, @option{-mquad-memory}, and
 @option{-mquad-memory-atomic} options.
 
 This section intentionally empty.
@@ -26187,6 +26229,9 @@ AMD Family 19h Zen version 3.
 
 @item znver4
 AMD Family 19h Zen version 4.
+
+@item znver5
+AMD Family 1ah Zen version 5.
 @end table
 
 Here is an example:
@@ -29319,6 +29364,55 @@ Some_Class  B  __attribute__ ((init_priority (543)));
 @noindent
 Note that the particular values of @var{priority} do not matter; only their
 relative ordering.
+
+@cindex @code{no_dangling} type attribute
+@cindex @code{no_dangling} function attribute
+@item no_dangling
+
+This attribute can be applied on a class type, function, or member
+function.  Dangling references to classes marked with this attribute
+will have the @option{-Wdangling-reference} diagnostic suppressed; so
+will references returned from the @code{gnu::no_dangling}-marked
+functions.  For example:
+
+@smallexample
+class [[gnu::no_dangling]] S @{ @dots{} @};
+@end smallexample
+
+Or:
+
+@smallexample
+class A @{
+  int *p;
+  [[gnu::no_dangling]] int &foo() @{ return *p; @}
+@};
+
+[[gnu::no_dangling]] const int &
+foo (const int &i)
+@{
+  @dots{}
+@}
+@end smallexample
+
+This attribute takes an optional argument, which must be an expression that
+evaluates to true or false:
+
+@smallexample
+template <typename T>
+struct [[gnu::no_dangling(std::is_reference_v<T>)]] S @{
+  @dots{}
+@};
+@end smallexample
+
+Or:
+
+@smallexample
+template <typename T>
+[[gnu::no_dangling(std::is_lvalue_reference_v<T>)]]
+decltype(auto) foo(T&& t) @{
+  @dots{}
+@};
+@end smallexample
 
 @cindex @code{warn_unused} type attribute
 @item warn_unused

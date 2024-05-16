@@ -34,9 +34,10 @@ enum riscv_symbol_type {
   SYMBOL_TLS,
   SYMBOL_TLS_LE,
   SYMBOL_TLS_IE,
-  SYMBOL_TLS_GD
+  SYMBOL_TLS_GD,
+  SYMBOL_TLSDESC,
 };
-#define NUM_SYMBOL_TYPES (SYMBOL_TLS_GD + 1)
+#define NUM_SYMBOL_TYPES (SYMBOL_TLSDESC + 1)
 
 /* Classifies an address.
 
@@ -164,6 +165,7 @@ extern bool riscv_shamt_matches_mask_p (int, HOST_WIDE_INT);
 extern void riscv_subword_address (rtx, rtx *, rtx *, rtx *, rtx *);
 extern void riscv_lshift_subword (machine_mode, rtx, rtx, rtx *);
 extern enum memmodel riscv_union_memmodels (enum memmodel, enum memmodel);
+extern bool riscv_reg_frame_related (rtx);
 
 /* Routines implemented in riscv-c.cc.  */
 void riscv_cpu_cpp_builtins (cpp_reader *);
@@ -187,7 +189,9 @@ rtl_opt_pass * make_pass_avlprop (gcc::context *ctxt);
 rtl_opt_pass * make_pass_vsetvl (gcc::context *ctxt);
 
 /* Routines implemented in riscv-string.c.  */
+extern bool riscv_expand_block_compare (rtx, rtx, rtx, rtx);
 extern bool riscv_expand_block_move (rtx, rtx, rtx);
+extern bool riscv_expand_block_clear (rtx, rtx);
 
 /* Information about one CPU we know about.  */
 struct riscv_cpu_info {
@@ -546,6 +550,7 @@ enum avl_type
 };
 /* Routines implemented in riscv-vector-builtins.cc.  */
 void init_builtins (void);
+void reinit_builtins (void);
 const char *mangle_builtin_type (const_tree);
 tree lookup_vector_type_attribute (const_tree);
 bool builtin_type_p (const_tree);
@@ -603,7 +608,7 @@ bool simm5_p (rtx);
 bool neg_simm5_p (rtx);
 #ifdef RTX_CODE
 bool has_vi_variant_p (rtx_code, rtx);
-void expand_vec_cmp (rtx, rtx_code, rtx, rtx);
+void expand_vec_cmp (rtx, rtx_code, rtx, rtx, rtx = nullptr, rtx = nullptr);
 bool expand_vec_cmp_float (rtx, rtx_code, rtx, rtx, bool);
 void expand_cond_len_unop (unsigned, rtx *);
 void expand_cond_len_binop (unsigned, rtx *);
@@ -709,6 +714,7 @@ bool gather_scatter_valid_offset_p (machine_mode);
 HOST_WIDE_INT estimated_poly_value (poly_int64, unsigned int);
 bool whole_reg_to_reg_move_p (rtx *, machine_mode, int);
 bool splat_to_scalar_move_p (rtx *);
+rtx get_fp_rounding_coefficient (machine_mode);
 }
 
 /* We classify builtin types into two classes:
@@ -762,6 +768,7 @@ extern bool
 riscv_option_valid_attribute_p (tree, tree, tree, int);
 extern void
 riscv_override_options_internal (struct gcc_options *);
+extern void riscv_option_override (void);
 
 struct riscv_tune_param;
 /* Information about one micro-arch we know about.  */

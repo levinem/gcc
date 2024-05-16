@@ -178,7 +178,6 @@ gimple_range_op_handler::gimple_range_op_handler (gimple *s)
 bool
 gimple_range_op_handler::calc_op1 (vrange &r, const vrange &lhs_range)
 {
-  gcc_checking_assert (gimple_num_ops (m_stmt) < 3);
   // Give up on empty ranges.
   if (lhs_range.undefined_p ())
     return false;
@@ -312,8 +311,20 @@ public:
     r = lh;
     return true;
   }
+  virtual bool fold_range (prange &r, tree, const prange &lh,
+			   const prange &, relation_trio) const
+  {
+    r = lh;
+    return true;
+  }
   virtual bool op1_range (irange &r, tree, const irange &lhs,
 			  const irange &, relation_trio) const
+  {
+    r = lhs;
+    return true;
+  }
+  virtual bool op1_range (prange &r, tree, const prange &lhs,
+			  const prange &, relation_trio) const
   {
     r = lhs;
     return true;
@@ -853,7 +864,7 @@ public:
     // __builtin_ffs* and __builtin_popcount* return [0, prec].
     int prec = TYPE_PRECISION (lh.type ());
     // If arg is non-zero, then ffs or popcount are non-zero.
-    int mini = range_includes_zero_p (&lh) ? 0 : 1;
+    int mini = range_includes_zero_p (lh) ? 0 : 1;
     int maxi = prec;
 
     // If some high bits are known to be zero, decrease the maximum.
@@ -945,7 +956,7 @@ cfn_clz::fold_range (irange &r, tree type, const irange &lh,
       if (mini == -2)
 	mini = 0;
     }
-  else if (!range_includes_zero_p (&lh))
+  else if (!range_includes_zero_p (lh))
     {
       mini = 0;
       maxi = prec - 1;
@@ -1007,7 +1018,7 @@ cfn_ctz::fold_range (irange &r, tree type, const irange &lh,
 	mini = -2;
     }
   // If arg is non-zero, then use [0, prec - 1].
-  if (!range_includes_zero_p (&lh))
+  if (!range_includes_zero_p (lh))
     {
       mini = 0;
       maxi = prec - 1;
@@ -1096,7 +1107,7 @@ class cfn_strlen : public range_operator
 {
 public:
   using range_operator::fold_range;
-  virtual bool fold_range (irange &r, tree type, const irange &,
+  virtual bool fold_range (irange &r, tree type, const prange &,
 			   const irange &, relation_trio) const
   {
     wide_int max = irange_val_max (ptrdiff_type_node);
@@ -1213,7 +1224,8 @@ gimple_range_op_handler::maybe_builtin_call ()
   if (func == CFN_LAST)
     return;
   tree type = gimple_range_type (call);
-  gcc_checking_assert (type);
+  if (!type)
+    return;
   if (!Value_Range::supports_type_p (type))
     return;
 
