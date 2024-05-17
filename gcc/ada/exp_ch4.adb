@@ -4694,6 +4694,8 @@ package body Exp_Ch4 is
                Build_Allocate_Deallocate_Proc (Temp_Decl);
                Rewrite (N, New_Occurrence_Of (Temp, Loc));
                Analyze_And_Resolve (N, PtrT);
+
+               Apply_Predicate_Check (N, Dtyp, Deref => True);
             end;
 
          --  Or else build the fully-fledged initialization if need be
@@ -5109,7 +5111,7 @@ package body Exp_Ch4 is
                   else
                      Alt_Expr :=
                        Make_Attribute_Reference (Alt_Loc,
-                         Prefix         => Relocate_Node (Alt_Expr),
+                         Prefix         => Alt_Expr,
                          Attribute_Name => Name_Unrestricted_Access);
                   end if;
                end if;

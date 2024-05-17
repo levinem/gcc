@@ -20709,6 +20709,29 @@ package body Sem_Util is
       return T = Universal_Integer or else T = Universal_Real;
    end Is_Universal_Numeric_Type;
 
+   -------------------------------------
+   -- Is_Unconstrained_Or_Tagged_Item --
+   -------------------------------------
+
+   function Is_Unconstrained_Or_Tagged_Item
+     (Item : Entity_Id) return Boolean
+   is
+      Typ : constant Entity_Id := Etype (Item);
+   begin
+      if Is_Tagged_Type (Typ) then
+         return True;
+
+      elsif Is_Array_Type (Typ)
+        or else Is_Record_Type (Typ)
+        or else Is_Private_Type (Typ)
+      then
+         return not Is_Constrained (Typ);
+
+      else
+         return False;
+      end if;
+   end Is_Unconstrained_Or_Tagged_Item;
+
    ------------------------------
    -- Is_User_Defined_Equality --
    ------------------------------
@@ -22220,7 +22243,11 @@ package body Sem_Util is
             elsif Is_Record_Type (Input_Typ) then
                Comp := First_Component (Input_Typ);
                while Present (Comp) loop
-                  if Needs_Finalization (Etype (Comp)) then
+                  --  Skip _Parent component like Expand_Freeze_Record_Type
+
+                  if Chars (Comp) /= Name_uParent
+                    and then Needs_Finalization (Etype (Comp))
+                  then
                      return True;
                   end if;
 
@@ -30762,6 +30789,14 @@ package body Sem_Util is
                            --  return False for a deferred constant
                            if Present (Full_View (Obj)) then
                               return False;
+                           end if;
+
+                           --  Handle constants introduced by side-effect
+                           --  removal, e.g. by validity checks.
+
+                           if not Comes_From_Source (Obj) then
+                              return
+                                Is_Known_On_Entry (Expression (Parent (Obj)));
                            end if;
 
                            --  return False if not "all views are constant".

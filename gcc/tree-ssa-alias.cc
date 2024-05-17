@@ -501,7 +501,8 @@ ptrs_compare_unequal (tree ptr1, tree ptr2)
 	      || pi2->pt.vars_contains_interposable)
 	    return false;
 	  if ((!pi1->pt.null || !pi2->pt.null)
-	      && (!pi1->pt.const_pool || !pi2->pt.const_pool))
+	      && (!pt_solution_includes_const_pool (&pi1->pt)
+		  || !pt_solution_includes_const_pool (&pi2->pt)))
 	    return !pt_solutions_intersect (&pi1->pt, &pi2->pt);
 	}
     }
@@ -2076,8 +2077,9 @@ view_converted_memref_p (tree base)
 {
   if (TREE_CODE (base) != MEM_REF && TREE_CODE (base) != TARGET_MEM_REF)
     return false;
-  return same_type_for_tbaa (TREE_TYPE (base),
-			     TREE_TYPE (TREE_OPERAND (base, 1))) != 1;
+  return (same_type_for_tbaa (TREE_TYPE (base),
+			      TREE_TYPE (TREE_TYPE (TREE_OPERAND (base, 1))))
+	  != 1);
 }
 
 /* Return true if an indirect reference based on *PTR1 constrained
