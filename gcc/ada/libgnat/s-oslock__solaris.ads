@@ -31,6 +31,7 @@
 
 --  This is a Solaris (native) version of this package
 
+with Ada.Unchecked_Conversion;
 with Interfaces.C;
 
 package System.OS_Locks is
@@ -41,10 +42,7 @@ package System.OS_Locks is
    type Private_Task_Serial_Number is mod 2 ** Long_Long_Integer'Size;
    --  Used to give each task a unique serial number
 
-   type Owner_Int is new Integer;
-   for Owner_Int'Alignment use Standard'Maximum_Alignment;
-
-   type Owner_ID is access all Owner_Int;
+   type Owner_ID is access all Integer;
 
    function To_Owner_ID is
      new Ada.Unchecked_Conversion (System.Address, Owner_ID);
@@ -65,10 +63,10 @@ package System.OS_Locks is
 
 private
 
-   type array_type_9 is array (0 .. 3) of unsigned_char;
+   type array_type_9 is array (0 .. 3) of Interfaces.C.unsigned_char;
    type record_type_3 is record
       flag  : array_type_9;
-      Xtype : unsigned_long;
+      Xtype : Interfaces.C.unsigned_long;
    end record;
    pragma Convention (C, record_type_3);
 
@@ -79,6 +77,6 @@ private
       lock  : upad64_t;
       data  : upad64_t;
    end record;
-  pragma Convention (C, mutex_t);
+   pragma Convention (C, mutex_t);
 
 end System.OS_Locks;

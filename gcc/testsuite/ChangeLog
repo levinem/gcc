@@ -1,3 +1,607 @@
+2024-05-24  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/114947
+	* g++.dg/modules/partial-4_a.C: New test.
+	* g++.dg/modules/partial-4_b.C: New test.
+
+2024-05-23  Jason Merrill  <jason@redhat.com>
+
+	PR c++/115187
+	* g++.dg/cpp1z/array-prvalue3.C: New test.
+
+2024-05-23  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/115197
+	* gcc.dg/pr115197.c: New testcase.
+
+2024-05-23  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/115199
+	* gcc.dg/torture/pr115199.c: New testcase.
+
+2024-05-23  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/115138
+	* gcc.dg/torture/pr115138.c: New testcase.
+
+2024-05-23  Jiufu Guo  <guojiufu@linux.ibm.com>
+
+	* gcc.target/powerpc/pr106550.c: Adjust by requiring has_arch_ppc64
+	effective target. And remove power10_ok.
+
+2024-05-23  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR tree-optimization/114072
+	* gcc.dg/vect/vect-pr111779.c (scan-tree-dump): Require
+	vect_shift_char on big-endian targets.
+
+2024-05-23  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/103312
+	* gfortran.dg/pr103312.f90: New test.
+
+2024-05-23  Stefan Schulze Frielinghaus  <stefansf@linux.ibm.com>
+
+	* gcc.target/s390/ccor.c: Order of loads are reversed, now, as a
+	consequence the condition has to be reversed.
+
+2024-05-23  Alexandre Oliva  <oliva@adacore.com>
+
+	PR target/105359
+	* gcc.target/powerpc/pr79004.c: Xfail opcodes not available on
+	longdouble64.
+	* lib/target-supports.exp
+	(check_effective_target_long_double_64bit): Drop.
+	(add_options_for_long_double_64bit): Likewise.
+
+2024-05-23  Aldy Hernandez  <aldyh@redhat.com>
+
+	PR tree-optimization/115191
+	* gcc.dg/tree-ssa/pr115191.c: New test.
+
+2024-05-22  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/115159
+	* g++.dg/modules/noexcept-2_a.H: New test.
+	* g++.dg/modules/noexcept-2_b.C: New test.
+
+2024-05-22  Pengxuan Zheng  <quic_pzheng@quicinc.com>
+
+	PR target/102171
+	* gcc.target/aarch64/vget_high_2.c: New test.
+	* gcc.target/aarch64/vget_high_2_be.c: New test.
+
+2024-05-22  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	* gcc.target/arm/cmse/extend-param.c: Add regression test. Add
+	-fshort-enums.
+	* gcc.target/arm/cmse/extend-return.c: Add -fshort-enums option.
+
+2024-05-22  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* g++.dg/opt/fmo1.C: New test.
+
+2024-05-22  Tom de Vries  <tdevries@suse.de>
+
+	PR debug/115066
+	* gcc.dg/pr115066.c (scan-assembler): Allow for alternative form
+	of Define macro.
+
+2024-05-22  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/115152
+	* gcc.dg/pr115152.c: New test.
+
+2024-05-22  Jakub Jelinek  <jakub@redhat.com>
+
+	PR sanitizer/115172
+	* gcc.dg/asan/pr115172.c: New test.
+
+2024-05-22  Haochen Jiang  <haochen.jiang@intel.com>
+
+	PR target/115069
+	* gcc.target/i386/pr115069.c: New.
+
+2024-05-22  xuli  <xuli1@eswincomputing.com>
+
+	* gcc.dg/vect/vect-early-break_124-pr114403.c: Enable vectrization for RISC-V target.
+
+2024-05-22  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	* g++.dg/abi/main.C: Check pedwarn for main with linkage-spec.
+	* g++.dg/modules/contracts-1_b.C: Don't declare main in named
+	module.
+	* g++.dg/modules/contracts-3_b.C: Likewise.
+	* g++.dg/modules/contracts-4_d.C: Likewise.
+	* g++.dg/modules/horcrux-1_a.C: Export declarations, so that...
+	* g++.dg/modules/horcrux-1_b.C: Don't declare main in named
+	module.
+	* g++.dg/modules/main-1.C: New test.
+	* g++.dg/parse/linkage5.C: New test.
+	* g++.dg/parse/linkage6.C: New test.
+
+2024-05-21  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/115139
+	* g++.dg/template/non-dependent33.C: New test.
+
+2024-05-21  Vineet Gupta  <vineetg@rivosinc.com>
+
+	* gcc.target/riscv/pr105733.c: New Test.
+	* gcc.target/riscv/rvv/autovec/vls/spill-1.c: Adjust to not
+	expect LUI 4096.
+	* gcc.target/riscv/rvv/autovec/vls/spill-2.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls/spill-3.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls/spill-4.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls/spill-5.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls/spill-6.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls/spill-7.c: Ditto.
+
+2024-05-21  Andrew Pinski  <quic_apinski@quicinc.com>
+
+	PR tree-optimization/115154
+	* c-c++-common/ubsan/signed1bitfield-1.c: New test.
+	* gcc.c-torture/execute/signed1bitfield-1.c: New test.
+
+2024-05-21  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/115137
+	* gcc.dg/torture/pr115137.c: New testcase.
+
+2024-05-21  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/115149
+	* gcc.dg/pr115149.c: New testcase.
+
+2024-05-21  liuhongt  <hongtao.liu@intel.com>
+
+	* gcc.target/i386/pr114427.c: New test.
+
+2024-05-21  Kewen Lin  <linkw@linux.ibm.com>
+
+	PR testsuite/114842
+	* lib/target-supports.exp (check_effective_target_powerpc_altivec):
+	Take current_compiler_flags into account.
+
+2024-05-21  Kewen Lin  <linkw@linux.ibm.com>
+
+	PR testsuite/114842
+	* lib/target-supports.exp (check_effective_target_powerpc_vsx): Take
+	current_compiler_flags into account.
+
+2024-05-21  Kewen Lin  <linkw@linux.ibm.com>
+
+	* gcc.target/powerpc/405-dlmzb-strlen-1.c: Remove the line using
+	powerpc_405_nocache check.
+	* gcc.target/powerpc/405-macchw-1.c: Likewise.
+	* gcc.target/powerpc/405-macchw-2.c: Likewise.
+	* gcc.target/powerpc/405-macchwu-1.c: Likewise.
+	* gcc.target/powerpc/405-macchwu-2.c: Likewise.
+	* gcc.target/powerpc/405-machhw-1.c: Likewise.
+	* gcc.target/powerpc/405-machhw-2.c: Likewise.
+	* gcc.target/powerpc/405-machhwu-1.c: Likewise.
+	* gcc.target/powerpc/405-machhwu-2.c: Likewise.
+	* gcc.target/powerpc/405-maclhw-1.c: Likewise.
+	* gcc.target/powerpc/405-maclhw-2.c: Likewise.
+	* gcc.target/powerpc/405-maclhwu-1.c: Likewise.
+	* gcc.target/powerpc/405-maclhwu-2.c: Likewise.
+	* gcc.target/powerpc/405-mulchw-1.c: Likewise.
+	* gcc.target/powerpc/405-mulchw-2.c: Likewise.
+	* gcc.target/powerpc/405-mulchwu-1.c: Likewise.
+	* gcc.target/powerpc/405-mulchwu-2.c: Likewise.
+	* gcc.target/powerpc/405-mulhhw-1.c: Likewise.
+	* gcc.target/powerpc/405-mulhhw-2.c: Likewise.
+	* gcc.target/powerpc/405-mulhhwu-1.c: Likewise.
+	* gcc.target/powerpc/405-mulhhwu-2.c: Likewise.
+	* gcc.target/powerpc/405-mullhw-1.c: Likewise.
+	* gcc.target/powerpc/405-mullhw-2.c: Likewise.
+	* gcc.target/powerpc/405-mullhwu-1.c: Likewise.
+	* gcc.target/powerpc/405-mullhwu-2.c: Likewise.
+	* gcc.target/powerpc/405-nmacchw-1.c: Likewise.
+	* gcc.target/powerpc/405-nmacchw-2.c: Likewise.
+	* gcc.target/powerpc/405-nmachhw-1.c: Likewise.
+	* gcc.target/powerpc/405-nmachhw-2.c: Likewise.
+	* gcc.target/powerpc/405-nmaclhw-1.c: Likewise.
+	* gcc.target/powerpc/405-nmaclhw-2.c: Likewise.
+	* lib/target-supports.exp
+	(check_effective_target_powerpc_405_nocache): Remove.
+
+2024-05-21  Kewen Lin  <linkw@linux.ibm.com>
+
+	* lib/target-supports.exp
+	(check_effective_target_vect_cmdline_needed): Remove
+	check_effective_target_powerpc_spe.
+	(check_effective_target_powerpc_spe_nocache): Remove.
+	(check_effective_target_powerpc_spe): Remove.
+	(check_ppc_cpu_supports_hw_available): Remove powerpc*-*-eabispe check.
+	(check_p8vector_hw_available): Likewise.
+	(check_p9vector_hw_available): Likewise.
+	(check_p9modulo_hw_available): Likewise.
+	(check_ppc_float128_sw_available): Likewise.
+	(check_ppc_float128_hw_available): Likewise.
+	(check_vsx_hw_available): Likewise.
+	(check_vmx_hw_available): Likewise.
+	(check_ppc_recip_hw_available): Likewise.
+	(check_dfp_hw_available): Likewise.
+	(check_htm_hw_available): Likewise.
+	* g++.dg/ext/spe1.C: Remove.
+	* g++.dg/other/opaque-1.C: Remove.
+	* g++.dg/other/opaque-2.C: Remove.
+	* g++.dg/other/opaque-3.C: Remove.
+	* g++.target/powerpc/simd-5.C: Remove.
+
+2024-05-21  Kewen Lin  <linkw@linux.ibm.com>
+
+	* lib/target-supports.exp (check_effective_target_powerpc_popcntb_ok):
+	Remove.
+	* gcc.target/powerpc/cmpb-2.c: Adjust with dg-skip-if as
+	powerpc_popcntb_ok gets removed.
+	* gcc.target/powerpc/cmpb-3.c: Likewise.
+	* gcc.target/powerpc/cmpb32-2.c: Likewise.
+
+2024-05-21  Kewen Lin  <linkw@linux.ibm.com>
+
+	* lib/target-supports.exp (check_effective_target_vect_int): Remove
+	the check on powerpc-*-linux*paired*.
+	(check_effective_target_vect_intfloat_cvt): Likewise.
+	(check_effective_target_vect_uintfloat_cvt): Likewise.
+	(check_effective_target_vect_floatint_cvt): Likewise.
+	(check_effective_target_vect_floatuint_cvt): Likewise.
+	(check_effective_target_powerpc_altivec_ok): Likewise.
+	(check_effective_target_powerpc_p9modulo_ok): Likewise.
+	(check_effective_target_powerpc_float128_sw_ok): Likewise.
+	(check_effective_target_powerpc_float128_hw_ok): Likewise.
+	(check_effective_target_powerpc_vsx_ok): Likewise.
+	(check_effective_target_powerpc_htm_ok): Likewise.
+	(check_effective_target_vect_shift): Likewise.
+	(check_effective_target_vect_char_add): Likewise.
+	(check_effective_target_vect_shift_char): Likewise.
+	(check_effective_target_vect_long): Likewise.
+	(check_effective_target_ifn_copysign): Likewise.
+	(check_effective_target_vect_sdot_hi): Likewise.
+	(check_effective_target_vect_udot_hi): Likewise.
+	(check_effective_target_vect_pack_trunc): Likewise.
+	(check_effective_target_vect_int_mult): Likewise.
+	* gcc.target/powerpc/paired-1.c: Remove.
+	* gcc.target/powerpc/paired-10.c: Remove.
+	* gcc.target/powerpc/paired-2.c: Remove.
+	* gcc.target/powerpc/paired-3.c: Remove.
+	* gcc.target/powerpc/paired-4.c: Remove.
+	* gcc.target/powerpc/paired-5.c: Remove.
+	* gcc.target/powerpc/paired-6.c: Remove.
+	* gcc.target/powerpc/paired-7.c: Remove.
+	* gcc.target/powerpc/paired-8.c: Remove.
+	* gcc.target/powerpc/paired-9.c: Remove.
+	* gcc.target/powerpc/ppc-paired.c: Remove.
+
+2024-05-21  Kewen Lin  <linkw@linux.ibm.com>
+
+	* lib/target-supports.exp
+	(check_effective_target_powerpc_altivec_ok): Remove checks for
+	aix[456].*
+	(check_effective_target_powerpc_p9modulo_ok): Likewise.
+	(check_effective_target_powerpc_float128_sw_ok): Likewise.
+	(check_effective_target_powerpc_float128_hw_ok): Likewise.
+	(check_effective_target_powerpc_vsx_ok): Likewise.
+
+2024-05-21  Kewen Lin  <linkw@linux.ibm.com>
+
+	* gcc.dg/torture/vector-1.c: Fix typo.
+	* gcc.dg/torture/vector-2.c: Likewise.
+
+2024-05-21  Kewen Lin  <linkw@linux.ibm.com>
+
+	PR target/114402
+	* gcc.target/powerpc/pr114402.c: New test.
+
+2024-05-21  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/115164
+	* gm2/isolib/run/pass/testlowread.mod: New test.
+	* gm2/isolib/run/pass/testwritereal.mod: New test.
+
+2024-05-20  Andrew Pinski  <quic_apinski@quicinc.com>
+
+	PR tree-optimization/115143
+	* gcc.c-torture/compile/pr115143-1.c: New test.
+	* gcc.c-torture/compile/pr115143-2.c: New test.
+	* gcc.c-torture/compile/pr115143-3.c: New test.
+
+2024-05-20  Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/99798
+	* gfortran.dg/submodule_33.f08: New test.
+
+2024-05-20  Pengxuan Zheng  <quic_pzheng@quicinc.com>
+
+	PR target/102171
+	* gcc.target/aarch64/pr113573.c: Replace __builtin_aarch64_get_lowv8hi
+	with vget_low_s16.
+	* gcc.target/aarch64/vget_low_2.c: New test.
+	* gcc.target/aarch64/vget_low_2_be.c: New test.
+
+2024-05-20  Steve Baird  <baird@adacore.com>
+
+	* gnat.dg/specs/alignment2.ads: Adjust.
+	* gnat.dg/specs/alignment2_bis.ads: New test.
+
+2024-05-20  Tobias Burnus  <tburnus@baylibre.com>
+
+	PR fortran/115150
+	* gfortran.dg/shape_12.f90: New test.
+
+2024-05-20  Haochen Jiang  <haochen.jiang@intel.com>
+
+	* g++.dg/other/i386-2.C: Remove Xeon Phi ISAs.
+	* g++.dg/other/i386-3.C: Ditto.
+	* g++.target/i386/mv28.C: Ditto.
+	* gcc.target/i386/builtin_target.c: Ditto.
+	* gcc.target/i386/sse-12.c: Ditto.
+	* gcc.target/i386/sse-13.c: Ditto.
+	* gcc.target/i386/sse-14.c: Ditto.
+	* gcc.target/i386/sse-22.c: Ditto.
+	* gcc.target/i386/sse-23.c: Ditto.
+	* gcc.target/i386/sse-26.c: Ditto.
+	* gcc.target/i386/avx5124fmadd-v4fmaddps-1.c: Removed.
+	* gcc.target/i386/avx5124fmadd-v4fmaddps-2.c: Ditto.
+	* gcc.target/i386/avx5124fmadd-v4fmaddss-1.c: Ditto.
+	* gcc.target/i386/avx5124fmadd-v4fnmaddps-1.c: Ditto.
+	* gcc.target/i386/avx5124fmadd-v4fnmaddps-2.c: Ditto.
+	* gcc.target/i386/avx5124fmadd-v4fnmaddss-1.c: Ditto.
+	* gcc.target/i386/avx5124vnniw-vp4dpwssd-1.c: Ditto.
+	* gcc.target/i386/avx5124vnniw-vp4dpwssd-2.c: Ditto.
+	* gcc.target/i386/avx5124vnniw-vp4dpwssds-1.c: Ditto.
+	* gcc.target/i386/avx5124vnniw-vp4dpwssds-2.c: Ditto.
+	* gcc.target/i386/avx512er-check.h: Ditto.
+	* gcc.target/i386/avx512er-vexp2pd-1.c: Ditto.
+	* gcc.target/i386/avx512er-vexp2pd-2.c: Ditto.
+	* gcc.target/i386/avx512er-vexp2ps-1.c: Ditto.
+	* gcc.target/i386/avx512er-vexp2ps-2.c: Ditto.
+	* gcc.target/i386/avx512er-vrcp28pd-1.c: Ditto.
+	* gcc.target/i386/avx512er-vrcp28pd-2.c: Ditto.
+	* gcc.target/i386/avx512er-vrcp28ps-1.c: Ditto.
+	* gcc.target/i386/avx512er-vrcp28ps-2.c: Ditto.
+	* gcc.target/i386/avx512er-vrcp28ps-3.c: Ditto.
+	* gcc.target/i386/avx512er-vrcp28ps-4.c: Ditto.
+	* gcc.target/i386/avx512er-vrcp28sd-1.c: Ditto.
+	* gcc.target/i386/avx512er-vrcp28sd-2.c: Ditto.
+	* gcc.target/i386/avx512er-vrcp28ss-1.c: Ditto.
+	* gcc.target/i386/avx512er-vrcp28ss-2.c: Ditto.
+	* gcc.target/i386/avx512er-vrsqrt28pd-1.c: Ditto.
+	* gcc.target/i386/avx512er-vrsqrt28pd-2.c: Ditto.
+	* gcc.target/i386/avx512er-vrsqrt28ps-1.c: Ditto.
+	* gcc.target/i386/avx512er-vrsqrt28ps-2.c: Ditto.
+	* gcc.target/i386/avx512er-vrsqrt28ps-3.c: Ditto.
+	* gcc.target/i386/avx512er-vrsqrt28ps-4.c: Ditto.
+	* gcc.target/i386/avx512er-vrsqrt28ps-5.c: Ditto.
+	* gcc.target/i386/avx512er-vrsqrt28ps-6.c: Ditto.
+	* gcc.target/i386/avx512er-vrsqrt28sd-1.c: Ditto.
+	* gcc.target/i386/avx512er-vrsqrt28sd-2.c: Ditto.
+	* gcc.target/i386/avx512er-vrsqrt28ss-1.c: Ditto.
+	* gcc.target/i386/avx512er-vrsqrt28ss-2.c: Ditto.
+	* gcc.target/i386/avx512pf-vgatherpf0dpd-1.c: Ditto.
+	* gcc.target/i386/avx512pf-vgatherpf0dps-1.c: Ditto.
+	* gcc.target/i386/avx512pf-vgatherpf0qpd-1.c: Ditto.
+	* gcc.target/i386/avx512pf-vgatherpf0qps-1.c: Ditto.
+	* gcc.target/i386/avx512pf-vgatherpf1dpd-1.c: Ditto.
+	* gcc.target/i386/avx512pf-vgatherpf1dps-1.c: Ditto.
+	* gcc.target/i386/avx512pf-vgatherpf1qpd-1.c: Ditto.
+	* gcc.target/i386/avx512pf-vgatherpf1qps-1.c: Ditto.
+	* gcc.target/i386/avx512pf-vscatterpf0dpd-1.c: Ditto.
+	* gcc.target/i386/avx512pf-vscatterpf0dps-1.c: Ditto.
+	* gcc.target/i386/avx512pf-vscatterpf0qpd-1.c: Ditto.
+	* gcc.target/i386/avx512pf-vscatterpf0qps-1.c: Ditto.
+	* gcc.target/i386/avx512pf-vscatterpf1dpd-1.c: Ditto.
+	* gcc.target/i386/avx512pf-vscatterpf1dps-1.c: Ditto.
+	* gcc.target/i386/avx512pf-vscatterpf1qpd-1.c: Ditto.
+	* gcc.target/i386/avx512pf-vscatterpf1qps-1.c: Ditto.
+	* gcc.target/i386/pr104448.c: Ditto.
+	* gcc.target/i386/pr82941-2.c: Ditto.
+	* gcc.target/i386/pr82942-2.c: Ditto.
+	* gcc.target/i386/pr82990-1.c: Ditto.
+	* gcc.target/i386/pr82990-3.c: Ditto.
+	* gcc.target/i386/pr82990-6.c: Ditto.
+	* gcc.target/i386/pr82990-7.c: Ditto.
+	* gcc.target/i386/pr89523-5.c: Ditto.
+	* gcc.target/i386/pr89523-6.c: Ditto.
+	* gcc.target/i386/pr91033.c: Ditto.
+	* gcc.target/i386/prefetchwt1-1.c: Ditto.
+
+2024-05-20  Pan Li  <pan2.li@intel.com>
+
+	* gcc.target/riscv/rvv/base/bug-6.c: New test.
+
+2024-05-19  Jeff Law  <jlaw@ventanamicro.com>
+
+	PR target/115142
+	* gcc.target/riscv/pr115142.c: New test.
+
+2024-05-19  Iain Sandoe  <iain@sandoe.co.uk>
+
+	PR testsuite/114982
+	* g++.dg/tree-ssa/cxa_atexit-6.C: Skip for Darwin.
+
+2024-05-19  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* gcc.dg/darwin-weakimport-3.c: Suppress unwind frames.
+
+2024-05-18  Jeff Law  <jlaw@ventanamicro.com>
+
+	* gcc.target/riscv/shift-add-1.c: New test.
+
+2024-05-18  Xiao Zeng  <zengxiao@eswincomputing.com>
+
+	* gcc.target/riscv/_Bfloat16-nanboxing.c: Move to...
+	* gcc.target/riscv/__bf16-nanboxing.c: ...here.
+	* gcc.target/riscv/bf16_arithmetic.c: Modify _Bfloat16 to __bf16.
+	* gcc.target/riscv/bf16_call.c: Ditto.
+	* gcc.target/riscv/bf16_comparison.c: Ditto.
+	* gcc.target/riscv/bf16_float_libcall_convert.c: Ditto.
+	* gcc.target/riscv/bf16_integer_libcall_convert.c: Ditto.
+
+2024-05-18  Pan Li  <pan2.li@intel.com>
+
+	PR target/51492
+	PR target/112600
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_binary.h: New test.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-1.c: New test.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-2.c: New test.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-3.c: New test.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-4.c: New test.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-run-1.c: New test.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-run-2.c: New test.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-run-3.c: New test.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-run-4.c: New test.
+	* gcc.target/riscv/sat_arith.h: New test.
+	* gcc.target/riscv/sat_u_add-1.c: New test.
+	* gcc.target/riscv/sat_u_add-2.c: New test.
+	* gcc.target/riscv/sat_u_add-3.c: New test.
+	* gcc.target/riscv/sat_u_add-4.c: New test.
+	* gcc.target/riscv/sat_u_add-run-1.c: New test.
+	* gcc.target/riscv/sat_u_add-run-2.c: New test.
+	* gcc.target/riscv/sat_u_add-run-3.c: New test.
+	* gcc.target/riscv/sat_u_add-run-4.c: New test.
+	* gcc.target/riscv/scalar_sat_binary.h: New test.
+
+2024-05-17  Robin Dapp  <rdapp@ventanamicro.com>
+
+	* gcc.dg/vect/costmodel/riscv/rvv/pr113112-4.c: Adjust test.
+
+2024-05-17  Robin Dapp  <rdapp@ventanamicro.com>
+
+	* gcc.target/riscv/rvv/autovec/pr113474.c: New test.
+
+2024-05-17  David Malcolm  <dmalcolm@redhat.com>
+
+	* gcc.dg/analyzer/event-links-ascii.c: New test.
+	* gcc.dg/analyzer/event-links-color.c: New test.
+	* gcc.dg/analyzer/event-links-disabled.c: New test.
+	* gcc.dg/analyzer/event-links-unicode.c: New test.
+
+2024-05-17  Uros Bizjak  <ubizjak@gmail.com>
+
+	PR middle-end/112600
+	* gcc.target/i386/pr112600-1a.c: New test.
+	* gcc.target/i386/pr112600-1b.c: New test.
+
+2024-05-17  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/114874
+	* gfortran.dg/pr114874_1.f90: New test for valid code.
+	* gfortran.dg/pr114874_2.f90: New test for invalid code.
+
+2024-05-17  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/115114
+	* g++.dg/cpp2a/class-deduction-aggr15.C: New test.
+
+2024-05-17  Aldy Hernandez  <aldyh@redhat.com>
+
+	* gcc.dg/tree-ssa/pr115128.c: New test.
+
+2024-05-17  Richard Biener  <rguenther@suse.de>
+
+	* gcc.dg/torture/20240517-1.c: New testcase.
+
+2024-05-16  Pan Li  <pan2.li@intel.com>
+
+	* gcc.dg/vect/slp-mask-store-1.c: Add pragma novector as it will
+	have 2 times LOOP VECTORIZED in RISC-V.
+	* gcc.dg/vect/vect-early-break_124-pr114403.c: Xfail for the
+	riscv backend.
+	* lib/target-supports.exp: Add RISC-V backend.
+
+2024-05-16  Pan Li  <pan2.li@intel.com>
+
+	* gcc.target/riscv/rvv/autovec/early-break-1.c: New test.
+	* gcc.target/riscv/rvv/autovec/early-break-2.c: New test.
+
+2024-05-16  Jan Hubicka  <jh@suse.cz>
+
+	* gcc.c-torture/execute/pr113787.c: New test.
+
+2024-05-16  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/13962
+	PR tree-optimization/96564
+	* gcc.dg/tree-ssa/alias-39.c: New testcase.
+	* g++.dg/vect/pr68145.cc: Use -fno-tree-pta to avoid UB
+	to manifest in transforms no longer vectorizing this testcase
+	for an ICE.
+
+2024-05-16  Richard Biener  <rguenther@suse.de>
+
+	* gcc.dg/tree-ssa/alias-38.c: New testcase.
+
+2024-05-16  Christoph Müllner  <christoph.muellner@vrull.eu>
+
+	* gcc.target/riscv/cmpmemsi-1.c: Drop options.
+	* gcc.target/riscv/cpymemsi-1.c: Likewise.
+
+2024-05-16  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/79958
+	PR tree-optimization/109087
+	PR tree-optimization/100314
+	PR tree-optimization/114774
+	* gcc.dg/tree-ssa/ssa-dse-48.c: New testcase.
+	* gcc.dg/tree-ssa/ssa-dse-49.c: Likewise.
+	* gcc.dg/tree-ssa/ssa-dse-50.c: Likewise.
+	* gcc.dg/tree-ssa/ssa-dse-51.c: Likewise.
+	* gcc.dg/graphite/pr80906.c: Avoid DSE of last data reference
+	in loop.
+	* g++.dg/ipa/devirt-24.C: Adjust for extra DSE.
+	* g++.dg/warn/Wuninitialized-pr107919-1.C: Use more important
+	-O2 optimization level, -O1 regresses.
+
+2024-05-16  David Malcolm  <dmalcolm@redhat.com>
+
+	* gcc.dg/analyzer/out-of-bounds-diagram-1-emoji.c: Update expected
+	output to use unicode for depth indication.
+	* gcc.dg/analyzer/out-of-bounds-diagram-1-unicode.c: Likewise.
+
+2024-05-16  David Malcolm  <dmalcolm@redhat.com>
+
+	* gcc.dg/analyzer/out-of-bounds-diagram-1-emoji.c: Update expected
+	output to include warning emoji.
+	* gcc.dg/analyzer/warning-emoji.c: New test.
+
+2024-05-16  David Malcolm  <dmalcolm@redhat.com>
+
+	* c-c++-common/analyzer/allocation-size-multiline-1.c: Update
+	expected results for purely intraprocedural path.
+	* c-c++-common/analyzer/allocation-size-multiline-2.c: Likewise.
+	* c-c++-common/analyzer/allocation-size-multiline-3.c: Likewise.
+	* c-c++-common/analyzer/analyzer-verbosity-0.c: Likewise.
+	* c-c++-common/analyzer/analyzer-verbosity-1.c: Likewise.
+	* c-c++-common/analyzer/analyzer-verbosity-2.c: Likewise.
+	* c-c++-common/analyzer/analyzer-verbosity-3.c: Likewise.
+	* c-c++-common/analyzer/malloc-macro-inline-events.c: Likewise.
+	Doing so for this file requires a rewrite since the paths
+	prefixing the "in expansion of macro" lines become the only thing
+	on their line and so are no longer pruned by multiline.exp logic
+	for pruning extra content on non-blank lines.
+	* c-c++-common/analyzer/malloc-paths-9-noexcept.c: Likewise.
+	* c-c++-common/analyzer/setjmp-2.c: Likewise.
+	* gcc.dg/analyzer/malloc-paths-9.c: Likewise.
+	* gcc.dg/analyzer/out-of-bounds-multiline-2.c: Likewise.
+	* gcc.dg/plugin/diagnostic-test-paths-2.c: Likewise.
+
+2024-05-16  Xiao Zeng  <zengxiao@eswincomputing.com>
+
+	* gcc.target/riscv/arch-37.c: New test.
+	* gcc.target/riscv/arch-38.c: New test.
+	* gcc.target/riscv/predef-36.c: New test.
+	* gcc.target/riscv/predef-37.c: New test.
+
+2024-05-16  liuhongt  <hongtao.liu@intel.com>
+
+	* gcc.target/i386/pr114514-shufb.c: New test.
+
+2024-05-16  liuhongt  <hongtao.liu@intel.com>
+
+	* gcc.target/i386/pr114514-shift.c: New test.
+
 2024-05-15  David Malcolm  <dmalcolm@redhat.com>
 
 	PR analyzer/114899

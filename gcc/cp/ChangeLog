@@ -1,3 +1,54 @@
+2024-05-24  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/114947
+	* cp-tree.h (set_defining_module_for_partial_spec): Declare.
+	* module.cc (trees_in::decl_value): Track partial specs coming
+	from partitions.
+	(set_defining_module): Don't track partial specialisations here
+	anymore.
+	(set_defining_module_for_partial_spec): New function.
+	* pt.cc (process_partial_specialization): Call it.
+
+2024-05-23  Jason Merrill  <jason@redhat.com>
+
+	PR c++/115187
+	* init.cc (build_delete): Use get_target_expr instead of save_expr.
+	* tree.cc (stabilize_expr): Update comment.
+
+2024-05-22  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/115159
+	* tree.cc (build_cp_fntype_variant): Always use structural
+	equality for types with a complex exception specification.
+	(fixup_deferred_exception_variants): Use structural equality
+	for adjusted variants.
+	* typeck.cc (comp_except_specs): Require == instead of
+	cp_tree_equal for ce_exact noexcept-spec comparison.
+
+2024-05-22  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	* decl.cc (grokfndecl): Check for main functions with language
+	linkage or module attachment.
+	(grokvardecl): Check for extern 'C' entities named main.
+
+2024-05-21  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/107800
+	* cxxapi-data.csv <to_address>: Change dialect to cxx20.
+	* std-name-hint.gperf: Regenerate.
+	* std-name-hint.h: Regenerate.
+
+2024-05-21  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/115139
+	* pt.cc (tsubst_expr) <case CONST_DECL>: Exit early if args
+	is empty.
+
+2024-05-17  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/115114
+	* pt.cc (maybe_aggr_guide): Consider bases in the paren init case.
+
 2024-05-15  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/114854

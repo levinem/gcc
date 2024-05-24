@@ -3104,7 +3104,7 @@ process_constraint (constraint_t t)
      it here by turning it into *ANYTHING.  */
   if (lhs.type == ADDRESSOF
       && lhs.var == anything_id)
-    lhs.type = DEREF;
+    t->lhs.type = lhs.type = DEREF;
 
   /* ADDRESSOF on the lhs is invalid.  */
   gcc_assert (lhs.type != ADDRESSOF);
@@ -7087,6 +7087,7 @@ bool
 pt_solution_includes_const_pool (struct pt_solution *pt)
 {
   return (pt->const_pool
+	  || pt->nonlocal
 	  || (pt->escaped && (!cfun || cfun->gimple_df->escaped.const_pool))
 	  || (pt->ipa_escaped && ipa_escaped_pt.const_pool));
 }
