@@ -4807,6 +4807,26 @@
   DONE;
 })
 
+(define_expand "vcond_mask_<mode><mode>"
+  [(match_operand:SWI1248_AVX512BW 0 "register_operand")
+   (match_operand:SWI1248_AVX512BW 1 "register_operand")
+   (match_operand:SWI1248_AVX512BW 2 "register_operand")
+   (match_operand:SWI1248_AVX512BW 3 "register_operand")]
+  "TARGET_AVX512F"
+{
+  /* (operand[1] & operand[3]) | (operand[2] & ~operand[3])  */
+  rtx op1 = gen_reg_rtx (<MODE>mode);
+  rtx op2 = gen_reg_rtx (<MODE>mode);
+  rtx op3 = gen_reg_rtx (<MODE>mode);
+
+  emit_insn (gen_and<mode>3 (op1, operands[1], operands[3]));
+  emit_insn (gen_one_cmpl<mode>2 (op3, operands[3]));
+  emit_insn (gen_and<mode>3 (op2, operands[2], op3));
+  emit_insn (gen_ior<mode>3 (operands[0], op1, op2));
+
+  DONE;
+})
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; Parallel floating point logical operations
@@ -6867,9 +6887,9 @@
   [(set (match_operand:VHF_AVX512VL 0 "register_operand" "=&v")
 	(vec_merge:VHF_AVX512VL
 	  (unspec:VHF_AVX512VL
-	    [(match_operand:VHF_AVX512VL 1 "nonimmediate_operand" "<int_comm>v")
-	     (match_operand:VHF_AVX512VL 2 "nonimmediate_operand" "<round_constraint>")
-	     (match_operand:VHF_AVX512VL 3 "register_operand" "0")]
+	    [(match_operand:VHF_AVX512VL 1 "<round_nimm_predicate>" "<int_comm>v")
+	     (match_operand:VHF_AVX512VL 2 "<round_nimm_predicate>" "<round_constraint>")
+	     (match_operand:VHF_AVX512VL 3 "<round_nimm_predicate>" "0")]
 	     UNSPEC_COMPLEX_F_C_MA)
 	  (match_dup 1)
 	  (unspec:<avx512fmaskmode>
@@ -6892,8 +6912,8 @@
 (define_insn "<avx512>_<complexopname>_<mode><maskc_name><round_name>"
   [(set (match_operand:VHF_AVX512VL 0 "register_operand" "=&v")
 	  (unspec:VHF_AVX512VL
-	    [(match_operand:VHF_AVX512VL 1 "nonimmediate_operand" "<int_comm>v")
-	     (match_operand:VHF_AVX512VL 2 "nonimmediate_operand" "<round_constraint>")]
+	    [(match_operand:VHF_AVX512VL 1 "<round_nimm_predicate>" "<int_comm>v")
+	     (match_operand:VHF_AVX512VL 2 "<round_nimm_predicate>" "<round_constraint>")]
 	     UNSPEC_COMPLEX_F_C_MUL))]
   "TARGET_AVX512FP16 && <round_mode512bit_condition>"
 {

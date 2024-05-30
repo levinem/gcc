@@ -48,7 +48,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "c-family/c-ubsan.h"
 #include "gomp-constants.h"
 #include "spellcheck-tree.h"
-#include "gcc-rich-location.h"
+#include "c-family/c-type-mismatch.h"
 #include "stringpool.h"
 #include "attribs.h"
 #include "asan.h"
@@ -1172,6 +1172,7 @@ struct comptypes_data {
   bool different_types_p;
   bool warning_needed;
   bool anon_field;
+  bool pointedto;
   bool equiv;
 
   const struct tagged_tu_seen_cache* cache;
@@ -1235,8 +1236,36 @@ comptypes_check_different_types (tree type1, tree type2,
 }
 
 
-/* Like comptypes, but if it returns nonzero for struct and union
-   types considered equivalent for aliasing purposes.  */
+/* Like comptypes, but if it returns true for struct and union types
+   considered equivalent for aliasing purposes, i.e. for setting
+   TYPE_CANONICAL after completing a struct or union.
+
+   This function must return false only for types which are not
+   compatible according to C language semantics (cf. comptypes),
+   otherwise the middle-end would make incorrect aliasing decisions.
+   It may return true for some similar types that are not compatible
+   according to those stricter rules.
+
+   In particular, we ignore size expression in arrays so that the
+   following structs are in the same equivalence class:
+
+   struct foo { char (*buf)[]; };
+   struct foo { char (*buf)[3]; };
+   struct foo { char (*buf)[4]; };
+
+   We also treat unions / structs with members which are pointers to
+   structures or unions with the same tag as equivalent (if they are not
+   incompatible for other reasons).  Although incomplete structure
+   or union types are not compatible to any other type, they may become
+   compatible to different types when completed.  To avoid having to update
+   TYPE_CANONICAL at this point, we only consider the tag when forming
+   the equivalence classes.  For example, the following types with tag
+   'foo' are all considered equivalent:
+
+   struct bar;
+   struct foo { struct bar *x };
+   struct foo { struct bar { int a; } *x };
+   struct foo { struct bar { char b; } *x };  */
 
 bool
 comptypes_equiv_p (tree type1, tree type2)
@@ -1357,6 +1386,7 @@ comptypes_internal (const_tree type1, const_tree type2,
       /* Do not remove mode information.  */
       if (TYPE_MODE (t1) != TYPE_MODE (t2))
 	return false;
+      data->pointedto = true;
       return comptypes_internal (TREE_TYPE (t1), TREE_TYPE (t2), data);
 
     case FUNCTION_TYPE:
@@ -1375,7 +1405,7 @@ comptypes_internal (const_tree type1, const_tree type2,
 
 	if ((d1 == NULL_TREE) != (d2 == NULL_TREE))
 	  data->different_types_p = true;
-	/* Ignore size mismatches.  */
+	/* Ignore size mismatches when forming equivalence classes.  */
 	if (data->equiv)
 	  return true;
 	/* Sizes must match unless one is missing or variable.  */
@@ -1515,6 +1545,12 @@ tagged_types_tu_compatible_p (const_tree t1, const_tree t2,
   if (TYPE_NAME (t1) != TYPE_NAME (t2))
     return false;
 
+  /* When forming equivalence classes for TYPE_CANONICAL in C23, we treat
+     structs with the same tag as equivalent, but only when they are targets
+     of pointers inside other structs.  */
+  if (data->equiv && data->pointedto)
+    return true;
+
   if (!data->anon_field && NULL_TREE == TYPE_NAME (t1))
     return false;
 
@@ -1610,6 +1646,7 @@ tagged_types_tu_compatible_p (const_tree t1, const_tree t2,
 	      return false;
 
 	    data->anon_field = !DECL_NAME (s1);
+	    data->pointedto = false;
 
 	    data->cache = &entry;
 	    if (!comptypes_internal (TREE_TYPE (s1), TREE_TYPE (s2), data))
@@ -1891,7 +1928,11 @@ array_to_pointer_conversion (location_t loc, tree exp)
 
   copy_warning (exp, orig_exp);
 
+  bool varmod = C_TYPE_VARIABLY_MODIFIED (restype);
+
   ptrtype = build_pointer_type (restype);
+
+  C_TYPE_VARIABLY_MODIFIED (ptrtype) = varmod;
 
   if (INDIRECT_REF_P (exp))
     return convert (ptrtype, TREE_OPERAND (exp, 0));
@@ -4630,6 +4671,7 @@ build_unary_op (location_t location, enum tree_code code, tree xarg,
   tree eptype = NULL_TREE;
   const char *invalid_op_diag;
   bool int_operands;
+  bool varmod;
 
   int_operands = EXPR_INT_CONST_OPERANDS (xarg);
   if (int_operands)
@@ -5113,7 +5155,11 @@ build_unary_op (location_t location, enum tree_code code, tree xarg,
       gcc_assert (TREE_CODE (arg) != COMPONENT_REF
 		  || !DECL_C_BIT_FIELD (TREE_OPERAND (arg, 1)));
 
+      varmod = C_TYPE_VARIABLY_MODIFIED (argtype);
+
       argtype = build_pointer_type (argtype);
+
+      C_TYPE_VARIABLY_MODIFIED (argtype) = varmod;
 
       /* ??? Cope with user tricks that amount to offsetof.  Delete this
 	 when we have proper support for integer constant expressions.  */

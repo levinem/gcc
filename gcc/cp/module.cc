@@ -19140,7 +19140,13 @@ module_may_redeclare (tree olddecl, tree newdecl)
   decl = newdecl ? newdecl : olddecl;
   location_t loc = newdecl ? DECL_SOURCE_LOCATION (newdecl) : input_location;
   if (DECL_IS_UNDECLARED_BUILTIN (olddecl))
-    error_at (loc, "declaration %qD conflicts with builtin", decl);
+    {
+      if (newdecl_attached_p)
+	error_at (loc, "declaring %qD in module %qs conflicts with builtin "
+		  "in global module", decl, new_mod->get_flatname ());
+      else
+	error_at (loc, "declaration %qD conflicts with builtin", decl);
+    }
   else if (DECL_LANG_SPECIFIC (old_inner) && DECL_MODULE_IMPORT_P (old_inner))
     {
       auto_diagnostic_group d;
@@ -19221,7 +19227,7 @@ set_defining_module (tree decl)
   gcc_checking_assert (!DECL_LANG_SPECIFIC (decl)
 		       || !DECL_MODULE_IMPORT_P (decl));
 
-  if (module_p ())
+  if (module_maybe_has_cmi_p ())
     {
       /* We need to track all declarations within a module, not just those
 	 in the module purview, because we don't necessarily know yet if
@@ -19261,7 +19267,7 @@ set_defining_module (tree decl)
 void
 set_defining_module_for_partial_spec (tree decl)
 {
-  if (module_p ()
+  if (module_maybe_has_cmi_p ()
       && DECL_IMPLICIT_TYPEDEF_P (decl)
       && CLASSTYPE_TEMPLATE_SPECIALIZATION (TREE_TYPE (decl)))
     vec_safe_push (partial_specializations, decl);

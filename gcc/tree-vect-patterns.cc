@@ -266,7 +266,7 @@ vect_get_internal_def (vec_info *vinfo, tree op)
   stmt_vec_info def_stmt_info = vinfo->lookup_def (op);
   if (def_stmt_info
       && STMT_VINFO_DEF_TYPE (def_stmt_info) == vect_internal_def)
-    return def_stmt_info;
+    return vect_stmt_to_vectorize (def_stmt_info);
   return NULL;
 }
 
@@ -655,7 +655,8 @@ vect_widened_op_tree (vec_info *vinfo, stmt_vec_info stmt_info, tree_code code,
 
 	      /* Recursively process the definition of the operand.  */
 	      stmt_vec_info def_stmt_info
-		= vinfo->lookup_def (this_unprom->op);
+		= vect_get_internal_def (vinfo, this_unprom->op);
+
 	      nops = vect_widened_op_tree (vinfo, def_stmt_info, code,
 					   widened_code, shift_p, max_nops,
 					   this_unprom, common_type,
@@ -1739,7 +1740,6 @@ vect_recog_widen_abd_pattern (vec_info *vinfo, stmt_vec_info stmt_vinfo,
   if (!abd_pattern_vinfo)
     return NULL;
 
-  abd_pattern_vinfo = vect_stmt_to_vectorize (abd_pattern_vinfo);
   gcall *abd_stmt = dyn_cast <gcall *> (STMT_VINFO_STMT (abd_pattern_vinfo));
   if (!abd_stmt
       || !gimple_call_internal_p (abd_stmt)
@@ -6925,81 +6925,41 @@ vect_determine_stmt_precisions (vec_info *vinfo, stmt_vec_info stmt_info)
 void
 vect_determine_precisions (vec_info *vinfo)
 {
+  basic_block *bbs = vinfo->bbs;
+  unsigned int nbbs = vinfo->nbbs;
+
   DUMP_VECT_SCOPE ("vect_determine_precisions");
 
-  if (loop_vec_info loop_vinfo = dyn_cast <loop_vec_info> (vinfo))
+  for (unsigned int i = 0; i < nbbs; i++)
     {
-      class loop *loop = LOOP_VINFO_LOOP (loop_vinfo);
-      basic_block *bbs = LOOP_VINFO_BBS (loop_vinfo);
-      unsigned int nbbs = loop->num_nodes;
-
-      for (unsigned int i = 0; i < nbbs; i++)
+      basic_block bb = bbs[i];
+      for (auto gsi = gsi_start_phis (bb); !gsi_end_p (gsi); gsi_next (&gsi))
 	{
-	  basic_block bb = bbs[i];
-	  for (auto gsi = gsi_start_phis (bb);
-	       !gsi_end_p (gsi); gsi_next (&gsi))
-	    {
-	      stmt_vec_info stmt_info = vinfo->lookup_stmt (gsi.phi ());
-	      if (stmt_info)
-		vect_determine_mask_precision (vinfo, stmt_info);
-	    }
-	  for (auto si = gsi_start_bb (bb); !gsi_end_p (si); gsi_next (&si))
-	    if (!is_gimple_debug (gsi_stmt (si)))
-	      vect_determine_mask_precision
-		(vinfo, vinfo->lookup_stmt (gsi_stmt (si)));
+	  stmt_vec_info stmt_info = vinfo->lookup_stmt (gsi.phi ());
+	  if (stmt_info && STMT_VINFO_VECTORIZABLE (stmt_info))
+	    vect_determine_mask_precision (vinfo, stmt_info);
 	}
-      for (unsigned int i = 0; i < nbbs; i++)
+      for (auto gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
 	{
-	  basic_block bb = bbs[nbbs - i - 1];
-	  for (gimple_stmt_iterator si = gsi_last_bb (bb);
-	       !gsi_end_p (si); gsi_prev (&si))
-	    if (!is_gimple_debug (gsi_stmt (si)))
-	      vect_determine_stmt_precisions
-		(vinfo, vinfo->lookup_stmt (gsi_stmt (si)));
-	  for (auto gsi = gsi_start_phis (bb);
-	       !gsi_end_p (gsi); gsi_next (&gsi))
-	    {
-	      stmt_vec_info stmt_info = vinfo->lookup_stmt (gsi.phi ());
-	      if (stmt_info)
-		vect_determine_stmt_precisions (vinfo, stmt_info);
-	    }
+	  stmt_vec_info stmt_info = vinfo->lookup_stmt (gsi_stmt (gsi));
+	  if (stmt_info && STMT_VINFO_VECTORIZABLE (stmt_info))
+	    vect_determine_mask_precision (vinfo, stmt_info);
 	}
     }
-  else
+  for (unsigned int i = 0; i < nbbs; i++)
     {
-      bb_vec_info bb_vinfo = as_a <bb_vec_info> (vinfo);
-      for (unsigned i = 0; i < bb_vinfo->bbs.length (); ++i)
+      basic_block bb = bbs[nbbs - i - 1];
+      for (auto gsi = gsi_last_bb (bb); !gsi_end_p (gsi); gsi_prev (&gsi))
 	{
-	  basic_block bb = bb_vinfo->bbs[i];
-	  for (auto gsi = gsi_start_phis (bb); !gsi_end_p (gsi); gsi_next (&gsi))
-	    {
-	      stmt_vec_info stmt_info = vinfo->lookup_stmt (gsi.phi ());
-	      if (stmt_info && STMT_VINFO_VECTORIZABLE (stmt_info))
-		vect_determine_mask_precision (vinfo, stmt_info);
-	    }
-	  for (auto gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
-	    {
-	      stmt_vec_info stmt_info = vinfo->lookup_stmt (gsi_stmt (gsi));
-	      if (stmt_info && STMT_VINFO_VECTORIZABLE (stmt_info))
-		vect_determine_mask_precision (vinfo, stmt_info);
-	    }
+	  stmt_vec_info stmt_info = vinfo->lookup_stmt (gsi_stmt (gsi));
+	  if (stmt_info && STMT_VINFO_VECTORIZABLE (stmt_info))
+	    vect_determine_stmt_precisions (vinfo, stmt_info);
 	}
-      for (int i = bb_vinfo->bbs.length () - 1; i != -1; --i)
+      for (auto gsi = gsi_start_phis (bb); !gsi_end_p (gsi); gsi_next (&gsi))
 	{
-	  for (gimple_stmt_iterator gsi = gsi_last_bb (bb_vinfo->bbs[i]);
-	       !gsi_end_p (gsi); gsi_prev (&gsi))
-	    {
-	      stmt_vec_info stmt_info = vinfo->lookup_stmt (gsi_stmt (gsi));
-	      if (stmt_info && STMT_VINFO_VECTORIZABLE (stmt_info))
-		vect_determine_stmt_precisions (vinfo, stmt_info);
-	    }
-	  for (auto gsi = gsi_start_phis (bb_vinfo->bbs[i]);
-	       !gsi_end_p (gsi); gsi_next (&gsi))
-	    {
-	      stmt_vec_info stmt_info = vinfo->lookup_stmt (gsi.phi ());
-	      if (stmt_info && STMT_VINFO_VECTORIZABLE (stmt_info))
-		vect_determine_stmt_precisions (vinfo, stmt_info);
-	    }
+	  stmt_vec_info stmt_info = vinfo->lookup_stmt (gsi.phi ());
+	  if (stmt_info && STMT_VINFO_VECTORIZABLE (stmt_info))
+	    vect_determine_stmt_precisions (vinfo, stmt_info);
 	}
     }
 }
@@ -7328,55 +7288,31 @@ vect_pattern_recog_1 (vec_info *vinfo,
 void
 vect_pattern_recog (vec_info *vinfo)
 {
-  class loop *loop;
-  basic_block *bbs;
-  unsigned int nbbs;
-  gimple_stmt_iterator si;
-  unsigned int i, j;
+  basic_block *bbs = vinfo->bbs;
+  unsigned int nbbs = vinfo->nbbs;
 
   vect_determine_precisions (vinfo);
 
   DUMP_VECT_SCOPE ("vect_pattern_recog");
 
-  if (loop_vec_info loop_vinfo = dyn_cast <loop_vec_info> (vinfo))
+  /* Scan through the stmts in the region, applying the pattern recognition
+     functions starting at each stmt visited.  */
+  for (unsigned i = 0; i < nbbs; i++)
     {
-      loop = LOOP_VINFO_LOOP (loop_vinfo);
-      bbs = LOOP_VINFO_BBS (loop_vinfo);
-      nbbs = loop->num_nodes;
+      basic_block bb = bbs[i];
 
-      /* Scan through the loop stmts, applying the pattern recognition
-	 functions starting at each stmt visited:  */
-      for (i = 0; i < nbbs; i++)
+      for (auto si = gsi_start_bb (bb); !gsi_end_p (si); gsi_next (&si))
 	{
-	  basic_block bb = bbs[i];
-	  for (si = gsi_start_bb (bb); !gsi_end_p (si); gsi_next (&si))
-	    {
-	      if (is_gimple_debug (gsi_stmt (si)))
-		continue;
-	      stmt_vec_info stmt_info = vinfo->lookup_stmt (gsi_stmt (si));
-	      /* Scan over all generic vect_recog_xxx_pattern functions.  */
-	      for (j = 0; j < NUM_PATTERNS; j++)
-		vect_pattern_recog_1 (vinfo, &vect_vect_recog_func_ptrs[j],
-				      stmt_info);
-	    }
-	}
-    }
-  else
-    {
-      bb_vec_info bb_vinfo = as_a <bb_vec_info> (vinfo);
-      for (unsigned i = 0; i < bb_vinfo->bbs.length (); ++i)
-	for (gimple_stmt_iterator gsi = gsi_start_bb (bb_vinfo->bbs[i]);
-	     !gsi_end_p (gsi); gsi_next (&gsi))
-	  {
-	    stmt_vec_info stmt_info = bb_vinfo->lookup_stmt (gsi_stmt (gsi));
-	    if (!stmt_info || !STMT_VINFO_VECTORIZABLE (stmt_info))
-	      continue;
+	  stmt_vec_info stmt_info = vinfo->lookup_stmt (gsi_stmt (si));
 
-	    /* Scan over all generic vect_recog_xxx_pattern functions.  */
-	    for (j = 0; j < NUM_PATTERNS; j++)
-	      vect_pattern_recog_1 (vinfo,
-				    &vect_vect_recog_func_ptrs[j], stmt_info);
-	  }
+	  if (!stmt_info || !STMT_VINFO_VECTORIZABLE (stmt_info))
+	    continue;
+
+	  /* Scan over all generic vect_recog_xxx_pattern functions.  */
+	  for (unsigned j = 0; j < NUM_PATTERNS; j++)
+	    vect_pattern_recog_1 (vinfo, &vect_vect_recog_func_ptrs[j],
+				  stmt_info);
+	}
     }
 
   /* After this no more add_stmt calls are allowed.  */

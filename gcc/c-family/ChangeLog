@@ -1,3 +1,31 @@
+2024-05-29  Jason Merrill  <jason@redhat.com>
+
+	PR c++/109753
+	* c-attribs.cc (handle_optimize_attribute): Set
+	cgraph_node::semantic_interposition.
+
+2024-05-29  Oskari Pirhonen  <xxc3ncoredxx@gmail.com>
+
+	* known-headers.cc (get_stdlib_header_for_name): Add strerror.
+
+2024-05-28  David Malcolm  <dmalcolm@redhat.com>
+
+	PR bootstrap/115167
+	* c-format.cc: Replace include of "gcc-rich-location.h" with
+	"c-family/c-type-mismatch.h".
+	* c-type-mismatch.cc: New file, taking material from
+	gcc-rich-location.cc.
+	* c-type-mismatch.h: New file, taking material from
+	gcc-rich-location.h.
+	* c-warn.cc: Replace include of "gcc-rich-location.h" with
+	"c-family/c-type-mismatch.h".
+
+2024-05-24  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* c-ada-spec.cc (is_cpp_float): New predicate.
+	(dump_number): Deal with more preprocessing floating constants.
+	(dump_ada_macros) <CPP_NUMBER>: Use is_cpp_float.
+
 2024-05-23  Eric Botcazou  <ebotcazou@adacore.com>
 
 	* c-ada-spec.cc (check_type_name_conflict): Add guard.
