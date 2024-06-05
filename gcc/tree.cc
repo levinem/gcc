@@ -316,6 +316,9 @@ unsigned const char omp_clause_num_ops[] =
   0, /* OMP_CLAUSE_BIND  */
   1, /* OMP_CLAUSE_FILTER  */
   1, /* OMP_CLAUSE_INDIRECT  */
+  1, /* OMP_CLAUSE_PARTIAL  */
+  0, /* OMP_CLAUSE_FULL  */
+  1, /* OMP_CLAUSE_SIZES  */
   1, /* OMP_CLAUSE__SIMDUID_  */
   0, /* OMP_CLAUSE__SIMT_  */
   0, /* OMP_CLAUSE_INDEPENDENT  */
@@ -409,6 +412,9 @@ const char * const omp_clause_code_name[] =
   "bind",
   "filter",
   "indirect",
+  "partial",
+  "full",
+  "sizes",
   "_simduid_",
   "_simt_",
   "independent",
@@ -13405,6 +13411,28 @@ component_ref_size (tree ref, special_array_member *sam /* = NULL */)
 	  ? NULL_TREE : size_zero_node);
 }
 
+/* Return true if the given node CALL is a call to a .ACCESS_WITH_SIZE
+   function.  */
+bool
+is_access_with_size_p (const_tree call)
+{
+  if (TREE_CODE (call) != CALL_EXPR)
+    return false;
+  if (CALL_EXPR_IFN (call) == IFN_ACCESS_WITH_SIZE)
+    return true;
+  return false;
+}
+
+/* Get the corresponding reference from the call to a .ACCESS_WITH_SIZE.
+ * i.e the first argument of this call.  Return NULL_TREE otherwise.  */
+tree
+get_ref_from_access_with_size (tree call)
+{
+  if (is_access_with_size_p (call))
+    return  CALL_EXPR_ARG (call, 0);
+  return NULL_TREE;
+}
+
 /* Return the machine mode of T.  For vectors, returns the mode of the
    inner type.  The main use case is to feed the result to HONOR_NANS,
    avoiding the BLKmode that a direct TYPE_MODE (T) might return.  */
@@ -14473,7 +14501,7 @@ get_range_pos_neg (tree arg)
 
   if (TREE_CODE (arg) != SSA_NAME)
     return 3;
-  value_range r;
+  int_range_max r;
   while (!get_global_range_query ()->range_of_expr (r, arg)
 	 || r.undefined_p () || r.varying_p ())
     {

@@ -1,3 +1,351 @@
+2024-06-04  Simon Martin  <simon@nasilyan.com>
+
+	PR c++/103388
+	* g++.dg/parse/crash73.C: New test.
+
+2024-06-04  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/83865
+	* gfortran.dg/allocate_with_source_32.f90: New test.
+
+2024-06-04  Simon Martin  <simon@nasilyan.com>
+
+	PR c++/111106
+	* g++.dg/cpp2a/consteval37.C: New test.
+
+2024-06-04  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/115337
+	* gcc.dg/bitint-106.c: New test.
+
+2024-06-04  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* gcc.target/i386/avx10_1-25.c: Require ifunc support.
+	* gcc.target/i386/avx10_1-26.c: Likewise.
+
+2024-06-04  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/108789
+	* gcc.c-torture/execute/pr108789.c: New test.
+
+2024-06-04  Richard Biener  <rguenther@suse.de>
+
+	* gcc.dg/vect/slp-24.c: Expect another SLP instance for the
+	reduction.
+	* gcc.dg/vect/slp-24-big-array.c: Likewise.
+	* gcc.dg/vect/slp-reduc-6.c: Remove scan for zero SLP instances.
+
+2024-06-04  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR analyzer/107750
+	* gcc.dg/analyzer/fd-accept.c: Skip on *-*-solaris2*.
+	* gcc.dg/analyzer/fd-access-mode-target-headers.c: Likewise.
+	* gcc.dg/analyzer/fd-connect.c: Likewise.
+	* gcc.dg/analyzer/fd-datagram-socket.c: Likewise.
+	* gcc.dg/analyzer/fd-listen.c: Likewise.
+	* gcc.dg/analyzer/fd-socket-misuse.c: Likewise.
+	* gcc.dg/analyzer/fd-stream-socket-active-open.c: Likewise.
+	* gcc.dg/analyzer/fd-stream-socket-passive-open.c: Likewise.
+	* gcc.dg/analyzer/fd-stream-socket.c: Likewise.
+
+2024-06-04  liuhongt  <hongtao.liu@intel.com>
+
+	PR target/115299
+	* gcc.target/i386/pr86722.c: Also scan for blendvpd.
+
+2024-06-03  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/115012
+	* g++.dg/cpp0x/variadic185.C: New test.
+
+2024-06-03  David Malcolm  <dmalcolm@redhat.com>
+
+	* c-c++-common/analyzer/sarif-path-role.c: New test.
+	* c-c++-common/analyzer/sarif-path-role.h: New header for above
+	test.
+	* c-c++-common/diagnostic-format-sarif-file-1.c: Verify the
+	artifact's "role" property.
+	* c-c++-common/diagnostic-format-sarif-file-header-role.c: New
+	test.
+	* c-c++-common/diagnostic-format-sarif-file-header-role.h: New
+	header for above test.
+	* c-c++-common/diagnostic-format-sarif-file-no-results.c: New
+	test.
+
+2024-06-03  Uros Bizjak  <ubizjak@gmail.com>
+
+	PR target/115321
+	* gcc.target/i386/pr115321.c: New test.
+
+2024-06-03  Richard Biener  <rguenther@suse.de>
+
+	PR testsuite/115304
+	* gcc.dg/vect/slp-gap-1.c: Require vect_unpack and vect_perm.
+
+2024-06-03  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR tree-optimization/115303
+	* gcc.dg/vect/pr112325.c: Require vect_shift.
+
+2024-06-03  Richard Biener  <rguenther@suse.de>
+
+	* gcc.dg/vect/no-scevccp-outer-7.c: Adjust scanning for
+	succeeded analysis not interrupted by failure.
+	* gcc.dg/vect/no-scevccp-vect-iv-3.c: Likewise.
+	* gcc.dg/vect/vect-cond-reduc-4.c: Likewise.
+	* gcc.dg/vect/vect-live-2.c: Likewise.
+	* gcc.dg/vect/vect-outer-4c-big-array.c: Likewise.
+	* gcc.dg/vect/vect-reduc-dot-s16a.c: Likewise.
+	* gcc.dg/vect/vect-reduc-dot-s8a.c: Likewise.
+	* gcc.dg/vect/vect-reduc-dot-s8b.c: Likewise.
+	* gcc.dg/vect/vect-reduc-dot-u16a.c: Likewise.
+	* gcc.dg/vect/vect-reduc-dot-u16b.c: Likewise.
+	* gcc.dg/vect/vect-reduc-dot-u8a.c: Likewise.
+	* gcc.dg/vect/vect-reduc-dot-u8b.c: Likewise.
+	* gcc.dg/vect/vect-reduc-pattern-1a.c: Likewise.
+	* gcc.dg/vect/vect-reduc-pattern-1b-big-array.c: Likewise.
+	* gcc.dg/vect/vect-reduc-pattern-1c-big-array.c: Likewise.
+	* gcc.dg/vect/vect-reduc-pattern-2a.c: Likewise.
+	* gcc.dg/vect/vect-reduc-pattern-2b-big-array.c: Likewise.
+	* gcc.dg/vect/wrapv-vect-reduc-dot-s8b.c: Likewise.
+
+2024-06-03  liuhongt  <hongtao.liu@intel.com>
+
+	* gcc.target/i386/pr115299.c: New test.
+	* gcc.target/i386/pr86722.c: Adjust testcase.
+
+2024-06-03  Haochen Jiang  <haochen.jiang@intel.com>
+
+	* gcc.target/i386/avx10_1-25.c: New test.
+	* gcc.target/i386/avx10_1-26.c: Ditto.
+
+2024-06-03  Lingling Kong  <lingling.kong@intel.com>
+
+	* gcc.target/i386/apx-nf.c: Add test.
+
+2024-06-03  Lingling Kong  <lingling.kong@intel.com>
+
+	* gcc.target/i386/apx-nf.c: New test.
+
+2024-06-03  Lingling Kong  <lingling.kong@intel.com>
+	    Hongyu Wong  <hongyu.wang@intel.com>
+
+	* gcc.target/i386/apx-ndd.c: Fixed test.
+
+2024-06-03  Hu, Lin1  <lin1.hu@intel.com>
+
+	PR target/113609
+	* gcc.target/i386/pr113609-1.c: New test.
+	* gcc.target/i386/pr113609-2.c: Ditto.
+
+2024-06-02  Simon Martin  <simon@nasilyan.com>
+
+	PR c++/109958
+	* g++.dg/overload/using6.C: New test.
+
+2024-06-01  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/106203
+	* c-c++-common/analyzer/allocation-size-1.c (test_9): Remove
+	xfail.
+	* c-c++-common/analyzer/allocation-size-2.c (test_8): Likewise.
+	* gcc.dg/analyzer/allocation-size-multiline-4.c: New test.
+	* gcc.dg/plugin/analyzer_cpython_plugin.c
+	(refcnt_stmt_finder::update_event_loc_info): New.
+
+2024-06-01  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR target/115317
+	* gcc.target/avr/torture/pr115317-isinf.c: New test.
+
+2024-06-01  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR tree-optimization/115307
+	* gcc.target/avr/torture/pr115307-isinf.c: New test.
+
+2024-06-01  Jeff Law  <jlaw@ventanamicro.com>
+
+	* gcc.target/riscv/synthesis-10.c: New test.
+
+2024-06-01  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/114867
+	* g++.dg/modules/using-17_a.C: New test.
+	* g++.dg/modules/using-17_b.C: New test.
+	* g++.dg/modules/using-18_a.C: New test.
+	* g++.dg/modules/using-18_b.C: New test.
+
+2024-05-31  Robin Dapp  <rdapp@ventanamicro.com>
+
+	* gcc.target/riscv/rvv/autovec/unop/popcount-1.c: Adjust check
+	for zvbb.
+	* gcc.target/riscv/rvv/autovec/unop/popcount-run-1.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/unop/popcount-2.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/unop/popcount-3.c: New test.
+	* gcc.target/riscv/rvv/autovec/unop/popcount-template.h: New test.
+	* gcc.target/riscv/rvv/autovec/unop/clz-1.c: New test.
+	* gcc.target/riscv/rvv/autovec/unop/clz-run.c: New test.
+	* gcc.target/riscv/rvv/autovec/unop/clz-template.h: New test.
+	* gcc.target/riscv/rvv/autovec/unop/ctz-1.c: New test.
+	* gcc.target/riscv/rvv/autovec/unop/ctz-run.c: New test.
+	* gcc.target/riscv/rvv/autovec/unop/ctz-template.h: New test.
+
+2024-05-31  Robin Dapp  <rdapp@ventanamicro.com>
+
+	* gcc.target/riscv/rvv/autovec/binop/vandn-1.c: New test.
+	* gcc.target/riscv/rvv/autovec/binop/vandn-run.c: New test.
+	* gcc.target/riscv/rvv/autovec/binop/vandn-template.h: New test.
+
+2024-05-31  Robin Dapp  <rdapp@ventanamicro.com>
+
+	* lib/target-supports.exp: Add zvbb.
+	* gcc.target/riscv/rvv/autovec/gather-scatter/gather_load_64-12-zvbb.c: New test.
+
+2024-05-31  Robin Dapp  <rdapp@ventanamicro.com>
+
+	* gcc.target/riscv/rvv/autovec/binop/vwsll-1.c: New test.
+	* gcc.target/riscv/rvv/autovec/binop/vwsll-run.c: New test.
+	* gcc.target/riscv/rvv/autovec/binop/vwsll-template.h: New test.
+
+2024-05-31  Robin Dapp  <rdapp@ventanamicro.com>
+
+	* gcc.target/riscv/rvv/base/pr115068.c: Add vwadd.wx/vwsub.wx
+	tests.
+	* gcc.target/riscv/rvv/base/pr115068-run.c: Include pr115068.c.
+	* gcc.target/riscv/rvv/base/vwaddsub-1.c: New test.
+
+2024-05-31  Robin Dapp  <rdapp@ventanamicro.com>
+
+	* gcc.target/riscv/rvv/base/pr115068-run.c: New test.
+	* gcc.target/riscv/rvv/base/pr115068.c: New test.
+
+2024-05-31  Pengxuan Zheng  <quic_pzheng@quicinc.com>
+
+	* gcc.target/aarch64/vget_low_2.c: Add -mlittle-endian.
+
+2024-05-31  Qing Zhao  <qing.zhao@oracle.com>
+
+	* gcc.dg/flex-array-counted-by-6.c: New test.
+
+2024-05-31  Qing Zhao  <qing.zhao@oracle.com>
+
+	* gcc.dg/ubsan/flex-array-counted-by-bounds-2.c: New test.
+	* gcc.dg/ubsan/flex-array-counted-by-bounds-3.c: New test.
+	* gcc.dg/ubsan/flex-array-counted-by-bounds-4.c: New test.
+	* gcc.dg/ubsan/flex-array-counted-by-bounds.c: New test.
+
+2024-05-31  Qing Zhao  <qing.zhao@oracle.com>
+
+	* gcc.dg/builtin-object-size-common.h: Add a new macro EXPECT.
+	* gcc.dg/flex-array-counted-by-3.c: New test.
+	* gcc.dg/flex-array-counted-by-4.c: New test.
+	* gcc.dg/flex-array-counted-by-5.c: New test.
+
+2024-05-31  Qing Zhao  <qing.zhao@oracle.com>
+
+	* gcc.dg/flex-array-counted-by-2.c: New test.
+
+2024-05-31  Qing Zhao  <qing.zhao@oracle.com>
+
+	* gcc.dg/flex-array-counted-by.c: New test.
+	* gcc.dg/flex-array-counted-by-7.c: New test.
+	* gcc.dg/flex-array-counted-by-8.c: New test.
+
+2024-05-31  Uros Bizjak  <ubizjak@gmail.com>
+
+	PR target/115297
+	* gcc.target/alpha/pr115297.c: New test.
+
+2024-05-31  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* gcc.dg/no_profile_instrument_function-attr-1.c: GCC/nvptx is
+	'NO_DOT_IN_LABEL' but not 'NO_DOLLAR_IN_LABEL', so '$' may apper
+	in identifiers.
+	* lib/target-supports.exp
+	(check_effective_target_global_constructor): Enable for nvptx.
+
+2024-05-31  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/115278
+	* g++.dg/vect/pr115278.cc: New testcase.
+
+2024-05-31  Marc Poulhiès  <poulhies@adacore.com>
+
+	* ada/acats/tests/cxa/cxa4001.a: Use function result.
+
+2024-05-31  Martin Uecker  <uecker@tugraz.at>
+
+	* gcc.dg/gnu23-tag-alias-8.c: New test.
+
+2024-05-31  Martin Uecker  <uecker@tugraz.at>
+
+	PR tree-optimization/115157
+	PR tree-optimization/115177
+	* gcc.dg/enum-alias-1.c: New test.
+	* gcc.dg/enum-alias-2.c: New test.
+	* gcc.dg/enum-alias-3.c: New test.
+	* gcc.dg/enum-alias-4.c: New test.
+
+2024-05-30  Uros Bizjak  <ubizjak@gmail.com>
+
+	PR target/115102
+	* gcc.target/i386/pr115102.c: New test.
+
+2024-05-30  Richard Sandiford  <richard.sandiford@arm.com>
+
+	PR rtl-optimization/115281
+	* gfortran.dg/pr115281.f90: New test.
+
+2024-05-30  David Malcolm  <dmalcolm@redhat.com>
+
+	* gcc.dg/plugin/analyzer_cpython_plugin.c: Define INCLUDE_VECTOR.
+	* gcc.dg/plugin/analyzer_gil_plugin.c: Likewise.
+	* gcc.dg/plugin/analyzer_kernel_plugin.c: Likewise.
+	* gcc.dg/plugin/analyzer_known_fns_plugin.c: Likewise.
+
+2024-05-30  Alexandre Oliva  <oliva@adacore.com>
+
+	PR testsuite/101169
+	* gcc.target/powerpc/fold-vec-extract-double.p7.c: Adjust addi
+	counts for ilp32.
+	* gcc.target/powerpc/fold-vec-extract-float.p7.c: Likewise.
+	* gcc.target/powerpc/fold-vec-extract-float.p8.c: Likewise.
+	* gcc.target/powerpc/fold-vec-extract-int.p7.c: Likewise.
+	* gcc.target/powerpc/fold-vec-extract-int.p8.c: Likewise.
+	* gcc.target/powerpc/fold-vec-extract-short.p7.c: Likewise.
+	* gcc.target/powerpc/fold-vec-extract-short.p8.c: Likewise.
+
+2024-05-30  liuhongt  <hongtao.liu@intel.com>
+
+	* gcc.target/i386/pr114125.c: New test.
+
+2024-05-30  liuhongt  <hongtao.liu@intel.com>
+
+	* gcc.dg/vect/pr112325.c: New test.
+
+2024-05-30  Alexandre Oliva  <oliva@adacore.com>
+
+	* lib/gcc-defs.exp (dg-additional-sources): Support target
+	selectors.  Make it cumulative.
+	(dg-additional-files-options): Take dest and type.  Note
+	unsupported additional sources when not linking and naming the
+	compiler output.  Adjust source dirname prepending to cope
+	with leading blanks.
+	* lib/g++.exp (g++_target_compile): Pass dest and type on to
+	dg-additional-files-options.
+	* lib/gcc.exp (gcc_target_compile): Likewise.
+	* lib/gdc.exp (gdb_target_compile): Likewise.
+	* lib/gfortran.exp (gfortran_target_compile): Likewise.
+	* lib/go.exp (go_target_compile): Likewise.
+	* lib/obj-c++.exp (obj-c++_target_compile): Likewise.
+	* lib/objc.exp (objc_target_compile): Likewise.
+	* lib/rust.exp (rust_target_compile): Likewise.
+	* lib/profopt.exp (profopt-execute): Likewise-ish.
+
+2024-05-30  Jiawei  <jiawei@iscas.ac.cn>
+
+	* gcc.target/riscv/rvv/vsetvl/pr115214.c: New test.
+
 2024-05-29  Martin Uecker  <uecker@tugraz.at>
 
 	* gcc.dg/c23-tag-incomplete-alias-1.c: New test.

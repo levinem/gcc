@@ -1,3 +1,728 @@
+2024-06-04  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/115337
+	* gimple-range-op.cc (cfn_clz::fold_range): For
+	m_gimple_call_internal_p handle as a special case also second argument
+	of -1 next to prec.
+
+2024-06-04  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/115337
+	* fold-const.cc (tree_call_nonnegative_warnv_p): Handle
+	CASE_CFN_CTZ like CASE_CFN_CLZ.
+
+2024-06-04  Jakub Jelinek  <jakub@redhat.com>
+
+	* fold-const.cc (tree_call_nonnegative_warnv_p): Formatting fixes.
+	(tree_invalid_nonnegative_warnv_p): Likewise.
+	* gimple-fold.cc (gimple_call_nonnegative_warnv_p): Likewise.
+
+2024-06-04  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/115337
+	* fold-const.cc (tree_call_nonnegative_warnv_p) <CASE_CFN_CLZ>:
+	If arg1 is non-NULL, RECURSE on it, otherwise return true.
+
+2024-06-04  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/108789
+	* builtins.cc (fold_builtin_arith_overflow): For ovf_only,
+	don't call save_expr and don't build REALPART_EXPR, otherwise
+	set TREE_SIDE_EFFECTS on call before calling save_expr.
+	(fold_builtin_addc_subc): Set TREE_SIDE_EFFECTS on call before
+	calling save_expr.
+
+2024-06-04  Jakub Jelinek  <jakub@redhat.com>
+
+	* doc/invoke.texi (lujiazui): Clarify that while the CPUs do support
+	AVX and F16C, -march=lujiazui actually doesn't enable those.
+
+2024-06-04  Richard Biener  <rguenther@suse.de>
+
+	* tree-vect-slp.cc (vect_build_slp_tree_2): Only multi-lane
+	discoveries are reduction chains and need special backedge
+	treatment.
+	(vect_analyze_slp): Fall back to single-lane SLP discovery
+	for reductions.  Make sure to try single-lane SLP reduction
+	for all reductions as fallback.
+	(vectorizable_load): Avoid outer loop SLP vectorization with
+	multi-copy vector stmts in the inner loop.
+	(vectorizable_store): Likewise.
+	* tree-vect-loop.cc (vect_create_epilog_for_reduction): Allow
+	direct opcode and shift reduction also for SLP reductions
+	with a single lane.
+	* tree-vect-stmts.cc (get_group_load_store_type): For SLP also
+	check for the PR65518 single-element interleaving case as done in
+	vect_grouped_load_supported.
+
+2024-06-04  Richard Biener  <rguenther@suse.de>
+
+	* tree-vect-slp.cc (vect_schedule_slp_node): For mask/len
+	loops make sure to not advance the insertion iterator
+	beyond a GIMPLE_COND.
+
+2024-06-03  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/115324
+	* config/rs6000/rs6000-gen-builtins.cc (write_decls): Remove
+	GTY markup from struct bifdata and struct ovlddata and remove their
+	fntype members.  Change next member in struct ovlddata and
+	first_instance member of struct ovldrecord to have int type rather
+	than struct ovlddata *.  Remove GTY markup from rs6000_builtin_info
+	and rs6000_instance_info arrays, declare new
+	rs6000_builtin_info_fntype and rs6000_instance_info_fntype arrays,
+	which have GTY markup.
+	(write_bif_static_init): Adjust for the above changes.
+	(write_ovld_static_init): Likewise.
+	(write_init_bif_table): Likewise.
+	(write_init_ovld_table): Likewise.
+	* config/rs6000/rs6000-builtin.cc (rs6000_init_builtins): Likewise.
+	* config/rs6000/rs6000-c.cc (find_instance): Likewise.  Make static.
+	(altivec_resolve_overloaded_builtin): Adjust for the above changes.
+
+2024-06-03  David Malcolm  <dmalcolm@redhat.com>
+
+	* diagnostic-format-sarif.cc: Include "ordered-hash-map.h" and
+	"sbitmap.h".
+	(enum class diagnostic_artifact_role): New.
+	(class sarif_artifact): New.
+	(sarif_builder::maybe_make_artifact_content_object): Make public.
+	(sarif_builder::m_filenames): Replace with...
+	(sarif_builder::m_filename_to_artifact_map): ...this.
+	(sarif_artifact::add_role): New.
+	(sarif_artifact::populate_contents): New.
+	(get_artifact_role_string): New.
+	(sarif_artifact::populate_roles): New.
+	(sarif_result::on_nested_diagnostic): Pass role to
+	make_location_object.
+	(sarif_ice_notification::sarif_ice_notification): Likewise.
+	(sarif_builder::sarif_builder): Add "main_input_filename_" param.
+	Mark it as the artifact that the tool was instructed to scan.
+	(sarif_builder::make_result_object): Pass role to
+	make_locations_arr.
+	(sarif_builder::make_locations_arr): Add "role" param and pass it
+	to make_location_object.
+	(sarif_builder::make_location_object): Add "role" param and pass
+	it to maybe_make_physical_location_object.
+	(sarif_builder::maybe_make_physical_location_object): Add "role"
+	param and pass it to call to get_or_create_artifact, rather than
+	adding to now-removed "m_filenames".  Flag the artifact for its
+	contents to be embedded.
+	(sarif_builder::make_thread_flow_location_object): Pass role to
+	make_location_object.
+	(sarif_builder::make_run_object): Update for change from
+	m_filename to m_filename_to_artifact_map.  Call populate_contents
+	and populate_roles on each artifact_obj.
+	(sarif_builder::make_artifact_object): Convert to...
+	(sarif_builder::get_or_create_artifact): ...this, moving addition
+	of contents to make_run_object, and conditionalizing setting of
+	sourceLanguage on "role".
+	(sarif_output_format::sarif_output_format): Add
+	"main_input_filename_" param and pass to m_builder's ctor.
+	(sarif_stream_output_format::sarif_stream_output_format):
+	Likewise.
+	(sarif_file_output_format::sarif_file_output_format): Likewise.
+	(diagnostic_output_format_init_sarif_stderr): Add
+	"main_input_filename_" param and pass to ctor.
+	(diagnostic_output_format_init_sarif_file): Likewise.
+	(diagnostic_output_format_init_sarif_stream): Likewise.
+	* diagnostic.cc (diagnostic_output_format_init): Add
+	"main_input_filename_" param and pass to the
+	diagnostic_output_format_init_sarif_* calls.
+	* diagnostic.h (diagnostic_output_format_init): Add
+	main_input_filename_" param to decl.
+	(diagnostic_output_format_init_sarif_stderr): Likewise.
+	(diagnostic_output_format_init_sarif_file): Likewise.
+	(diagnostic_output_format_init_sarif_stream): Likewise.
+	* gcc.cc (driver_handle_option): Pass main input filename to
+	diagnostic_output_format_init.
+	* opts.cc (common_handle_option): Likewise.
+
+2024-06-03  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* dwarf2out.cc (loc_list_from_tree_1) <CEIL_DIV_EXPR>; Add const.
+	<do_comp_binop>: Use a signed comparison for small unsigned types.
+	Implement wrap-around arithmetics for small integer types.
+
+2024-06-03  Uros Bizjak  <ubizjak@gmail.com>
+
+	PR target/115321
+	* config/i386/i386.md (bswapsi2): Force operand 1
+	to a register also for !TARGET_BSWAP.
+
+2024-06-03  Aldy Hernandez  <aldyh@redhat.com>
+
+	* builtins.cc (expand_builtin_strnlen): Replace value_range use
+	with int_range_max or irange when appropriate.
+	(determine_block_size): Same.
+	* fold-const.cc (minmax_from_comparison): Same.
+	* gimple-array-bounds.cc (check_out_of_bounds_and_warn): Same.
+	(array_bounds_checker::check_array_ref): Same.
+	* gimple-fold.cc (size_must_be_zero_p): Same.
+	* gimple-predicate-analysis.cc (find_var_cmp_const): Same.
+	* gimple-ssa-sprintf.cc (get_int_range): Same.
+	(format_integer): Same.
+	(try_substitute_return_value): Same.
+	(handle_printf_call): Same.
+	* gimple-ssa-warn-restrict.cc
+	(builtin_memref::extend_offset_range): Same.
+	* graphite-sese-to-poly.cc (add_param_constraints): Same.
+	* internal-fn.cc (get_min_precision): Same.
+	* match.pd: Same.
+	* pointer-query.cc (get_size_range): Same.
+	* range-op.cc (get_shift_range): Same.
+	(operator_trunc_mod::op1_range): Same.
+	(operator_trunc_mod::op2_range): Same.
+	* range.cc (range_negatives): Same.
+	* range.h (range_positives): Same.
+	(range_negatives): Same.
+	* tree-affine.cc (expr_to_aff_combination): Same.
+	* tree-data-ref.cc (compute_distributive_range): Same.
+	(nop_conversion_for_offset_p): Same.
+	(split_constant_offset): Same.
+	(split_constant_offset_1): Same.
+	(dr_step_indicator): Same.
+	* tree-dfa.cc (get_ref_base_and_extent): Same.
+	* tree-scalar-evolution.cc (iv_can_overflow_p): Same.
+	* tree-ssa-math-opts.cc (optimize_spaceship): Same.
+	* tree-ssa-pre.cc (insert_into_preds_of_block): Same.
+	* tree-ssa-reassoc.cc (optimize_range_tests_to_bit_test): Same.
+	* tree-ssa-strlen.cc (compare_nonzero_chars): Same.
+	(dump_strlen_info): Same.
+	(get_range_strlen_dynamic): Same.
+	(set_strlen_range): Same.
+	(maybe_diag_stxncpy_trunc): Same.
+	(strlen_pass::get_len_or_size): Same.
+	(strlen_pass::handle_builtin_string_cmp): Same.
+	(strlen_pass::count_nonzero_bytes_addr): Same.
+	(strlen_pass::handle_integral_assign): Same.
+	* tree-switch-conversion.cc (bit_test_cluster::emit): Same.
+	* tree-vect-loop-manip.cc (vect_gen_vector_loop_niters): Same.
+	(vect_do_peeling): Same.
+	* tree-vect-patterns.cc (vect_get_range_info): Same.
+	(vect_recog_divmod_pattern): Same.
+	* tree.cc (get_range_pos_neg): Same.
+	* value-range.cc (debug): Remove value_range variants.
+	* value-range.h (value_range): Remove typedef.
+	* vr-values.cc
+	(simplify_using_ranges::op_with_boolean_value_range_p): Replace
+	value_range use with int_range_max or irange when appropriate.
+	(check_for_binary_op_overflow): Same.
+	(simplify_using_ranges::legacy_fold_cond_overflow): Same.
+	(find_case_label_ranges): Same.
+	(simplify_using_ranges::simplify_abs_using_ranges): Same.
+	(test_for_singularity): Same.
+	(simplify_using_ranges::simplify_compare_using_ranges_1): Same.
+	(simplify_using_ranges::simplify_casted_compare): Same.
+	(simplify_using_ranges::simplify_switch_using_ranges): Same.
+	(simplify_conversion_using_ranges): Same.
+	(simplify_using_ranges::two_valued_val_range_p): Same.
+
+2024-06-03  Tobias Burnus  <tburnus@baylibre.com>
+
+	* doc/install.texi (gcn): Fix date of recommended newlib version.
+
+2024-06-03  Marc Poulhiès  <poulhies@adacore.com>
+
+	* config/aarch64/aarch64-ldp-fusion.cc (struct aarch64_pair_fusion):
+	Use new type name.
+
+2024-06-03  Marc Poulhiès  <poulhies@adacore.com>
+
+	* pair-fusion.h (enum class writeback): Rename to...
+	(enum class writeback_type): ...this.
+	(struct pair_fusion): Adjust type name after renaming.
+	* pair-fusion.cc (pair_fusion_bb_info::track_access): Likewise.
+	(pair_fusion_bb_info::fuse_pair): Likewise.
+	(pair_fusion::process_block): Likewise.
+
+2024-06-03  Richard Biener  <rguenther@suse.de>
+
+	* tree-vect-loop.cc (vect_analyze_loop_1): Avoid extra space
+	before 'failed'.
+
+2024-06-03  Richard Biener  <rguenther@suse.de>
+
+	* tree-vect-loop.cc (get_initial_defs_for_reduction):
+	Always convert neutral_op.
+
+2024-06-03  liuhongt  <hongtao.liu@intel.com>
+
+	PR target/115299
+	* config/i386/i386.cc (ix86_noce_conversion_profitable_p): Add
+	some preference for floating point ifcvt when SSE4.1 is not
+	available.
+
+2024-06-03  Haochen Jiang  <haochen.jiang@intel.com>
+
+	* common/config/i386/i386-common.cc: Change Granite Rapids
+	series CPU type to P_PROC_AVX10_1_512.
+	* common/config/i386/i386-cpuinfo.h (enum feature_priority):
+	Revise comment part. Add P_AVX10_1_256, P_AVX10_1_512,
+	P_PROC_AVX10_1_512.
+	* common/config/i386/i386-isas.h: Link to avx10.1-256, avx10.1-512.
+
+2024-06-03  Lingling Kong  <lingling.kong@intel.com>
+
+	* config/i386/i386.md (clz<mode>2_lzcnt_nf): New define_insn.
+	(*clz<mode>2_lzcnt_falsedep_nf): Ditto.
+	(<lt_zcnt>_<mode>_nf): Ditto.
+	(*<lt_zcnt>_<mode>_falsedep_nf): Ditto.
+	(<lt_zcnt>_hi<nf_name>): Ditto.
+	(popcount<mode>2_nf): Ditto.
+	(*popcount<mode>2_falsedep_nf): Ditto.
+	(popcounthi2<nf_name>): Ditto.
+
+2024-06-03  Lingling Kong  <lingling.kong@intel.com>
+
+	* config/i386/i386.md (*mul<mode>3_1<nf_name>): New define_insn.
+	(*mulqi3_1<nf_name>): Ditto.
+	(*<u>divmod<mode>4_noext_nf): Ditto.
+	(<u>divmodhiqi3<nf_name>): Ditto.
+
+2024-06-03  Lingling Kong  <lingling.kong@intel.com>
+
+	* config/i386/i386.md (x86_64_shld): New define_insn.
+	(x86_64_shld<nf_name>): Ditto.
+	(x86_64_shld_ndd<nf_name>): Ditto.
+	(x86_64_shld_1<nf_name>): Ditto.
+	(x86_64_shld_ndd_1<nf_name>): Ditto.
+	(*x86_64_shld_shrd_1_nozext_nf): Ditto.
+	(x86_shld<nf_name>): Ditto.
+	(x86_shld_ndd<nf_name>): Ditto.
+	(x86_shld_1<nf_name>): Ditto.
+	(x86_shld_ndd_1<nf_name>): Ditto.
+	(*x86_shld_shrd_1_nozext_nf): Ditto.
+	(<insn><dwi>3_doubleword_lowpart_nf): Ditto.
+	(x86_64_shrd<nf_name>): Ditto.
+	(x86_64_shrd_ndd<nf_name>): Ditto.
+	(x86_64_shrd_1<nf_name>): Ditto.
+	(x86_64_shrd_ndd_1<nf_name>): Ditto.
+	(*x86_64_shrd_shld_1_nozext_nf): Ditto.
+	(x86_shrd<nf_name>): Ditto.
+	(x86_shrd_ndd<nf_name>): Ditto.
+	(x86_shrd_1<nf_name>): Ditto.
+	(x86_shrd_ndd_1<nf_name>): Ditto.
+	(*x86_shrd_shld_1_nozext_nf): Ditto.
+
+2024-06-03  Lingling Kong  <lingling.kong@intel.com>
+
+	* config/i386/i386.md (ashr<mode>3_cvt<nf_name>): New
+	define_insn.
+	(*<insn><mode>3_1<nf_name>): Ditto.
+
+2024-06-03  Lingling Kong  <lingling.kong@intel.com>
+
+	* config/i386/i386.md (*ashr<mode>3_1<nf_name>): New
+	define_insn.
+	(*lshr<mode>3_1<nf_name>): Ditto.
+	(*lshrqi3_1<nf_name>): Ditto.
+	(*lshrhi3_1<nf_name>): Ditto.
+
+2024-06-03  Lingling Kong  <lingling.kong@intel.com>
+
+	* config/i386/i386.md (*ashl<mode>3_1<nf_name>): New
+	define_insn.
+	(*ashlhi3_1<nf_name>): Ditto.
+	(*ashlqi3_1<nf_name>): Ditto.
+	* config/i386/sse.md: New define_split.
+
+2024-06-03  Lingling Kong  <lingling.kong@intel.com>
+
+	* config/i386/i386.md (nf_nonf_attr): New subst_attr.
+	(nf_nonf_x64_attr): Ditto.
+	(*sub<mode>_1<nf_name>): New define_insn.
+	(*anddi_1<nf_name>): Ditto.
+	(*and<mode>_1<nf_name>): Ditto.
+	(*andqi_1<nf_name>): Ditto.
+	(*<code><mode>_1<nf_name>): Ditto.
+	(*<code>qi_1<nf_name>): Ditto.
+	(*neg<mode>_1<nf_name>): Ditto.
+	* config/i386/sse.md: New define_split.
+
+2024-06-03  Lingling Kong  <lingling.kong@intel.com>
+	    Hongyu Wong  <hongyu.wang@intel.com>
+
+	* config/i386/i386-opts.h (enum apx_features): Add nf
+	enumeration.
+	* config/i386/i386.h (TARGET_APX_NF): New.
+	* config/i386/i386.md (nf_name): New subst_att.
+	(nf_prefix): Ditto.
+	(nf_condition): Ditto.
+	(nf_mem_constraint): Ditto.
+	(nf_applied): Ditto.
+	(nf_subst): Add new define_subst.
+	(*add<mode>_1<nf_name>): New define_insn.
+	(*addhi_1<nf_name>): Ditto.
+	(*addqi_1<nf_name>): Diito.
+	* config/i386/i386.opt: Add apx_nf enumeration.
+
+2024-06-03  Hu, Lin1  <lin1.hu@intel.com>
+
+	PR target/113609
+	* config/i386/sse.md
+	(*kortest_cmp<mode>_setcc): New define_insn_and_split.
+	(*kortest_cmp<mode>_jcc): Ditto.
+
+2024-06-01  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR tree-optimization/115307
+	* config/avr/avr.md (SFDF): New mode iterator.
+	(isinf<mode>2) [sf, df]: New expanders.
+
+2024-06-01  Jeff Law  <jlaw@ventanamicro.com>
+
+	* config/riscv/riscv.cc (riscv_integer_op): Add new field.
+	(riscv_build_integer_1): Initialize the new field.
+	(riscv_built_integer): Recognize more cases where Zbkb's
+	pack instruction is profitable.
+	(riscv_move_integer): Loop over all the codes.  If requested,
+	save the current constant into a temporary.  Generate pack
+	for more cases using the saved constant.
+
+2024-06-01  Feng Xue  <fxue@os.amperecomputing.com>
+
+	* tree-vect-loop.cc (vect_is_emulated_mixed_dot_prod): Remove parameter
+	loop_vinfo. Get input vectype from stmt_info instead of reduction PHI.
+	(vect_model_reduction_cost): Remove loop_vinfo argument of call to
+	vect_is_emulated_mixed_dot_prod.
+	(vect_transform_reduction): Likewise.
+	(vectorizable_reduction): Likewise, and bind input vectype to
+	lane-reducing operation.
+
+2024-06-01  Feng Xue  <fxue@os.amperecomputing.com>
+
+	* tree-vect-loop.cc (vect_reduction_update_partial_vector_usage): New
+	function.
+	(vectorizable_reduction): Move partial vectorization checking code to
+	vect_reduction_update_partial_vector_usage.
+
+2024-06-01  Feng Xue  <fxue@os.amperecomputing.com>
+
+	* tree-vectorizer.h (lane_reducing_op_p): New function.
+	* tree-vect-slp.cc (vect_analyze_slp): Use new function
+	lane_reducing_op_p to check statement code.
+	* tree-vect-loop.cc (vect_transform_reduction): Likewise.
+	(vectorizable_reduction): Likewise, and change name of a local
+	variable that holds the result flag.
+
+2024-05-31  Takayuki 'January June' Suwa  <jjsuwa_sys3175@yahoo.co.jp>
+
+	* config/xtensa/xtensa-protos.h (xtensa_expand_call):
+	Add the third argument as boolean.
+	(xtensa_expand_epilogue): Remove the first argument.
+	* config/xtensa/xtensa.cc (xtensa_expand_call):
+	Add the third argument "sibcall_p", and modify in order to prepend
+	"(use A0_REG)" to CALL_INSN_FUNCTION_USAGE if the argument is true.
+	(xtensa_expand_epilogue): Remove the first argument "sibcall_p" and
+	its conditional clause.
+	* config/xtensa/xtensa.md (call, call_value, sibcall, sibcall_value):
+	Append a boolean value to the argument of xtensa_expand_call()
+	indicating whether it is sibling call or not.
+	(epilogue): Remove the boolean argument from xtensa_expand_epilogue(),
+	and then append emitting "(return)".
+	(sibcall_epilogue): Remove the boolean argument from
+	xtensa_expand_epilogue().
+
+2024-05-31  Takayuki 'January June' Suwa  <jjsuwa_sys3175@yahoo.co.jp>
+
+	* config/xtensa/predicates.md
+	(subreg_HQI_lowpart_operator, xtensa_sminmax_operator):
+	New operator predicates.
+	* config/xtensa/xtensa-protos.h (xtensa_match_CLAMPS_imms_p):
+	Remove.
+	* config/xtensa/xtensa.cc (xtensa_match_CLAMPS_imms_p): Ditto.
+	* config/xtensa/xtensa.md
+	(*addsubx, *extzvsi-1bit_ashlsi3, *extzvsi-1bit_addsubx):
+	Revise the output statements by conditional ternary operator rather
+	than switch-case clause in order to avoid using gcc_unreachable().
+	(xtensa_clamps): Reduce to a single pattern definition using the
+	predicate added above.
+	(Some split patterns to assist *masktrue_const_bitcmpl): Ditto.
+
+2024-05-31  Robin Dapp  <rdapp@ventanamicro.com>
+
+	* config/riscv/riscv-v.cc (expand_const_vector): Document.
+	(shuffle_extract_and_slide1up_patterns): Remove.
+
+2024-05-31  Robin Dapp  <rdapp@ventanamicro.com>
+
+	* config/riscv/autovec.md (ctz<mode>2): New expander.
+	(clz<mode>2): Ditto.
+	* config/riscv/generic-vector-ooo.md: Add bitmanip ops to insn
+	reservation.
+	* config/riscv/vector-crypto.md: Add VLS modes to insns.
+	* config/riscv/vector.md: Add bitmanip ops to mode_idx and other
+	attributes.
+
+2024-05-31  Robin Dapp  <rdapp@ventanamicro.com>
+
+	* config/riscv/autovec-opt.md (*vandn_<mode>): New pattern.
+	* config/riscv/vector.md: Add vandn to mode_idx.
+
+2024-05-31  Robin Dapp  <rdapp@ventanamicro.com>
+
+	* config/riscv/riscv-v.cc (expand_gather_scatter): Use vwsll if
+	applicable.
+	* config/riscv/vector-crypto.md: Remove mode from vwsll shift
+	count operator.
+	* config/riscv/vector.md: Add vwsll to mode iterator.
+
+2024-05-31  Robin Dapp  <rdapp@ventanamicro.com>
+
+	* config/riscv/autovec-opt.md (*vwsll_zext1_<mode>): New
+	pattern.
+	(*vwsll_zext2_<mode>): Ditto.
+	(*vwsll_zext1_scalar_<mode>): Ditto.
+	(*vwsll_zext1_trunc_<mode>): Ditto.
+	(*vwsll_zext2_trunc_<mode>): Ditto.
+	(*vwsll_zext1_trunc_scalar_<mode>): Ditto.
+	* config/riscv/vector-crypto.md: Make pattern similar to other
+	narrowing/widening patterns.
+
+2024-05-31  Robin Dapp  <rdapp@ventanamicro.com>
+
+	* config/riscv/vector.md: Split vwadd.wx/vwsub.wx pattern and
+	add extended_scalar patterns.
+
+2024-05-31  Robin Dapp  <rdapp@ventanamicro.com>
+
+	PR target/115068
+	* config/riscv/vector.md:  Split vfw<insn>.wf pattern.
+
+2024-05-31  Qing Zhao  <qing.zhao@oracle.com>
+
+	* tree-object-size.cc (access_with_size_object_size): Use the type
+	of the 6th argument for the type of the element.
+	* internal-fn.cc (expand_ACCESS_WITH_SIZE): Update the comment with
+	the 6th argument.
+
+2024-05-31  Qing Zhao  <qing.zhao@oracle.com>
+
+	* tree-object-size.cc (access_with_size_object_size): New function.
+	(call_object_size): Call the new function.
+
+2024-05-31  Qing Zhao  <qing.zhao@oracle.com>
+
+	* internal-fn.cc (expand_ACCESS_WITH_SIZE): New function.
+	* internal-fn.def (ACCESS_WITH_SIZE): New internal function.
+	* tree.cc (is_access_with_size_p): New function.
+	(get_ref_from_access_with_size): New function.
+	* tree.h (is_access_with_size_p): New prototype.
+	(get_ref_from_access_with_size): New prototype.
+
+2024-05-31  Qing Zhao  <qing.zhao@oracle.com>
+
+	* doc/extend.texi: Document attribute counted_by.
+
+2024-05-31  Uros Bizjak  <ubizjak@gmail.com>
+
+	PR target/115297
+	* config/alpha/alpha.md (<any_divmod:code>si3): Wrap DImode
+	operands 3 and 4 with truncate:SI RTX.
+	(*divmodsi_internal_er): Ditto for operands 1 and 2.
+	(*divmodsi_internal_er_1): Ditto.
+	(*divmodsi_internal): Ditto.
+	* config/alpha/constraints.md ("b"): Correct register
+	number in the description.
+
+2024-05-31  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* config/nvptx/nvptx.h: Configure global constructor, destructor
+	support.
+
+2024-05-31  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/115278
+	* tree-if-conv.cc (ifcvt_local_dce): Do not DSE volatile stores.
+
+2024-05-31  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* config.gcc: Move ${target_min} from obsolete to unsupported
+	message.
+
+2024-05-31  Andrew Pinski  <quic_apinski@quicinc.com>
+
+	PR target/115022
+	* doc/invoke.texi (fstrub=disable): Fix opindex.
+	(minline-memops-threshold): Fix opindex.
+	(mcmodel=): Add opindex and fix them.
+	* common.opt.urls: Regenerate.
+	* config/aarch64/aarch64.opt.urls: Regenerate.
+	* config/bpf/bpf.opt.urls: Regenerate.
+	* config/i386/i386.opt.urls: Regenerate.
+	* config/loongarch/loongarch.opt.urls: Regenerate.
+	* config/nds32/nds32-elf.opt.urls: Regenerate.
+	* config/nds32/nds32-linux.opt.urls: Regenerate.
+	* config/or1k/or1k.opt.urls: Regenerate.
+	* config/riscv/riscv.opt.urls: Regenerate.
+	* config/rs6000/aix64.opt.urls: Regenerate.
+	* config/rs6000/linux64.opt.urls: Regenerate.
+	* config/sparc/sparc.opt.urls: Regenerate.
+
+2024-05-31  Takayuki 'January June' Suwa  <jjsuwa_sys3175@yahoo.co.jp>
+
+	* config/xtensa/xtensa-protos.h
+	(xtensa_use_return_instruction_p): Remove.
+	* config/xtensa/xtensa.cc
+	(machine_function): Remove "epilogue_done" field.
+	(xtensa_expand_epilogue): Remove "cfun->machine->epilogue_done" usage.
+	(xtensa_use_return_instruction_p): Remove.
+	* config/xtensa/xtensa.md ("return"):
+	Replace calling "xtensa_use_return_instruction_p()" with inline code.
+
+2024-05-31  Takayuki 'January June' Suwa  <jjsuwa_sys3175@yahoo.co.jp>
+
+	* config/xtensa/xtensa.cc (xtensa_valid_move, constantpool_address_p,
+	xtensa_tls_symbol_p, gen_int_relational, xtensa_emit_move_sequence,
+	xtensa_copy_incoming_a7, xtensa_expand_block_move,
+	xtensa_expand_nonlocal_goto, xtensa_emit_call,
+	xtensa_legitimate_address_p, xtensa_legitimize_address,
+	xtensa_tls_referenced_p, print_operand, print_operand_address,
+	xtensa_output_literal):
+	Replace RTX code comparisons with their predicate macros such as
+	REG_P().
+	* config/xtensa/xtensa.h (CONSTANT_ADDRESS_P,
+	LEGITIMATE_PIC_OPERAND_P): Ditto.
+	* config/xtensa/xtensa.md (reload<mode>_literal, indirect_jump):
+	Ditto.
+
+2024-05-31  Martin Uecker  <uecker@tugraz.at>
+
+	PR tree-optimization/115157
+	PR tree-optimization/115177
+	* godump.cc (go_output_typedef): Use TYPE_MAIN_VARIANT instead
+	of TYPE_CANONICAL.
+
+2024-05-31  liuhongt  <hongtao.liu@intel.com>
+
+	* config/i386/emmintrin.h (__double_u): Rename from double_u.
+	(_mm_load_sd): Replace double_u with __double_u.
+	(_mm_store_sd): Ditto.
+	(_mm_loadh_pd): Ditto.
+	(_mm_loadl_pd): Ditto.
+	* config/i386/xmmintrin.h (__float_u): Rename from float_u.
+	(_mm_load_ss): Ditto.
+	(_mm_store_ss): Ditto.
+
+2024-05-30  Uros Bizjak  <ubizjak@gmail.com>
+
+	PR target/115102
+	* config/i386/i386.md (bswaphi2): Also enable for !TARGET_MOVBE.
+	(*bswaphi2): New insn pattern.
+	(bswaphisi2_lowpart): Rename from bswaphi_lowpart.  Rewrite
+	insn RTX to match the expected form of the combine pass.
+	Remove rol{w} alternative and corresponding attributes.
+	(bswsaphisi2_lowpart peephole2): New peephole2 pattern to
+	conditionally convert bswaphisi2_lowpart to rotlhi3_1_slp.
+	(bswapsi2): Update expander for rename.
+	(rotlhi3_1_slp splitter): Conditionally split to bswaphi2.
+
+2024-05-30  Richard Sandiford  <richard.sandiford@arm.com>
+
+	PR rtl-optimization/115281
+	* ira-conflicts.cc (go_through_subreg): Use the natural size of
+	the inner mode rather than the outer mode.
+
+2024-05-30  Ajit Kumar Agarwal  <aagarwa1@linux.ibm.com>
+
+	* pair-fusion.h: Generic header code for load store pair fusion
+	that can be shared across different architectures.
+	* pair-fusion.cc: Generic source code implementation for
+	load store pair fusion that can be shared across different architectures.
+	* Makefile.in: Add new object file pair-fusion.o.
+	* config/aarch64/aarch64-ldp-fusion.cc: Delete generic code and move it
+	to pair-fusion.cc in the middle-end.
+	* config/aarch64/t-aarch64: Add header file dependency on pair-fusion.h.
+	Remove unnecessary header file dependency.
+
+2024-05-30  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR c++/115031
+	* config/sparc/sol2.h (GGC_QUIRE_SIZE): Define as 510.
+
+2024-05-30  David Malcolm  <dmalcolm@redhat.com>
+
+	* Makefile.in (OBJS-libcommon): Add text-art/tree-widget.o.
+	* doc/analyzer.texi: Rewrite discussion of dumping state to
+	cover the text_art::tree_widget-based dumps, with a more
+	interesting example.
+	* text-art/dump-widget-info.h: New file.
+	* text-art/dump.h: New file.
+	* text-art/selftests.cc (selftest::text_art_tests): Call
+	text_art_tree_widget_cc_tests.
+	* text-art/selftests.h (selftest::text_art_tree_widget_cc_tests):
+	New decl.
+	* text-art/theme.cc (ascii_theme::get_cppchar): Handle the various
+	cell_kind::TREE_*.
+	(unicode_theme::get_cppchar): Likewise.
+	* text-art/theme.h (enum class theme::cell_kind): Add
+	TREE_CHILD_NON_FINAL, TREE_CHILD_FINAL, TREE_X_CONNECTOR, and
+	TREE_Y_CONNECTOR.
+	* text-art/tree-widget.cc: New file.
+	* text-art/tree-widget.h: New file.
+
+2024-05-30  liuhongt  <hongtao.liu@intel.com>
+
+	* config/i386/sse.md (vcond_mask_<mode><mode>): New expander.
+
+2024-05-30  liuhongt  <hongtao.liu@intel.com>
+
+	PR tree-optimization/112325
+	* tree-ssa-loop-ivcanon.cc (estimated_unrolled_size): Move the
+	2 / 3 loop body size reduction to ..
+	(try_unroll_loop_completely): .. here, add it for the check of
+	body size shrink, and the check of comparison against
+	param_max_completely_peeled_insns when
+	(!cunrolli ||loop->inner).
+	(canonicalize_loop_induction_variables): Add new parameter
+	cunrolli and pass down.
+	(tree_unroll_loops_completely_1): Ditto.
+	(canonicalize_induction_variables): Pass cunrolli as false to
+	canonicalize_loop_induction_variables.
+	(tree_unroll_loops_completely): Set cunrolli to true at
+	beginning and set it to false after CHANGED is true.
+
+2024-05-30  Alexandre Oliva  <oliva@adacore.com>
+
+	* doc/sourcebuild.texi (dg-additional-sources): Document
+	newly-added support for target selectors, and implicit discard
+	on non-linking tests that name the compiler output explicitly.
+
+2024-05-30  Jiawei  <jiawei@iscas.ac.cn>
+
+	* tree-ssa-pre.cc (create_component_ref_by_pieces_1): New conditions.
+
+2024-05-30  Hans-Peter Nilsson  <hp@axis.com>
+
+	Revert:
+	2024-05-28  Hans-Peter Nilsson  <hp@axis.com>
+
+	* resource.cc: Include cfgrtl.h.  Use BLOCK_FOR_INSN (insn)->index
+	instead of calling find_basic_block (insn).  Assert for not -1.
+	(find_basic_block): Remove function.
+	(init_resource_info): Call compute_bb_for_insn.
+	(free_resource_info): Call free_bb_for_insn.
+
+2024-05-30  Hans-Peter Nilsson  <hp@axis.com>
+
+	Revert:
+	2024-05-28  Hans-Peter Nilsson  <hp@axis.com>
+
+	* resource.cc (mark_target_live_regs): Remove redundant check for b
+	being -1, after gcc_assert.
+
+2024-05-30  Hans-Peter Nilsson  <hp@axis.com>
+
+	Revert:
+	2024-05-28  Hans-Peter Nilsson  <hp@axis.com>
+
+	* resource.cc (free_resource_info, clear_hashed_info_for_insn): Don't
+	check for non-null target_hash_table and bb_ticks.
+	(mark_target_live_regs): Ditto.  Replace check for non-NULL result from
+	BLOCK_FOR_INSN with a call to gcc_assert.  Fold code conditioned on
+	tinfo != NULL.
+
 2024-05-29  YunQiang Su  <syq@gcc.gnu.org>
 
 	* config/mips/mips.cc(mips16_gp_pseudo_reg): Mark

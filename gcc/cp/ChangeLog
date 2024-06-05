@@ -1,3 +1,44 @@
+2024-06-04  Simon Martin  <simon@nasilyan.com>
+
+	* pt.cc (tsubst_expr): Add missing space after seen_error.
+	(dependent_type_p): Likewise.
+
+2024-06-04  Simon Martin  <simon@nasilyan.com>
+
+	PR c++/111106
+	* pt.cc (dependent_type_p): Don't fail assert during error recovery.
+
+2024-06-03  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/115012
+	* parser.cc (cp_parser_direct_declarator): Handle
+	abstract declarator starting with ... followed by opening paren.
+
+2024-06-02  Simon Martin  <simon@nasilyan.com>
+
+	PR c++/109958
+	* typeck.cc (build_class_member_access_expr): Handle single OVERLOADs.
+	(cp_build_addr_expr_1): Likewise.
+
+2024-06-01  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/114867
+	* cp-tree.h (OVL_PURVIEW_P): New.
+	(ovl_iterator::purview_p): New.
+	* module.cc (depset::hash::add_binding_entity): Only ignore
+	entities not within module purview. Set OVL_PURVIEW_P on new
+	OVERLOADs for emitted declarations.
+	(module_state::read_cluster): Imported using-decls are always
+	in purview, mark as OVL_PURVIEW_P.
+	* name-lookup.h (enum WMB_Flags): New WMB_Purview flag.
+	* name-lookup.cc (walk_module_binding): Set WMB_Purview as
+	needed.
+	(do_nonmember_using_decl): Don't remove from existing OVERLOADs.
+	Also reveal non-exported decls. Also reveal 'extern "C"' decls.
+	Add workaround to reveal non-function decls.
+	* tree.cc (ovl_insert): Adjust to also set OVL_PURVIEW_P when
+	needed.
+
 2024-05-29  Jason Merrill  <jason@redhat.com>
 
 	PR c++/109753

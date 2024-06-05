@@ -339,8 +339,7 @@ work when configuring GCC@.
 @item A POSIX or SVR4 awk
 
 Necessary for creating some of the generated source files for GCC@.
-If in doubt, use a recent GNU awk version, as some of the older ones
-are broken.  GNU awk version 3.1.5 is known to work.
+If in doubt, use a recent GNU awk version.
 
 @item GNU binutils
 
@@ -3950,7 +3949,7 @@ by specifying a @code{--with-multilib-list=} that does not list @code{gfx1100}
 and @code{gfx1103}.
 
 Use Newlib (4.3.0 or newer; 4.4.0 contains some improvements and git commit
-7dd4eb1db (2025-03-25, post-4.4.0) fixes device console output for GFX10 and
+7dd4eb1db (2024-03-25, post-4.4.0) fixes device console output for GFX10 and
 GFX11 devices).
 
 To run the binaries, install the HSA Runtime from the

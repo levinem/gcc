@@ -101,7 +101,6 @@ static bool function_types_compatible_p (const_tree, const_tree,
 					 struct comptypes_data *);
 static bool type_lists_compatible_p (const_tree, const_tree,
 				     struct comptypes_data *);
-static tree lookup_field (tree, tree);
 static int convert_arguments (location_t, vec<location_t>, tree,
 			      vec<tree, va_gc> *, vec<tree, va_gc> *, tree,
 			      tree);
@@ -1167,6 +1166,28 @@ common_type (tree t1, tree t2)
   return c_common_type (t1, t2);
 }
 
+
+
+/* Helper function for comptypes.  For two compatible types, return 1
+   if they pass consistency checks.  In particular we test that
+   TYPE_CANONICAL is set correctly, i.e. the two types can alias.  */
+
+static bool
+comptypes_verify (tree type1, tree type2)
+{
+  if (TYPE_CANONICAL (type1) != TYPE_CANONICAL (type2)
+      && !TYPE_STRUCTURAL_EQUALITY_P (type1)
+      && !TYPE_STRUCTURAL_EQUALITY_P (type2))
+    {
+      /* FIXME: check other types. */
+      if (RECORD_OR_UNION_TYPE_P (type1)
+	  || TREE_CODE (type1) == ENUMERAL_TYPE
+	  || TREE_CODE (type2) == ENUMERAL_TYPE)
+	return false;
+    }
+  return true;
+}
+
 struct comptypes_data {
   bool enum_and_int_p;
   bool different_types_p;
@@ -1188,6 +1209,8 @@ comptypes (tree type1, tree type2)
   struct comptypes_data data = { };
   bool ret = comptypes_internal (type1, type2, &data);
 
+  gcc_checking_assert (!ret || comptypes_verify (type1, type2));
+
   return ret ? (data.warning_needed ? 2 : 1) : 0;
 }
 
@@ -1200,6 +1223,8 @@ comptypes_same_p (tree type1, tree type2)
 {
   struct comptypes_data data = { };
   bool ret = comptypes_internal (type1, type2, &data);
+
+  gcc_checking_assert (!ret || comptypes_verify (type1, type2));
 
   if (data.different_types_p)
     return false;
@@ -1218,6 +1243,8 @@ comptypes_check_enum_int (tree type1, tree type2, bool *enum_and_int_p)
   bool ret = comptypes_internal (type1, type2, &data);
   *enum_and_int_p = data.enum_and_int_p;
 
+  gcc_checking_assert (!ret || comptypes_verify (type1, type2));
+
   return ret ? (data.warning_needed ? 2 : 1) : 0;
 }
 
@@ -1231,6 +1258,8 @@ comptypes_check_different_types (tree type1, tree type2,
   struct comptypes_data data = { };
   bool ret = comptypes_internal (type1, type2, &data);
   *different_types_p = data.different_types_p;
+
+  gcc_checking_assert (!ret || comptypes_verify (type1, type2));
 
   return ret ? (data.warning_needed ? 2 : 1) : 0;
 }
@@ -1273,6 +1302,10 @@ comptypes_equiv_p (tree type1, tree type2)
   struct comptypes_data data = { };
   data.equiv = true;
   bool ret = comptypes_internal (type1, type2, &data);
+
+  /* check that different equivance classes are assigned only
+     to types that are not compatible.  */
+  gcc_checking_assert (ret || !comptypes (type1, type2));
 
   return ret;
 }
@@ -1629,9 +1662,6 @@ tagged_types_tu_compatible_p (const_tree t1, const_tree t2,
 	if (list_length (TYPE_FIELDS (t1)) != list_length (TYPE_FIELDS (t2)))
 	  return false;
 
-	if (data->equiv && (C_TYPE_VARIABLE_SIZE (t1) || C_TYPE_VARIABLE_SIZE (t2)))
-	  return false;
-
 	for (s1 = TYPE_FIELDS (t1), s2 = TYPE_FIELDS (t2);
 	     s1 && s2;
 	     s1 = DECL_CHAIN (s1), s2 = DECL_CHAIN (s2))
@@ -1660,6 +1690,38 @@ tagged_types_tu_compatible_p (const_tree t1, const_tree t2,
 		&& st2 && TREE_CODE (st2) == INTEGER_CST
 		&& !tree_int_cst_equal (st1, st2))
 	     return false;
+
+	    tree counted_by1 = lookup_attribute ("counted_by",
+						 DECL_ATTRIBUTES (s1));
+	    tree counted_by2 = lookup_attribute ("counted_by",
+						 DECL_ATTRIBUTES (s2));
+	    /* If there is no counted_by attribute for both fields.  */
+	    if (!counted_by1 && !counted_by2)
+	      continue;
+
+	    /* If only one field has counted_by attribute.  */
+	    if ((counted_by1 && !counted_by2)
+		|| (!counted_by1 && counted_by2))
+	      return false;
+
+	    /* Now both s1 and s2 have counted_by attributes, check
+	       whether they are the same.  */
+
+	    tree counted_by_field1
+	      = lookup_field (t1, TREE_VALUE (TREE_VALUE (counted_by1)));
+	    tree counted_by_field2
+	      = lookup_field (t2, TREE_VALUE (TREE_VALUE (counted_by2)));
+
+	    gcc_assert (counted_by_field1 && counted_by_field2);
+
+	    while (TREE_CHAIN (counted_by_field1))
+	      counted_by_field1 = TREE_CHAIN (counted_by_field1);
+	    while (TREE_CHAIN (counted_by_field2))
+	      counted_by_field2 = TREE_CHAIN (counted_by_field2);
+
+	    if (DECL_NAME (TREE_VALUE (counted_by_field1))
+		!= DECL_NAME (TREE_VALUE (counted_by_field2)))
+	      return false;
 	  }
 	return true;
 
@@ -2418,8 +2480,8 @@ default_conversion (tree exp)
    the component is embedded within (nested) anonymous structures or
    unions, the list steps down the chain to the component.  */
 
-static tree
-lookup_field (tree type, tree component)
+tree
+lookup_field (const_tree type, tree component)
 {
   tree field;
 
@@ -2590,15 +2652,121 @@ should_suggest_deref_p (tree datum_type)
     return false;
 }
 
+/* For a SUBDATUM field of a structure or union DATUM, generate a REF to
+   the object that represents its counted_by per the attribute counted_by
+   attached to this field if it's a flexible array member field, otherwise
+   return NULL_TREE.
+   Set COUNTED_BY_TYPE to the TYPE of the counted_by field.
+   For example, if:
+
+    struct P {
+      int k;
+      int x[] __attribute__ ((counted_by (k)));
+    } *p;
+
+    for:
+    p->x
+
+    the ref to the object that represents its element count will be:
+
+    &(p->k)
+
+*/
+static tree
+build_counted_by_ref (tree datum, tree subdatum, tree *counted_by_type)
+{
+  tree type = TREE_TYPE (datum);
+  if (!c_flexible_array_member_type_p (TREE_TYPE (subdatum)))
+    return NULL_TREE;
+
+  tree attr_counted_by = lookup_attribute ("counted_by",
+					   DECL_ATTRIBUTES (subdatum));
+  tree counted_by_ref = NULL_TREE;
+  *counted_by_type = NULL_TREE;
+  if (attr_counted_by)
+    {
+      tree field_id = TREE_VALUE (TREE_VALUE (attr_counted_by));
+      counted_by_ref
+	= build_component_ref (UNKNOWN_LOCATION,
+			       datum, field_id,
+			       UNKNOWN_LOCATION, UNKNOWN_LOCATION);
+      counted_by_ref = build_fold_addr_expr (counted_by_ref);
+
+      /* Get the TYPE of the counted_by field.  */
+      tree counted_by_field = lookup_field (type, field_id);
+      gcc_assert (counted_by_field);
+
+      do
+	{
+	  *counted_by_type = TREE_TYPE (TREE_VALUE (counted_by_field));
+	  counted_by_field = TREE_CHAIN (counted_by_field);
+	}
+      while (counted_by_field);
+    }
+  return counted_by_ref;
+}
+
+/* Given a COMPONENT_REF REF with the location LOC, the corresponding
+   COUNTED_BY_REF, and the COUNTED_BY_TYPE, generate an INDIRECT_REF
+   to a call to the internal function .ACCESS_WITH_SIZE.
+
+   REF
+
+   to:
+
+   (*.ACCESS_WITH_SIZE (REF, COUNTED_BY_REF, 1, (TYPE_OF_SIZE)0, -1,
+			(TYPE_OF_ARRAY *)0))
+
+   NOTE: The return type of this function is the POINTER type pointing
+   to the original flexible array type.
+   Then the type of the INDIRECT_REF is the original flexible array type.
+
+   The type of the first argument of this function is a POINTER type
+   to the original flexible array type.
+
+   The 4th argument of the call is a constant 0 with the TYPE of the
+   object pointed by COUNTED_BY_REF.
+
+   The 6th argument of the call is a constant 0 with the pointer TYPE
+   to the original flexible array type.
+
+  */
+static tree
+build_access_with_size_for_counted_by (location_t loc, tree ref,
+				       tree counted_by_ref,
+				       tree counted_by_type)
+{
+  gcc_assert (c_flexible_array_member_type_p (TREE_TYPE (ref)));
+  /* The result type of the call is a pointer to the flexible array type.  */
+  tree result_type = build_pointer_type (TREE_TYPE (ref));
+
+  tree call
+    = build_call_expr_internal_loc (loc, IFN_ACCESS_WITH_SIZE,
+				    result_type, 6,
+				    array_to_pointer_conversion (loc, ref),
+				    counted_by_ref,
+				    build_int_cst (integer_type_node, 1),
+				    build_int_cst (counted_by_type, 0),
+				    build_int_cst (integer_type_node, -1),
+				    build_int_cst (result_type, 0));
+  /* Wrap the call with an INDIRECT_REF with the flexible array type.  */
+  call = build1 (INDIRECT_REF, TREE_TYPE (ref), call);
+  SET_EXPR_LOCATION (call, loc);
+  return call;
+}
+
 /* Make an expression to refer to the COMPONENT field of structure or
    union value DATUM.  COMPONENT is an IDENTIFIER_NODE.  LOC is the
    location of the COMPONENT_REF.  COMPONENT_LOC is the location
    of COMPONENT.  ARROW_LOC is the location of the first -> operand if
-   it is from -> operator.  */
+   it is from -> operator.
+   If HANDLE_COUNTED_BY is true, check the counted_by attribute and generate
+   a call to .ACCESS_WITH_SIZE.  Otherwise, ignore the attribute.  */
 
 tree
 build_component_ref (location_t loc, tree datum, tree component,
-		     location_t component_loc, location_t arrow_loc)
+		     location_t component_loc, location_t arrow_loc,
+		     bool handle_counted_by)
 {
   tree type = TREE_TYPE (datum);
   enum tree_code code = TREE_CODE (type);
@@ -2670,7 +2838,13 @@ build_component_ref (location_t loc, tree datum, tree component,
 	  int quals;
 	  tree subtype;
 	  bool use_datum_quals;
-
+	  tree counted_by_type = NULL_TREE;
+	  /* Do not handle counted_by when in typeof and alignof operator.  */
+	  handle_counted_by = handle_counted_by && !in_typeof && !in_alignof;
+	  tree counted_by_ref = handle_counted_by
+				? build_counted_by_ref (datum, subdatum,
+							&counted_by_type)
+				: NULL_TREE;
 	  if (TREE_TYPE (subdatum) == error_mark_node)
 	    return error_mark_node;
 
@@ -2689,6 +2863,12 @@ build_component_ref (location_t loc, tree datum, tree component,
 	  ref = build3 (COMPONENT_REF, subtype, datum, subdatum,
 			NULL_TREE);
 	  SET_EXPR_LOCATION (ref, loc);
+
+	  if (counted_by_ref)
+	    ref = build_access_with_size_for_counted_by (loc, ref,
+							 counted_by_ref,
+							 counted_by_type);
+
 	  if (TREE_READONLY (subdatum)
 	      || (use_datum_quals && TREE_READONLY (datum)))
 	    TREE_READONLY (ref) = 1;
@@ -5093,7 +5273,11 @@ build_unary_op (location_t location, enum tree_code code, tree xarg,
 	  goto return_build_unary_op;
 	}
 
-      /* Ordinary case; arg is a COMPONENT_REF or a decl.  */
+      /* Ordinary case; arg is a COMPONENT_REF or a decl, or a call to
+	 .ACCESS_WITH_SIZE.  */
+      if (is_access_with_size_p (arg))
+	arg = TREE_OPERAND (TREE_OPERAND (CALL_EXPR_ARG (arg, 0), 0), 0);
+
       argtype = TREE_TYPE (arg);
 
       /* If the lvalue is const or volatile, merge that into the type
@@ -5243,6 +5427,9 @@ lvalue_p (const_tree ref)
 
     case BIND_EXPR:
       return TREE_CODE (TREE_TYPE (ref)) == ARRAY_TYPE;
+
+    case CALL_EXPR:
+      return is_access_with_size_p (ref);
 
     default:
       return false;
@@ -8530,6 +8717,20 @@ digest_init (location_t init_loc, tree type, tree init, tree origtype,
     return error_mark_node;
 
   STRIP_TYPE_NOPS (inside_init);
+
+  /* If require_constant is TRUE,  when the initializer is a call to
+     .ACCESS_WITH_SIZE, use the first argument as the initializer.
+     For example:
+     y = (char *) .ACCESS_WITH_SIZE ((char *) &static_annotated.c,...)
+     will be converted to
+     y = &static_annotated.c.  */
+
+  if (require_constant
+      && TREE_CODE (inside_init) == NOP_EXPR
+      && TREE_CODE (TREE_OPERAND (inside_init, 0)) == CALL_EXPR
+      && is_access_with_size_p (TREE_OPERAND (inside_init, 0)))
+    inside_init
+      = get_ref_from_access_with_size (TREE_OPERAND (inside_init, 0));
 
   if (!c_in_omp_for)
     {
@@ -14783,6 +14984,8 @@ c_finish_omp_clauses (tree clauses, enum c_omp_region_type ort)
   bool allocate_seen = false;
   bool implicit_moved = false;
   bool target_in_reduction_seen = false;
+  tree *full_seen = NULL;
+  bool partial_seen = false;
   bool openacc = (ort & C_ORT_ACC) != 0;
 
   bitmap_obstack_initialize (NULL);
@@ -15097,7 +15300,7 @@ c_finish_omp_clauses (tree clauses, enum c_omp_region_type ort)
 	    {
 	      error_at (OMP_CLAUSE_LOCATION (*nowait_clause),
 			"%<nowait%> clause must not be used together "
-			"with %<copyprivate%>");
+			"with %<copyprivate%> clause");
 	      *nowait_clause = OMP_CLAUSE_CHAIN (*nowait_clause);
 	      nowait_clause = NULL;
 	    }
@@ -16009,7 +16212,7 @@ c_finish_omp_clauses (tree clauses, enum c_omp_region_type ort)
 	    {
 	      error_at (OMP_CLAUSE_LOCATION (c),
 			"%<nowait%> clause must not be used together "
-			"with %<copyprivate%>");
+			"with %<copyprivate%> clause");
 	      remove = true;
 	      break;
 	    }
@@ -16022,7 +16225,7 @@ c_finish_omp_clauses (tree clauses, enum c_omp_region_type ort)
 	    {
 	      error_at (OMP_CLAUSE_LOCATION (c),
 			"%<order%> clause must not be used together "
-			"with %<ordered%>");
+			"with %<ordered%> clause");
 	      remove = true;
 	      break;
 	    }
@@ -16125,7 +16328,7 @@ c_finish_omp_clauses (tree clauses, enum c_omp_region_type ort)
 	    {
 	      error_at (OMP_CLAUSE_LOCATION (*order_clause),
 			"%<order%> clause must not be used together "
-			"with %<ordered%>");
+			"with %<ordered%> clause");
 	      *order_clause = OMP_CLAUSE_CHAIN (*order_clause);
 	      order_clause = NULL;
 	    }
@@ -16138,6 +16341,20 @@ c_finish_omp_clauses (tree clauses, enum c_omp_region_type ort)
 	  continue;
 	case OMP_CLAUSE_SIMDLEN:
 	  simdlen = c;
+	  pc = &OMP_CLAUSE_CHAIN (c);
+	  continue;
+
+	case OMP_CLAUSE_FULL:
+	  full_seen = pc;
+	  pc = &OMP_CLAUSE_CHAIN (c);
+	  continue;
+
+	case OMP_CLAUSE_PARTIAL:
+	  partial_seen = true;
+	  pc = &OMP_CLAUSE_CHAIN (c);
+	  continue;
+
+	case OMP_CLAUSE_SIZES:
 	  pc = &OMP_CLAUSE_CHAIN (c);
 	  continue;
 
@@ -16395,6 +16612,14 @@ c_finish_omp_clauses (tree clauses, enum c_omp_region_type ort)
 		"%<grainsize%> clause must not be used together with "
 		"%<num_tasks%> clause");
       *grainsize_seen = OMP_CLAUSE_CHAIN (*grainsize_seen);
+    }
+
+  if (full_seen && partial_seen)
+    {
+      error_at (OMP_CLAUSE_LOCATION (*full_seen),
+		"%<full%> clause must not be used together with "
+		"%<partial%> clause");
+      *full_seen = OMP_CLAUSE_CHAIN (*full_seen);
     }
 
   if (detach_seen)
