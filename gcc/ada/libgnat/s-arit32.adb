@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---            Copyright (C) 2020-2023, Free Software Foundation, Inc.       --
+--            Copyright (C) 2020-2024, Free Software Foundation, Inc.       --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -104,9 +104,8 @@ is
 
    function To_Neg_Int (A : Uns32) return Int32
    with
-     Annotate => (GNATprove, Always_Return),
-     Pre      => In_Int32_Range (-Big (A)),
-     Post     => Big (To_Neg_Int'Result) = -Big (A);
+     Pre  => In_Int32_Range (-Big (A)),
+     Post => Big (To_Neg_Int'Result) = -Big (A);
    --  Convert to negative integer equivalent. If the input is in the range
    --  0 .. 2**31, then the corresponding nonpositive signed integer (obtained
    --  by negating the given value) is returned, otherwise constraint error is
@@ -114,9 +113,8 @@ is
 
    function To_Pos_Int (A : Uns32) return Int32
    with
-     Annotate => (GNATprove, Always_Return),
-     Pre      => In_Int32_Range (Big (A)),
-     Post     => Big (To_Pos_Int'Result) = Big (A);
+     Pre  => In_Int32_Range (Big (A)),
+     Post => Big (To_Pos_Int'Result) = Big (A);
    --  Convert to positive integer equivalent. If the input is in the range
    --  0 .. 2**31 - 1, then the corresponding nonnegative signed integer is
    --  returned, otherwise constraint error is raised.
@@ -417,7 +415,11 @@ is
       procedure Prove_Rounding_Case is
       begin
          if Same_Sign (Big (X) * Big (Y), Big (Z)) then
-            null;
+            pragma Assert
+              (abs Big_Q =
+                 (if Ru > (Zu - Uns32'(1)) / Uns32'(2)
+                  then abs Quot + 1
+                  else abs Quot));
          end if;
       end Prove_Rounding_Case;
 
@@ -434,7 +436,14 @@ is
       -- Prove_Signs --
       -----------------
 
-      procedure Prove_Signs is null;
+      procedure Prove_Signs is
+      begin
+         if (X >= 0) = (Y >= 0) then
+            pragma Assert (Big (R) = Big_R and then Big (Q) = Big_Q);
+         else
+            pragma Assert (Big (R) = Big_R and then Big (Q) = Big_Q);
+         end if;
+      end Prove_Signs;
 
    --  Start of processing for Scaled_Divide32
 
@@ -485,6 +494,8 @@ is
       Lemma_Div_Commutation (D, Uns64 (Zu));
       Lemma_Rem_Commutation (D, Uns64 (Zu));
 
+      pragma Assert (Uns64 (Qu) = D / Uns64 (Zu));
+      pragma Assert (Uns64 (Ru) = D rem Uns64 (Zu));
       pragma Assert (Big (Ru) = abs Big_R);
       pragma Assert (Big (Qu) = abs Quot);
       pragma Assert (Big (Zu) = Big (Uns32'(abs Z)));

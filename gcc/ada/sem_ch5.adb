@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -39,6 +39,7 @@ with Freeze;         use Freeze;
 with Ghost;          use Ghost;
 with Lib;            use Lib;
 with Lib.Xref;       use Lib.Xref;
+with Mutably_Tagged; use Mutably_Tagged;
 with Namet;          use Namet;
 with Nlists;         use Nlists;
 with Nmake;          use Nmake;
@@ -91,9 +92,14 @@ package body Sem_Ch5 is
 
    function Has_Sec_Stack_Call (N : Node_Id) return Boolean;
    --  N is the node for an arbitrary construct. This function searches the
-   --  construct N to see if any expressions within it contain function
-   --  calls that use the secondary stack, returning True if any such call
-   --  is found, and False otherwise.
+   --  construct N to see if it contains a function call that returns on the
+   --  secondary stack, returning True if any such call is found, and False
+   --  otherwise.
+
+   --  ??? The implementation invokes Sem_Util.Requires_Transient_Scope so it
+   --  will return True if N contains a function call that needs finalization,
+   --  in addition to the above specification. See Analyze_Loop_Statement for
+   --  a similar comment about this entanglement.
 
    procedure Preanalyze_Range (R_Copy : Node_Id);
    --  Determine expected type of range or domain of iteration of Ada 2012
@@ -113,7 +119,7 @@ package body Sem_Ch5 is
 
    procedure Analyze_Assignment (N : Node_Id) is
       Lhs : constant Node_Id := Name (N);
-      Rhs : Node_Id          := Expression (N);
+      Rhs : constant Node_Id := Expression (N);
 
       procedure Diagnose_Non_Variable_Lhs (N : Node_Id);
       --  N is the node for the left hand side of an assignment, and it is not
@@ -136,27 +142,6 @@ package body Sem_Ch5 is
       --  Opnd is either the Lhs or Rhs of the assignment, and Opnd_Type is the
       --  nominal subtype. This procedure is used to deal with cases where the
       --  nominal subtype must be replaced by the actual subtype.
-
-      procedure Transform_BIP_Assignment (Typ : Entity_Id);
-      function Should_Transform_BIP_Assignment
-        (Typ : Entity_Id) return Boolean;
-      --  If the right-hand side of an assignment statement is a build-in-place
-      --  call we cannot build in place, so we insert a temp initialized with
-      --  the call, and transform the assignment statement to copy the temp.
-      --  Transform_BIP_Assignment does the transformation, and
-      --  Should_Transform_BIP_Assignment determines whether we should.
-      --  The same goes for qualified expressions and conversions whose
-      --  operand is such a call.
-      --
-      --  This is only for nonlimited types; assignment statements are illegal
-      --  for limited types, but are generated internally for aggregates and
-      --  init procs. These limited-type are not really assignment statements
-      --  -- conceptually, they are initializations, so should not be
-      --  transformed.
-      --
-      --  Similarly, for nonlimited types, aggregates and init procs generate
-      --  assignment statements that are really initializations. These are
-      --  marked No_Ctrl_Actions.
 
       function Within_Function return Boolean;
       --  Determine whether the current scope is a function or appears within
@@ -354,87 +339,6 @@ package body Sem_Ch5 is
          end if;
       end Set_Assignment_Type;
 
-      -------------------------------------
-      -- Should_Transform_BIP_Assignment --
-      -------------------------------------
-
-      function Should_Transform_BIP_Assignment
-        (Typ : Entity_Id) return Boolean
-      is
-      begin
-         if Expander_Active
-           and then not Is_Limited_View (Typ)
-           and then Is_Build_In_Place_Result_Type (Typ)
-           and then not No_Ctrl_Actions (N)
-         then
-            --  This function is called early, before name resolution is
-            --  complete, so we have to deal with things that might turn into
-            --  function calls later. N_Function_Call and N_Op nodes are the
-            --  obvious case. An N_Identifier or N_Expanded_Name is a
-            --  parameterless function call if it denotes a function.
-            --  Finally, an attribute reference can be a function call.
-
-            declare
-               Unqual_Rhs : constant Node_Id := Unqual_Conv (Rhs);
-            begin
-               case Nkind (Unqual_Rhs) is
-                  when N_Function_Call
-                     | N_Op
-                  =>
-                     return True;
-
-                  when N_Expanded_Name
-                     | N_Identifier
-                  =>
-                     return
-                       Ekind (Entity (Unqual_Rhs)) in E_Function | E_Operator;
-
-                  --  T'Input will turn into a call whose result type is T
-
-                  when N_Attribute_Reference =>
-                     return Attribute_Name (Unqual_Rhs) = Name_Input;
-
-                  when others =>
-                     return False;
-               end case;
-            end;
-         else
-            return False;
-         end if;
-      end Should_Transform_BIP_Assignment;
-
-      ------------------------------
-      -- Transform_BIP_Assignment --
-      ------------------------------
-
-      procedure Transform_BIP_Assignment (Typ : Entity_Id) is
-
-         --  Tranform "X : [constant] T := F (...);" into:
-         --
-         --     Temp : constant T := F (...);
-         --     X := Temp;
-
-         Loc      : constant Source_Ptr := Sloc (N);
-         Def_Id   : constant Entity_Id  := Make_Temporary (Loc, 'Y', Rhs);
-         Obj_Decl : constant Node_Id    :=
-                      Make_Object_Declaration (Loc,
-                        Defining_Identifier => Def_Id,
-                        Constant_Present    => True,
-                        Object_Definition   => New_Occurrence_Of (Typ, Loc),
-                        Expression          => Rhs,
-                        Has_Init_Expression => True);
-
-      begin
-         Set_Etype (Def_Id, Typ);
-         Set_Expression (N, New_Occurrence_Of (Def_Id, Loc));
-
-         --  At this point, Rhs is no longer equal to Expression (N), so:
-
-         Rhs := Expression (N);
-
-         Insert_Action (N, Obj_Decl);
-      end Transform_BIP_Assignment;
-
       ---------------------
       -- Within_Function --
       ---------------------
@@ -610,56 +514,6 @@ package body Sem_Ch5 is
          end if;
       end if;
 
-      --  Deal with build-in-place calls for nonlimited types. We don't do this
-      --  later, because resolving the rhs tranforms it incorrectly for build-
-      --  in-place.
-
-      if Should_Transform_BIP_Assignment (Typ => T1) then
-
-         --  In certain cases involving user-defined concatenation operators,
-         --  we need to resolve the right-hand side before transforming the
-         --  assignment.
-
-         case Nkind (Unqual_Conv (Rhs)) is
-            when N_Function_Call =>
-               declare
-                  Actual     : Node_Id :=
-                    First (Parameter_Associations (Unqual_Conv (Rhs)));
-                  Actual_Exp : Node_Id;
-
-               begin
-                  while Present (Actual) loop
-                     if Nkind (Actual) = N_Parameter_Association then
-                        Actual_Exp := Explicit_Actual_Parameter (Actual);
-                     else
-                        Actual_Exp := Actual;
-                     end if;
-
-                     if Nkind (Actual_Exp) = N_Op_Concat then
-                        Resolve (Rhs, T1);
-                        exit;
-                     end if;
-
-                     Next (Actual);
-                  end loop;
-               end;
-
-            when N_Attribute_Reference
-               | N_Expanded_Name
-               | N_Identifier
-               | N_Op
-            =>
-               null;
-
-            when others =>
-               raise Program_Error;
-         end case;
-
-         Transform_BIP_Assignment (Typ => T1);
-      end if;
-
-      pragma Assert (not Should_Transform_BIP_Assignment (Typ => T1));
-
       --  The resulting assignment type is T1, so now we will resolve the left
       --  hand side of the assignment using this determined type.
 
@@ -744,10 +598,13 @@ package body Sem_Ch5 is
 
       --  Error of assigning to limited type. We do however allow this in
       --  certain cases where the front end generates the assignments.
+      --  Comes_From_Source test is needed to allow compiler-generated
+      --  streaming/put_image subprograms, which may ignore privacy.
 
       elsif Is_Limited_Type (T1)
         and then not Assignment_OK (Lhs)
         and then not Assignment_OK (Original_Node (Lhs))
+        and then (Comes_From_Source (N) or Is_Immutably_Limited_Type (T1))
       then
          --  CPP constructors can only be called in declarations
 
@@ -820,11 +677,17 @@ package body Sem_Ch5 is
 
       Set_Assignment_Type (Lhs, T1);
 
-      --  If the target of the assignment is an entity of a mutable type and
-      --  the expression is a conditional expression, its alternatives can be
-      --  of different subtypes of the nominal type of the LHS, so they must be
-      --  resolved with the base type, given that their subtype may differ from
-      --  that of the target mutable object.
+      --  When analyzing a mutably tagged class-wide equivalent type pretend we
+      --  are actually looking at the mutably tagged type itself for proper
+      --  analysis.
+
+      T1 := Get_Corresponding_Mutably_Tagged_Type_If_Present (T1);
+
+      --  If the target of the assignment is an entity of a mutably tagged type
+      --  and the expression is a conditional expression, its alternatives can
+      --  be of different subtypes of the nominal type of the LHS, so they must
+      --  be resolved with the base type, given that their subtype may differ
+      --  from that of the target mutable object.
 
       if Is_Entity_Name (Lhs)
         and then Is_Assignable (Entity (Lhs))
@@ -833,6 +696,19 @@ package body Sem_Ch5 is
         and then Nkind (Rhs) in N_If_Expression | N_Case_Expression
       then
          Resolve (Rhs, Base_Type (T1));
+
+      --  When the right hand side is a qualified expression and the left hand
+      --  side is mutably tagged we force the right hand side to be class-wide
+      --  so that they are compatible both for the purposes of checking
+      --  legality rules as well as assignment expansion.
+
+      elsif Is_Mutably_Tagged_Type (T1)
+        and then Nkind (Rhs) = N_Qualified_Expression
+      then
+         Make_Mutably_Tagged_Conversion (Rhs, T1);
+         Resolve (Rhs, T1);
+
+      --  Otherwise, resolve the right hand side normally
 
       else
          Resolve (Rhs, T1);
@@ -902,6 +778,7 @@ package body Sem_Ch5 is
         and then not Is_Class_Wide_Type (T2)
         and then not Is_Tag_Indeterminate (Rhs)
         and then not Is_Dynamically_Tagged (Rhs)
+        and then not Is_Mutably_Tagged_Type (T1)
       then
          Error_Msg_N ("dynamically tagged expression required!", Rhs);
       end if;
@@ -1303,8 +1180,6 @@ package body Sem_Ch5 is
             Full_Analysis := Save_Full_Analysis;
             Current_Assignment := Empty;
          end if;
-
-         pragma Assert (not Should_Transform_BIP_Assignment (Typ => T1));
       end if;
    end Analyze_Assignment;
 
@@ -1622,7 +1497,7 @@ package body Sem_Ch5 is
       --  out non-discretes may resolve the ambiguity.
       --  But GNAT extensions allow casing on non-discretes.
 
-      elsif Core_Extensions_Allowed and then Is_Overloaded (Exp) then
+      elsif All_Extensions_Allowed and then Is_Overloaded (Exp) then
 
          --  It would be nice if we could generate all the right error
          --  messages by calling "Resolve (Exp, Any_Type);" in the
@@ -1640,12 +1515,21 @@ package body Sem_Ch5 is
       --  Check for a GNAT-extension "general" case statement (i.e., one where
       --  the type of the selecting expression is not discrete).
 
-      elsif Core_Extensions_Allowed
+      elsif All_Extensions_Allowed
          and then not Is_Discrete_Type (Etype (Exp))
       then
          Resolve (Exp, Etype (Exp));
          Exp_Type := Etype (Exp);
          Is_General_Case_Statement := True;
+         if not (Is_Record_Type (Exp_Type) or Is_Array_Type (Exp_Type)) then
+            Error_Msg_N
+              ("selecting expression of general case statement " &
+               "must be a record or an array",
+               Exp);
+
+            --  Avoid cascading errors
+            return;
+         end if;
       else
          Analyze_And_Resolve (Exp, Any_Discrete);
          Exp_Type := Etype (Exp);
@@ -1678,7 +1562,7 @@ package body Sem_Ch5 is
            ("(Ada 83) case expression cannot be of a generic type", Exp);
          return;
 
-      elsif not Core_Extensions_Allowed
+      elsif not All_Extensions_Allowed
         and then not Is_Discrete_Type (Exp_Type)
       then
          Error_Msg_N
@@ -2262,11 +2146,28 @@ package body Sem_Ch5 is
          Ent : Entity_Id;
 
       begin
-         --  If iterator type is derived, the cursor is declared in the scope
-         --  of the parent type.
+         --  If the iterator type is derived and it has an iterator interface
+         --  type as an ancestor, then the cursor type is declared in the scope
+         --  of that interface type.
 
          if Is_Derived_Type (Typ) then
-            Ent := First_Entity (Scope (Etype (Typ)));
+            declare
+               Iter_Iface : constant Entity_Id :=
+                              Iterator_Interface_Ancestor (Typ);
+
+            begin
+               if Present (Iter_Iface) then
+                  Ent := First_Entity (Scope (Iter_Iface));
+
+               --  If there's not an iterator interface, then retrieve the
+               --  scope associated with the parent type and start from its
+               --  first entity.
+
+               else
+                  Ent := First_Entity (Scope (Etype (Typ)));
+               end if;
+            end;
+
          else
             Ent := First_Entity (Scope (Typ));
          end if;
@@ -2290,7 +2191,7 @@ package body Sem_Ch5 is
          return Etype (Ent);
       end Get_Cursor_Type;
 
-   --   Start of processing for Analyze_Iterator_Specification
+   --  Start of processing for Analyze_Iterator_Specification
 
    begin
       Enter_Name (Def_Id);
@@ -2620,6 +2521,13 @@ package body Sem_Ch5 is
                Error_Msg_N
                  ("iterable name cannot be a discriminant-dependent "
                   & "component of a mutable object", N);
+
+            elsif Depends_On_Mutably_Tagged_Ext_Comp
+                    (Original_Node (Iter_Name))
+            then
+               Error_Msg_N
+                 ("iterable name cannot depend on a mutably tagged component",
+                  N);
             end if;
 
             Check_Subtype_Definition (Component_Type (Typ));
@@ -2750,6 +2658,13 @@ package body Sem_Ch5 is
                         Error_Msg_N
                           ("container cannot be a discriminant-dependent "
                            & "component of a mutable object", N);
+
+                     elsif Depends_On_Mutably_Tagged_Ext_Comp
+                             (Orig_Iter_Name)
+                     then
+                        Error_Msg_N
+                          ("container cannot depend on a mutably tagged "
+                           & "component", N);
                      end if;
                   end if;
                end;
@@ -2836,6 +2751,11 @@ package body Sem_Ch5 is
                      Error_Msg_N
                        ("container cannot be a discriminant-dependent "
                         & "component of a mutable object", N);
+
+                  elsif Depends_On_Mutably_Tagged_Ext_Comp (Obj) then
+                     Error_Msg_N
+                       ("container cannot depend on a mutably tagged"
+                        & " component", N);
                   end if;
                end;
             end if;
@@ -2859,10 +2779,10 @@ package body Sem_Ch5 is
          end if;
       end if;
 
-      if Present (Iterator_Filter (N)) then
-         --  Preanalyze the filter. Expansion will take place when enclosing
-         --  loop is expanded.
+      --  Preanalyze the filter. Expansion will take place when enclosing
+      --  loop is expanded.
 
+      if Present (Iterator_Filter (N)) then
          Preanalyze_And_Resolve (Iterator_Filter (N), Standard_Boolean);
       end if;
    end Analyze_Iterator_Specification;
@@ -2969,7 +2889,8 @@ package body Sem_Ch5 is
            and then Has_Predicates (T)
            and then (not Has_Static_Predicate (T)
                       or else not Is_Static_Subtype (T)
-                      or else Has_Dynamic_Predicate_Aspect (T))
+                      or else Has_Dynamic_Predicate_Aspect (T)
+                      or else Has_Ghost_Predicate_Aspect (T))
          then
             --  Seems a confusing message for the case of a static predicate
             --  with a non-static subtype???
@@ -3577,16 +3498,11 @@ package body Sem_Ch5 is
          end;
       end if;
 
+      --  Preanalyze the filter. Expansion will take place when enclosing
+      --  loop is expanded.
+
       if Present (Iterator_Filter (N)) then
-         Analyze_And_Resolve (Iterator_Filter (N), Standard_Boolean);
-      end if;
-
-      --  A loop parameter cannot be effectively volatile (SPARK RM 7.1.3(4)).
-      --  This check is relevant only when SPARK_Mode is on as it is not a
-      --  standard Ada legality check.
-
-      if SPARK_Mode = On and then Is_Effectively_Volatile (Id) then
-         Error_Msg_N ("loop parameter cannot be volatile", Id);
+         Preanalyze_And_Resolve (Iterator_Filter (N), Standard_Boolean);
       end if;
    end Analyze_Loop_Parameter_Specification;
 
@@ -3776,9 +3692,13 @@ package body Sem_Ch5 is
                Cont_Typ := Etype (Nam_Copy);
 
                --  The iterator loop is traversing an array. This case does not
-               --  require any transformation.
+               --  require any transformation, unless the name contains a call
+               --  that returns on the secondary stack since we need to release
+               --  the space allocated there.
 
-               if Is_Array_Type (Cont_Typ) then
+               if Is_Array_Type (Cont_Typ)
+                 and then not Has_Sec_Stack_Call (Nam_Copy)
+               then
                   null;
 
                --  Otherwise unconditionally wrap the loop statement within
@@ -4295,6 +4215,7 @@ package body Sem_Ch5 is
                if Current = Expression (Context) then
                   pragma Assert (Context = Current_Assignment);
                   Set_Etype (N, Etype (Name (Current_Assignment)));
+                  Analyze_Dimension (N);
                else
                   Report_Error;
                end if;

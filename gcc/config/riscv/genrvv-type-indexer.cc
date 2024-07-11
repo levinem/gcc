@@ -1,5 +1,5 @@
 /* Generate the RVV type indexer tables.
-   Copyright (C) 2023-2023 Free Software Foundation, Inc.
+   Copyright (C) 2023-2024 Free Software Foundation, Inc.
 This file is part of GCC.
 GCC is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free
@@ -54,7 +54,7 @@ valid_type (unsigned sew, int lmul_log2, bool float_p)
     case 8:
       return lmul_log2 >= -3 && !float_p;
     case 16:
-      return lmul_log2 >= -2 && !float_p;
+      return lmul_log2 >= -2;
     case 32:
       return lmul_log2 >= -1;
     case 64:
@@ -342,7 +342,7 @@ main (int argc, const char **argv)
 	    fprintf (fp, ")\n");
 	  }
   // Build for vfloat
-  for (unsigned sew : {32, 64})
+  for (unsigned sew : {16, 32, 64})
     for (int lmul_log2 : {-3, -2, -1, 0, 1, 2, 3})
       for (unsigned nf : {1, 2, 3, 4, 5, 6, 7, 8})
 	{

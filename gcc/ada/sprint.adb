@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -1084,7 +1084,8 @@ package body Sprint is
                Write_Str_With_Col_Check_Sloc ("(null record)");
 
             else
-               Write_Str_With_Col_Check_Sloc ("(");
+               Write_Str_With_Col_Check_Sloc
+                 (if Is_Homogeneous_Aggregate (Node) then "[" else "(");
 
                if Present (Expressions (Node)) then
                   Sprint_Comma_List (Expressions (Node));
@@ -1120,7 +1121,8 @@ package body Sprint is
                   Indent_End;
                end if;
 
-               Write_Char (')');
+               Write_Char
+                 (if Is_Homogeneous_Aggregate (Node) then ']' else ')');
             end if;
 
          when N_Allocator =>
@@ -3114,8 +3116,12 @@ package body Sprint is
             Write_Condition_And_Reason (Node);
 
          when N_Raise_Statement =>
-            Write_Indent_Str_Sloc ("raise ");
-            Sprint_Node (Name (Node));
+            if Present (Name (Node)) then
+               Write_Indent_Str_Sloc ("raise ");
+               Sprint_Node (Name (Node));
+            else
+               Write_Indent_Str_Sloc ("raise");
+            end if;
 
             if Present (Expression (Node)) then
                Write_Str_With_Col_Check_Sloc (" with ");
@@ -3125,8 +3131,12 @@ package body Sprint is
             Write_Char (';');
 
          when N_Raise_When_Statement =>
-            Write_Indent_Str_Sloc ("raise ");
-            Sprint_Node (Name (Node));
+            if Present (Name (Node)) then
+               Write_Indent_Str_Sloc ("raise ");
+               Sprint_Node (Name (Node));
+            else
+               Write_Indent_Str_Sloc ("raise");
+            end if;
             Write_Str (" when ");
             Sprint_Node (Condition (Node));
 

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2001-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 2001-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -274,7 +274,7 @@ package body Switch.C is
                      Osint.Fail ("RTS path not valid: missing "
                                  & "adainclude directory");
 
-                  elsif RTS_Lib_Path_Name = null then
+                  else pragma Assert (RTS_Lib_Path_Name = null);
                      Osint.Fail ("RTS path not valid: missing "
                                  & "adalib directory");
                   end if;
@@ -635,6 +635,12 @@ package body Switch.C is
                      Generate_Processed_File := True;
                      Ptr := Ptr + 1;
 
+                  --  -gnateH (set reverse Bit_Order threshold to 64)
+
+                  when 'H' =>
+                     Reverse_Bit_Order_Threshold := 64;
+                     Ptr := Ptr + 1;
+
                   --  -gnatei (max number of instantiations)
 
                   when 'i' =>
@@ -921,7 +927,8 @@ package body Switch.C is
                Ptr := Ptr + 1;
                Legacy_Elaboration_Checks := True;
 
-            --  -gnati (character set)
+            --  -gnati[1-5|8|9|p|f|n|w] (character set)
+            --  -gnatis (suppress info messages)
 
             when 'i' =>
                if Ptr = Max then
@@ -933,6 +940,9 @@ package body Switch.C is
 
                if C in '1' .. '5' | '8' | 'p' | '9' | 'f' | 'n' | 'w' then
                   Identifier_Character_Set := C;
+                  Ptr := Ptr + 1;
+               elsif C = 's' then
+                  Info_Suppressed := True;
                   Ptr := Ptr + 1;
 
                else

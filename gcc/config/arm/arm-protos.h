@@ -1,5 +1,5 @@
 /* Prototypes for exported functions defined in arm.cc and pe.c
-   Copyright (C) 1999-2023 Free Software Foundation, Inc.
+   Copyright (C) 1999-2024 Free Software Foundation, Inc.
    Contributed by Richard Earnshaw (rearnsha@arm.com)
    Minor hacks by Nick Clifton (nickc@cygnus.com)
 
@@ -23,6 +23,7 @@
 #define GCC_ARM_PROTOS_H
 
 #include "sbitmap.h"
+#include "tree.h" /* For ERROR_MARK.  */
 
 rtl_opt_pass *make_pass_insert_bti (gcc::context *ctxt);
 
@@ -64,8 +65,8 @@ extern void arm_emit_speculation_barrier_function (void);
 extern void arm_decompose_di_binop (rtx, rtx, rtx *, rtx *, rtx *, rtx *);
 extern bool arm_q_bit_access (void);
 extern bool arm_ge_bits_access (void);
-extern bool arm_target_insn_ok_for_lob (rtx);
-
+extern bool arm_target_bb_ok_for_lob (basic_block);
+extern int arm_attempt_dlstp_transform (rtx);
 #ifdef RTX_CODE
 enum reg_class
 arm_mode_base_reg_class (machine_mode);
@@ -83,7 +84,8 @@ extern int arm_split_constant (RTX_CODE, machine_mode, rtx,
 extern int legitimate_pic_operand_p (rtx);
 extern rtx legitimize_pic_address (rtx, machine_mode, rtx, rtx, bool);
 extern rtx legitimize_tls_address (rtx, rtx);
-extern bool arm_legitimate_address_p (machine_mode, rtx, bool);
+extern bool arm_legitimate_address_p (machine_mode, rtx, bool,
+				      code_helper = ERROR_MARK);
 extern int arm_legitimate_address_outer_p (machine_mode, rtx, RTX_CODE, int);
 extern int thumb_legitimate_offset_p (machine_mode, HOST_WIDE_INT);
 extern int thumb1_legitimate_address_p (machine_mode, rtx, int);
@@ -182,6 +184,7 @@ extern bool arm_is_long_call_p (tree);
 extern int    arm_emit_vector_const (FILE *, rtx);
 extern void arm_emit_fp16_const (rtx c);
 extern const char * arm_output_load_gr (rtx *);
+extern const char * arm_output_load_tpidr (rtx, bool);
 extern const char *vfp_output_vstmd (rtx *);
 extern void arm_output_multireg_pop (rtx *, bool, rtx, bool, bool);
 extern void arm_set_return_address (rtx, rtx);
@@ -231,6 +234,7 @@ const unsigned int ARM_BUILTIN_CLASS = (1 << ARM_BUILTIN_SHIFT) - 1;
 namespace arm_mve {
   void handle_arm_mve_types_h ();
   void handle_arm_mve_h (bool);
+  tree builtin_decl (unsigned);
   tree resolve_overloaded_builtin (location_t, unsigned int,
 				   vec<tree, va_gc> *);
   bool check_builtin_call (location_t, vec<location_t>, unsigned int,
@@ -257,23 +261,12 @@ extern void thumb_expand_cpymemqi (rtx *);
 extern rtx arm_return_addr (int, rtx);
 extern void thumb_reload_out_hi (rtx *);
 extern void thumb_set_return_address (rtx, rtx);
+extern const char *arm_output_casesi (rtx *);
 extern const char *thumb1_output_casesi (rtx *);
 extern const char *thumb2_output_casesi (rtx *);
 #endif
 
-/* Defined in pe.c.  */
-extern int arm_dllexport_name_p (const char *);
-extern int arm_dllimport_name_p (const char *);
-
-#ifdef TREE_CODE
-extern void arm_pe_unique_section (tree, int);
-extern void arm_pe_encode_section_info (tree, rtx, int);
-extern int arm_dllexport_p (tree);
-extern int arm_dllimport_p (tree);
-extern void arm_mark_dllexport (tree);
-extern void arm_mark_dllimport (tree);
 extern bool arm_change_mode_p (tree);
-#endif
 
 extern tree arm_valid_target_attribute_tree (tree, struct gcc_options *,
 					     struct gcc_options *);

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -367,11 +367,13 @@ package body Ada.Streams.Stream_IO is
       FIO.Append_Set (AP (File));
 
       if File.Mode = FCB.Append_File then
-         if Standard'Address_Size = 64 then
+         pragma Warnings (Off, "condition is always *");
+         if Memory_Size = 2**64 then
             File.Index := Count (ftell64 (File.Stream)) + 1;
          else
             File.Index := Count (ftell (File.Stream)) + 1;
          end if;
+         pragma Warnings (On);
       end if;
 
       File.Last_Op := Op_Other;

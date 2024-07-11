@@ -1,5 +1,5 @@
-/* { dg-do run { target { riscv_vector } } } */
-/* { dg-additional-options "-std=c99 -fno-vect-cost-model --param=riscv-autovec-preference=scalable -fno-builtin" } */
+/* { dg-do run { target { riscv_v } } } */
+/* { dg-additional-options "-std=c99 -fno-vect-cost-model -mrvv-vector-bits=scalable -fno-builtin" } */
 
 #include "vmv-imm-template.h"
 
@@ -54,4 +54,12 @@ int main ()
   TEST_POS(uint64_t, 13)
   TEST_POS(uint64_t, 14)
   TEST_POS(uint64_t, 15)
+  TEST_POS(uint32_t, 16)
+  TEST_POS(uint32_t, 123)
+  TEST_POS(uint32_t, 255)
+  TEST_POS(uint32_t, 999)
+  TEST_POS(uint32_t, 32701)
+  TEST_POS(uint32_t, 65535)
+  TEST_POS(uint32_t, 65536)
+  TEST_POS(uint32_t, 923423)
 }

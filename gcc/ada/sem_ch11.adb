@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -70,9 +70,7 @@ package body Sem_Ch11 is
       Set_Is_Statically_Allocated (Id);
       Set_Is_Pure                 (Id, PF);
 
-      if Has_Aspects (N) then
-         Analyze_Aspect_Specifications (N, Id);
-      end if;
+      Analyze_Aspect_Specifications (N, Id);
    end Analyze_Exception_Declaration;
 
    --------------------------------
@@ -543,11 +541,12 @@ package body Sem_Ch11 is
             if Present (P) and then Nkind (P) = N_Assignment_Statement then
                L := Name (P);
 
-               --  Give warning for assignment to scalar formal
+               --  Give warning for assignment to by-copy formal
 
-               if Is_Scalar_Type (Etype (L))
-                 and then Is_Entity_Name (L)
+               if Is_Entity_Name (L)
                  and then Is_Formal (Entity (L))
+                 and then Is_By_Copy_Type (Etype (L))
+                 and then not Is_Aliased (Entity (L))
 
                  --  Do this only for parameters to the current subprogram.
                  --  This avoids some false positives for the nested case.

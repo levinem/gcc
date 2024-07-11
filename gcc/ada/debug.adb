@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -67,7 +67,7 @@ package body Debug is
    --  dG   Generate all warnings including those normally suppressed
    --  dH   Hold (kill) call to gigi
    --  dI   Inhibit internal name numbering in gnatG listing
-   --  dJ   Prepend subprogram name in messages
+   --  dJ
    --  dK   Kill all error messages
    --  dL   Ignore external calls from instances for elaboration
    --  dM   Assume all variables are modified (no current values)
@@ -123,9 +123,8 @@ package body Debug is
    --  d.I  Do not ignore enum representation clauses in CodePeer mode
    --  d.J  Relaxed rules for pragma No_Return
    --  d.K  Do not reject components in extensions overlapping with parent
-   --  d.L  Depend on back end for limited types in if and case expressions
    --  d.M  Relaxed RM semantics
-   --  d.N
+   --  d.N  Use rounding when converting from floating point to fixed point
    --  d.O  Dump internal SCO tables
    --  d.P  Previous (non-optimized) handling of length comparisons
    --  d.Q  Previous (incomplete) style check for binary operators
@@ -149,8 +148,8 @@ package body Debug is
    --  d_h  Disable the use of (perfect) hash functions for enumeration Value
    --  d_i  Ignore activations and calls to instances for elaboration
    --  d_j  Read JSON files and populate Repinfo tables (opposite of -gnatRjs)
-   --  d_k
-   --  d_l
+   --  d_k  In CodePeer mode disable expansion of assertion checks
+   --  d_l  Disable strict alignment of array types with aliased component
    --  d_m
    --  d_n
    --  d_o
@@ -161,7 +160,7 @@ package body Debug is
    --  d_t  In LLVM-based CCG, dump LLVM IR after transformations are done
    --  d_u  In LLVM-based CCG, dump flows
    --  d_v  Enable additional checks and debug printouts in Atree
-   --  d_w
+   --  d_w  In LLVM-based CCG, don't send front end data to CCG
    --  d_x  Disable inline expansion of Image attribute for enumeration types
    --  d_y
    --  d_z
@@ -616,11 +615,6 @@ package body Debug is
    --       is used in the fixed bugs run to minimize system and version
    --       dependency in filed -gnatD or -gnatG output.
 
-   --  dJ   Prepend the name of the enclosing subprogram in compiler messages
-   --       (errors, warnings, style checks). This is useful in particular to
-   --       integrate compiler warnings in static analysis tools such as
-   --       CodePeer.
-
    --  dK   Kill all error messages. This debug flag suppresses the output
    --       of all error messages. It is used in regression tests where the
    --       error messages are target dependent and irrelevant.
@@ -898,13 +892,12 @@ package body Debug is
    --       clause but they cannot be fully supported by the GCC type system.
    --       This switch nevertheless allows them for the sake of compatibility.
 
-   --  d.L  Normally the front end generates special expansion for conditional
-   --       expressions of a limited type. This debug flag removes this special
-   --       case expansion, leaving it up to the back end to handle conditional
-   --       expressions correctly.
-
    --  d.M  Relaxed RM semantics. This flag sets Opt.Relaxed_RM_Semantics
    --       See Opt.Relaxed_RM_Semantics for more details.
+
+   --  d.N  Use rounding instead of truncation when dynamically converting from
+   --       a floating-point type to an ordinary fixed-point type, for the sake
+   --       of compatibility with earlier versions of the compiler.
 
    --  d.O  Dump internal SCO tables. Before outputting the SCO information to
    --       the ALI file, the internal SCO tables (SCO_Table/SCO_Unit_Table)
@@ -992,6 +985,14 @@ package body Debug is
    --       compilation session if -gnatRjs was passed, in order to populate
    --       the internal tables of the Repinfo unit from them.
 
+   --  d_k  In CodePeer mode assertion expressions are expanded by default
+   --       (regardless of the -gnata compiler switch); when this switch is
+   --       enabled, expansion of assertion expressions is controlled by
+   --       pragma Assertion_Policy.
+
+   --  d_l  The compiler does not enforce the strict alignment of array types
+   --       that are declared with an aliased component.
+
    --  d_p  The compiler ignores calls to subprograms which verify the run-time
    --       semantics of invariants and postconditions in both the static and
    --       dynamic elaboration models.
@@ -1013,6 +1014,8 @@ package body Debug is
    --       and after transformations.
 
    --  d_v  Enable additional checks and debug printouts in Atree
+
+   --  d_w  In LLVM-based CCG, don't send front end data to CCG
 
    --  d_x  The compiler does not expand in line the Image attribute for user-
    --       defined enumeration types and the standard boolean type.

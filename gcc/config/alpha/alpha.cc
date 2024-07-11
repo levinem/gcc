@@ -1,5 +1,5 @@
 /* Subroutines used for code generation on the DEC Alpha.
-   Copyright (C) 1992-2023 Free Software Foundation, Inc.
+   Copyright (C) 1992-2024 Free Software Foundation, Inc.
    Contributed by Richard Kenner (kenner@vlsi1.ultra.nyu.edu)
 
 This file is part of GCC.
@@ -844,7 +844,8 @@ alpha_linkage_symbol_p (const char *symname)
    low-order three bits; this is an "unaligned" access.  */
 
 static bool
-alpha_legitimate_address_p (machine_mode mode, rtx x, bool strict)
+alpha_legitimate_address_p (machine_mode mode, rtx x, bool strict,
+			    code_helper = ERROR_MARK)
 {
   /* If this is an ldq_u type address, discard the outer AND.  */
   if (mode == DImode
@@ -2070,6 +2071,8 @@ static rtx
 alpha_emit_set_long_const (rtx target, HOST_WIDE_INT c1)
 {
   HOST_WIDE_INT d1, d2, d3, d4;
+  machine_mode mode = GET_MODE (target);
+  rtx orig_target = target;
 
   /* Decompose the entire word */
 
@@ -2081,6 +2084,9 @@ alpha_emit_set_long_const (rtx target, HOST_WIDE_INT c1)
   c1 -= d3;
   d4 = ((c1 & 0xffffffff) ^ 0x80000000) - 0x80000000;
   gcc_assert (c1 == d4);
+
+  if (mode != DImode)
+    target = gen_lowpart (DImode, target);
 
   /* Construct the high word */
   if (d4)
@@ -2101,7 +2107,7 @@ alpha_emit_set_long_const (rtx target, HOST_WIDE_INT c1)
   if (d1)
     emit_move_insn (target, gen_rtx_PLUS (DImode, target, GEN_INT (d1)));
 
-  return target;
+  return orig_target;
 }
 
 /* Given an integral CONST_INT or CONST_VECTOR, return the low 64 bits.  */
@@ -6084,7 +6090,8 @@ alpha_setup_incoming_varargs (cumulative_args_t pcum,
 {
   CUMULATIVE_ARGS cum = *get_cumulative_args (pcum);
 
-  if (!TYPE_NO_NAMED_ARGS_STDARG_P (TREE_TYPE (current_function_decl)))
+  if (!TYPE_NO_NAMED_ARGS_STDARG_P (TREE_TYPE (current_function_decl))
+      || arg.type != NULL_TREE)
     /* Skip the current argument.  */
     targetm.calls.function_arg_advance (pack_cumulative_args (&cum), arg);
 
@@ -7476,14 +7483,13 @@ common_object_handler (tree *node, tree name ATTRIBUTE_UNUSED,
   return NULL_TREE;
 }
 
-static const struct attribute_spec vms_attribute_table[] =
+TARGET_GNU_ATTRIBUTES (vms_attribute_table,
 {
   /* { name, min_len, max_len, decl_req, type_req, fn_type_req,
        affects_type_identity, handler, exclude } */
   { COMMON_OBJECT,   0, 1, true,  false, false, false, common_object_handler,
-    NULL },
-  { NULL,            0, 0, false, false, false, false, NULL, NULL }
-};
+    NULL }
+});
 
 void
 vms_output_aligned_decl_common(FILE *file, tree decl, const char *name,
@@ -7981,8 +7987,7 @@ int num_source_filenames = 0;
 /* Output the textual info surrounding the prologue.  */
 
 void
-alpha_start_function (FILE *file, const char *fnname,
-		      tree decl ATTRIBUTE_UNUSED)
+alpha_start_function (FILE *file, const char *fnname, tree decl)
 {
   unsigned long imask, fmask;
   /* Complete stack size needed.  */
@@ -8047,7 +8052,7 @@ alpha_start_function (FILE *file, const char *fnname,
   if (TARGET_ABI_OPEN_VMS)
     strcat (entry_label, "..en");
 
-  ASM_OUTPUT_LABEL (file, entry_label);
+  ASM_OUTPUT_FUNCTION_LABEL (file, entry_label, decl);
   inside_function = TRUE;
 
   if (TARGET_ABI_OPEN_VMS)
@@ -9911,7 +9916,19 @@ alpha_can_change_mode_class (machine_mode from, machine_mode to,
   return (GET_MODE_SIZE (from) == GET_MODE_SIZE (to)
 	  || !reg_classes_intersect_p (FLOAT_REGS, rclass));
 }
-
+
+/* Implement TARGET_C_MODE_FOR_FLOATING_TYPE.  Return TFmode or DFmode
+   for TI_LONG_DOUBLE_TYPE which is for long double type, go with the
+   default one for the others.  */
+
+static machine_mode
+alpha_c_mode_for_floating_type (enum tree_index ti)
+{
+  if (ti == TI_LONG_DOUBLE_TYPE)
+    return TARGET_LONG_DOUBLE_128 ? TFmode : DFmode;
+  return default_mode_for_floating_type (ti);
+}
+
 /* Initialize the GCC target structure.  */
 #if TARGET_ABI_OPEN_VMS
 # undef TARGET_ATTRIBUTE_TABLE
@@ -10117,6 +10134,9 @@ alpha_can_change_mode_class (machine_mode from, machine_mode to,
 
 #undef TARGET_CAN_CHANGE_MODE_CLASS
 #define TARGET_CAN_CHANGE_MODE_CLASS alpha_can_change_mode_class
+
+#undef TARGET_C_MODE_FOR_FLOATING_TYPE
+#define TARGET_C_MODE_FOR_FLOATING_TYPE alpha_c_mode_for_floating_type
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 

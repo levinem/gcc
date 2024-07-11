@@ -1,4 +1,4 @@
-#   Copyright (C) 1997-2023 Free Software Foundation, Inc.
+#   Copyright (C) 1997-2024 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -46,6 +46,12 @@ if { [ishost "*-*-cygwin*"] } {
   setenv LANG C.ASCII
 }
 
+# Set TERM to xterm to ensure that URL escapes are disabled.
+# This avoids issues where a diagnostic which could embed a URL
+# is emitted before -fdiagnostics-plain-output is handled, where
+# otherwise the output could be affected by the environment.
+setenv TERM xterm
+
 # Avoid sporadic data-losses with expect
 match_max -d 10000
 
@@ -70,8 +76,8 @@ if { $orig_environment_saved == 0 } {
 # Some torture-options cause intermediate code output, unusable for
 # testing using e.g. scan-assembler.  In this variable are the options
 # how to force it, when needed.
-global gcc_force_conventional_output
-set gcc_force_conventional_output ""
+global gcc_set_required_options
+set gcc_set_required_options ""
 
 if [info exists TORTURE_OPTIONS] {
     set DG_TORTURE_OPTIONS $TORTURE_OPTIONS
@@ -92,7 +98,7 @@ if [info exists TORTURE_OPTIONS] {
 	{ -Os } ]
 
     if [check_effective_target_lto] {
-        set gcc_force_conventional_output "-ffat-lto-objects"
+        set gcc_set_required_options "-ffat-lto-objects"
     }
 }
 
@@ -363,6 +369,11 @@ proc gcc-dg-prune { system text } {
     # Extra prune rules that will apply to tests defined in a .exp file.
     # Always remember to clear it in .exp file after executed all tests.
     global dg_runtest_extra_prunes
+
+    # Call into multiline.exp to handle any multiline output directives.
+    # This is done before the check for blank lines so that multiline
+    # output directives can have blank lines within them.
+    set text [handle-multiline-outputs $text]
 
     # Complain about blank lines in the output (PR other/69006)
     global allow_blank_lines

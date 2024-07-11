@@ -1,5 +1,5 @@
 /* Analyze RTL for GNU compiler.
-   Copyright (C) 2020-2023 Free Software Foundation, Inc.
+   Copyright (C) 2020-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -338,4 +338,6 @@ vec_series_highpart_p (machine_mode result_mode, machine_mode op_mode,
 bool
 vec_series_lowpart_p (machine_mode result_mode, machine_mode op_mode, rtx sel);
 
+bool
+contains_paradoxical_subreg_p (rtx x);
 #endif

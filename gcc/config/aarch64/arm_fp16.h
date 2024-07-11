@@ -1,6 +1,6 @@
 /* ARM FP16 scalar intrinsics include file.
 
-   Copyright (C) 2016-2023 Free Software Foundation, Inc.
+   Copyright (C) 2016-2024 Free Software Foundation, Inc.
    Contributed by ARM Ltd.
 
    This file is part of GCC.
@@ -30,7 +30,7 @@
 #include <stdint.h>
 
 #pragma GCC push_options
-#pragma GCC target ("arch=armv8.2-a+fp16")
+#pragma GCC target ("+nothing+fp16")
 
 typedef __fp16 float16_t;
 

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -50,6 +50,10 @@ package Erroutc is
    Has_Double_Exclam : Boolean := False;
    --  Set true to indicate that the current message contains the insertion
    --  sequence !! (force warnings even in non-main unit source files).
+
+   Has_Error_Code : Boolean := False;
+   --  Set true to indicate that the current message contains the insertion
+   --  sequence [] (insert error code).
 
    Has_Insertion_Line : Boolean := False;
    --  Set True to indicate that the current message contains the insertion
@@ -144,11 +148,6 @@ package Erroutc is
    --  instantiation. If this variable is set True, then this note is not
    --  output. This is used for internal processing for the case of an
    --  illegal instantiation. See Error_Msg routine for further details.
-
-   type Subprogram_Name_Type is access function (N : Node_Id) return String;
-   Subprogram_Name_Ptr : Subprogram_Name_Type;
-   --  Indirect call to Sem_Util.Subprogram_Name to break circular
-   --  dependency with the static elaboration model.
 
    ----------------------------
    -- Message ID Definitions --
@@ -272,11 +271,6 @@ package Erroutc is
       Deleted : Boolean;
       --  If this flag is set, the message is not printed. This is used
       --  in the circuit for deleting duplicate/redundant error messages.
-
-      Node : Node_Id;
-      --  If set, points to the node relevant for this message which will be
-      --  used to compute the enclosing subprogram name if
-      --  Opt.Include_Subprogram_In_Messages is set.
    end record;
 
    package Errors is new Table.Table (
@@ -547,6 +541,9 @@ package Erroutc is
    --    Has_Double_Exclam is set True if the message contains the sequence !!
    --    and is otherwise set False.
    --
+   --    Has_Error_Code is set True if the message contains the sequence []
+   --    and is otherwise set False.
+   --
    --    Has_Insertion_Line is set True if the message contains the character #
    --    and is otherwise set False.
    --
@@ -580,6 +577,9 @@ package Erroutc is
    --  Add a single character to the current message. This routine does not
    --  check for special insertion characters (they are just treated as text
    --  characters if they occur).
+
+   procedure Set_Msg_Insertion_Code;
+   --  Handle error code insertion ([] insertion character)
 
    procedure Set_Msg_Insertion_File_Name;
    --  Handle file name insertion (left brace insertion character)
@@ -641,7 +641,7 @@ package Erroutc is
    --  last non-deleted message.
 
    procedure Set_Specific_Warning_Off
-     (Loc    : Source_Ptr;
+     (Node   : Node_Id;
       Msg    : String;
       Reason : String_Id;
       Config : Boolean;
@@ -649,13 +649,13 @@ package Erroutc is
    --  This is called in response to the two argument form of pragma Warnings
    --  where the first argument is OFF, and the second argument is a string
    --  which identifies a specific warning to be suppressed. The first argument
-   --  is the start of the suppression range, and the second argument is the
-   --  string from the pragma. Loc is the location of the pragma (which is the
-   --  start of the range to suppress). Reason is the reason string from the
-   --  pragma, or the null string if no reason is given. Config is True for the
-   --  configuration pragma case (where there is no requirement for a matching
-   --  OFF pragma). Used is set True to disable the check that the warning
-   --  actually has the effect of suppressing a warning.
+   --  is the corresponding N_Pragma node, and the second argument is the
+   --  string from the pragma. Sloc (Node) is the start of the range to
+   --  suppress. Reason is the reason string from the pragma, or the null
+   --  string if no reason is given. Config is True for the configuration
+   --  pragma case (where there is no requirement for a matching OFF pragma).
+   --  Used is set True to disable the check that the warning actually has the
+   --  effect of suppressing a warning.
 
    procedure Set_Specific_Warning_On
      (Loc : Source_Ptr;
@@ -706,12 +706,5 @@ package Erroutc is
    --  Returns True if the warning message Msg matches any of the strings
    --  given by Warning_As_Error pragmas, as stored in the Warnings_As_Errors
    --  table.
-
-   type Error_Msg_Proc is
-     access procedure (Msg : String; Flag_Location : Source_Ptr);
-   procedure Validate_Specific_Warnings (Eproc : Error_Msg_Proc);
-   --  Checks that specific warnings are consistent (for non-configuration
-   --  case, properly closed, and used). The argument is a pointer to the
-   --  Error_Msg procedure to be called if any inconsistencies are detected.
 
 end Erroutc;

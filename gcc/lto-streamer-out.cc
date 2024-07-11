@@ -1,6 +1,6 @@
 /* Write the GIMPLE representation to a file stream.
 
-   Copyright (C) 2009-2023 Free Software Foundation, Inc.
+   Copyright (C) 2009-2024 Free Software Foundation, Inc.
    Contributed by Kenneth Zadeck <zadeck@naturalbridge.com>
    Re-implemented by Diego Novillo <dnovillo@google.com>
 
@@ -487,8 +487,6 @@ stream_write_tree_ref (struct output_block *ob, tree t)
 	    gcc_checking_assert (tag == LTO_global_stream_ref);
 	  streamer_write_hwi (ob, -(int)(ix * 2 + id + 1));
 	}
-      if (streamer_debugging)
-	streamer_write_uhwi (ob, TREE_CODE (t));
     }
 }
 
@@ -1373,7 +1371,7 @@ hash_tree (struct streamer_tree_cache_d *cache, hash_map<tree, hashval_t> *map, 
       if (AGGREGATE_TYPE_P (t))
 	hstate.add_flag (TYPE_TYPELESS_STORAGE (t));
       hstate.commit_flag ();
-      hstate.add_int (TYPE_PRECISION (t));
+      hstate.add_int (TYPE_PRECISION_RAW (t));
       hstate.add_int (TYPE_ALIGN (t));
       hstate.add_int (TYPE_EMPTY_P (t));
     }
@@ -1839,9 +1837,6 @@ lto_output_tree (struct output_block *ob, tree expr,
 	 will instantiate two different nodes for the same object.  */
       streamer_write_record_start (ob, LTO_tree_pickle_reference);
       streamer_write_uhwi (ob, ix);
-      if (streamer_debugging)
-	streamer_write_enum (ob->main_stream, LTO_tags, LTO_NUM_TAGS,
-			     lto_tree_code_to_tag (TREE_CODE (expr)));
       lto_stats.num_pickle_refs_output++;
     }
   else
@@ -1882,9 +1877,6 @@ lto_output_tree (struct output_block *ob, tree expr,
 	    }
 	  streamer_write_record_start (ob, LTO_tree_pickle_reference);
 	  streamer_write_uhwi (ob, ix);
-	  if (streamer_debugging)
-	    streamer_write_enum (ob->main_stream, LTO_tags, LTO_NUM_TAGS,
-				 lto_tree_code_to_tag (TREE_CODE (expr)));
 	}
       in_dfs_walk = false;
       lto_stats.num_pickle_refs_output++;
@@ -2173,13 +2165,26 @@ output_cfg (struct output_block *ob, struct function *fn)
 			   loop_estimation, EST_LAST, loop->estimate_state);
       streamer_write_hwi (ob, loop->any_upper_bound);
       if (loop->any_upper_bound)
-	streamer_write_widest_int (ob, loop->nb_iterations_upper_bound);
+	{
+	  widest_int w = widest_int::from (loop->nb_iterations_upper_bound,
+					   SIGNED);
+	  streamer_write_widest_int (ob, w);
+	}
       streamer_write_hwi (ob, loop->any_likely_upper_bound);
       if (loop->any_likely_upper_bound)
-	streamer_write_widest_int (ob, loop->nb_iterations_likely_upper_bound);
+	{
+	  widest_int w
+	    = widest_int::from (loop->nb_iterations_likely_upper_bound,
+				SIGNED);
+	  streamer_write_widest_int (ob, w);
+	}
       streamer_write_hwi (ob, loop->any_estimate);
       if (loop->any_estimate)
-	streamer_write_widest_int (ob, loop->nb_iterations_estimate);
+	{
+	  widest_int w = widest_int::from (loop->nb_iterations_estimate,
+					   SIGNED);
+	  streamer_write_widest_int (ob, w);
+	}
 
       /* Write OMP SIMD related info.  */
       streamer_write_hwi (ob, loop->safelen);
@@ -3196,6 +3201,11 @@ lto_write_mode_table (void)
 	if (inner_m != m)
 	  streamer_mode_table[(int) inner_m] = 1;
       }
+
+  /* Pack the mode_bits value within 5 bits (up to 31) in the beginning.  */
+  unsigned mode_bits = ceil_log2 (MAX_MACHINE_MODE);
+  bp_pack_value (&bp, mode_bits, 5);
+
   /* First stream modes that have GET_MODE_INNER (m) == m,
      so that we can refer to them afterwards.  */
   for (int pass = 0; pass < 2; pass++)
@@ -3205,11 +3215,11 @@ lto_write_mode_table (void)
 	  machine_mode m = (machine_mode) i;
 	  if ((GET_MODE_INNER (m) == m) ^ (pass == 0))
 	    continue;
-	  bp_pack_value (&bp, m, 8);
+	  bp_pack_value (&bp, m, mode_bits);
 	  bp_pack_enum (&bp, mode_class, MAX_MODE_CLASS, GET_MODE_CLASS (m));
 	  bp_pack_poly_value (&bp, GET_MODE_SIZE (m), 16);
 	  bp_pack_poly_value (&bp, GET_MODE_PRECISION (m), 16);
-	  bp_pack_value (&bp, GET_MODE_INNER (m), 8);
+	  bp_pack_value (&bp, GET_MODE_INNER (m), mode_bits);
 	  bp_pack_poly_value (&bp, GET_MODE_NUNITS (m), 16);
 	  switch (GET_MODE_CLASS (m))
 	    {
@@ -3229,7 +3239,7 @@ lto_write_mode_table (void)
 	    }
 	  bp_pack_string (ob, &bp, GET_MODE_NAME (m), true);
 	}
-  bp_pack_value (&bp, VOIDmode, 8);
+  bp_pack_value (&bp, VOIDmode, mode_bits);
 
   streamer_write_bitpack (&bp);
 

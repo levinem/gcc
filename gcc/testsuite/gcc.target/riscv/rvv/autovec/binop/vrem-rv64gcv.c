@@ -1,9 +1,16 @@
 /* { dg-do compile } */
-/* { dg-additional-options "-std=c99 -fno-vect-cost-model -march=rv64gcv -mabi=lp64d --param=riscv-autovec-preference=fixed-vlmax" } */
+/* { dg-additional-options "-std=c99 -fno-vect-cost-model -march=rv64gcv -mabi=lp64d -mrvv-vector-bits=zvl -fdump-tree-optimized-details" } */
 
 #include "vrem-template.h"
 
-/* TODO: Implement vector type promotion.  We should have 6 vrem.vv here.  */
-
-/* { dg-final { scan-assembler-times {\tvrem\.vv} 5 } } */
-/* { dg-final { scan-assembler-times {\tvremu\.vv} 6 } } */
+/* { dg-final { scan-assembler-times {\tvrem\.vv} 4 } } */
+/* { dg-final { scan-assembler-times {\tvrem\.vx} 4 } } */
+/* { dg-final { scan-assembler-times {\tvremu\.vv} 4 } } */
+/* { dg-final { scan-assembler-times {\tvremu\.vx} 4 } } */
+/* { dg-final { scan-tree-dump-times "\.COND_LEN_MOD" 16 "optimized" } } */
+/* { dg-final { scan-assembler-not {\tvmv1r\.v} } } */
+/* { dg-final { scan-assembler-not {\tvmv2r\.v} } } */
+/* { dg-final { scan-assembler-not {\tvmv4r\.v} } } */
+/* { dg-final { scan-assembler-not {\tvmv8r\.v} } } */
+/* { dg-final { scan-assembler-not {\tvmv\.v\.v} } } */
+/* { dg-final { scan-assembler-not {\tvmv\.v\.i} } } */

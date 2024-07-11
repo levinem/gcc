@@ -1,5 +1,5 @@
 /* Classes for representing locations within the program.
-   Copyright (C) 2019-2023 Free Software Foundation, Inc.
+   Copyright (C) 2019-2024 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -20,6 +20,7 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "config.h"
 #define INCLUDE_MEMORY
+#define INCLUDE_VECTOR
 #include "system.h"
 #include "coretypes.h"
 #include "tree.h"
@@ -230,7 +231,7 @@ function_point::final_stmt_p () const
 /* Create a function_point representing the entrypoint of function FUN.  */
 
 function_point
-function_point::from_function_entry (const supergraph &sg, function *fun)
+function_point::from_function_entry (const supergraph &sg, const function &fun)
 {
   return before_supernode (sg.get_node_for_function_entry (fun), NULL);
 }
@@ -256,8 +257,8 @@ public:
   debug_diagnostic_context ()
   {
     diagnostic_initialize (this, 0);
-    show_line_numbers_p = true;
-    show_caret = true;
+    m_source_printing.show_line_numbers_p = true;
+    m_source_printing.enabled = true;
   }
   ~debug_diagnostic_context ()
   {
@@ -301,7 +302,7 @@ program_point::dump () const
 {
   pretty_printer pp;
   pp_show_color (&pp) = pp_show_color (global_dc->printer);
-  pp.buffer->stream = stderr;
+  pp.set_output_stream (stderr);
   print (&pp, format (true));
   pp_flush (&pp);
 }
@@ -426,9 +427,22 @@ program_point::on_edge (exploded_graph &eg,
       {
 	const cfg_superedge *cfg_sedge = as_a <const cfg_superedge *> (succ);
 
-	/* Reject abnormal edges; we special-case setjmp/longjmp.  */
 	if (cfg_sedge->get_flags () & EDGE_ABNORMAL)
-	  return false;
+	  {
+	    const supernode *src_snode = cfg_sedge->m_src;
+	    if (gimple *last_stmt = src_snode->get_last_stmt ())
+	      if (last_stmt->code == GIMPLE_GOTO)
+		{
+		  /* For the program_point aspect here, consider all
+		     out-edges from goto stmts to be valid; we'll
+		     consider state separately.  */
+		  return true;
+		}
+
+	    /* Reject other kinds of abnormal edges;
+	       we special-case setjmp/longjmp.  */
+	    return false;
+	  }
       }
       break;
 
@@ -685,7 +699,7 @@ program_point::origin (const region_model_manager &mgr)
 program_point
 program_point::from_function_entry (const region_model_manager &mgr,
 				    const supergraph &sg,
-				    function *fun)
+				    const function &fun)
 {
   return program_point (function_point::from_function_entry (sg, fun),
 			mgr.get_empty_call_string ());

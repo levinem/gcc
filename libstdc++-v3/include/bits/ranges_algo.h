@@ -1,6 +1,6 @@
 // Core algorithmic facilities -*- C++ -*-
 
-// Copyright (C) 2020-2023 Free Software Foundation, Inc.
+// Copyright (C) 2020-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -39,7 +39,7 @@
 #include <bits/ranges_util.h>
 #include <bits/uniform_int_dist.h> // concept uniform_random_bit_generator
 
-#if __cpp_lib_concepts
+#if __glibcxx_concepts
 namespace std _GLIBCXX_VISIBILITY(default)
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
@@ -3465,10 +3465,7 @@ namespace ranges
 
   inline constexpr __prev_permutation_fn prev_permutation{};
 
-#if __cplusplus > 202002L
-
-#define __cpp_lib_ranges_contains 202207L
-
+#if __glibcxx_ranges_contains >= 202207L // C++ >= 23
   struct __contains_fn
   {
     template<input_iterator _Iter, sentinel_for<_Iter> _Sent,
@@ -3522,57 +3519,9 @@ namespace ranges
 
   inline constexpr __contains_subrange_fn contains_subrange{};
 
-#define __cpp_lib_ranges_iota 202202L
+#endif // __glibcxx_ranges_contains
 
-  template<typename _Out, typename _Tp>
-    struct out_value_result
-    {
-      [[no_unique_address]] _Out out;
-      [[no_unique_address]] _Tp value;
-
-      template<typename _Out2, typename _Tp2>
-	requires convertible_to<const _Out&, _Out2>
-	  && convertible_to<const _Tp&, _Tp2>
-	constexpr
-	operator out_value_result<_Out2, _Tp2>() const &
-	{ return {out, value}; }
-
-      template<typename _Out2, typename _Tp2>
-	requires convertible_to<_Out, _Out2>
-	  && convertible_to<_Tp, _Tp2>
-	constexpr
-	operator out_value_result<_Out2, _Tp2>() &&
-	{ return {std::move(out), std::move(value)}; }
-    };
-
-  template<typename _Out, typename _Tp>
-    using iota_result = out_value_result<_Out, _Tp>;
-
-  struct __iota_fn
-  {
-    template<input_or_output_iterator _Out, sentinel_for<_Out> _Sent, weakly_incrementable _Tp>
-      requires indirectly_writable<_Out, const _Tp&>
-      constexpr iota_result<_Out, _Tp>
-      operator()(_Out __first, _Sent __last, _Tp __value) const
-      {
-	while (__first != __last)
-	  {
-	    *__first = static_cast<const _Tp&>(__value);
-	    ++__first;
-	    ++__value;
-	  }
-	return {std::move(__first), std::move(__value)};
-      }
-
-    template<weakly_incrementable _Tp, output_range<const _Tp&> _Range>
-      constexpr iota_result<borrowed_iterator_t<_Range>, _Tp>
-      operator()(_Range&& __r, _Tp __value) const
-      { return (*this)(ranges::begin(__r), ranges::end(__r), std::move(__value)); }
-  };
-
-  inline constexpr __iota_fn iota{};
-
-#define __cpp_lib_ranges_find_last 202207L
+#if __glibcxx_ranges_find_last >= 202207L // C++ >= 23
 
   struct __find_last_fn
   {
@@ -3700,7 +3649,9 @@ namespace ranges
 
   inline constexpr __find_last_if_not_fn find_last_if_not{};
 
-#define __cpp_lib_ranges_fold 202207L
+#endif // __glibcxx_ranges_find_last
+
+#if __glibcxx_ranges_fold >= 202207L // C++ >= 23
 
   template<typename _Iter, typename _Tp>
     struct in_value_result
@@ -3947,10 +3898,9 @@ namespace ranges
   };
 
   inline constexpr __fold_right_last_fn fold_right_last{};
-#endif // C++23
+#endif // __glibcxx_ranges_fold
 } // namespace ranges
 
-#define __cpp_lib_shift 201806L
   template<typename _ForwardIterator>
     constexpr _ForwardIterator
     shift_left(_ForwardIterator __first, _ForwardIterator __last,

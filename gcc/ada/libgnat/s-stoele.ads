@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2002-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 2002-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- This specification is derived from the Ada Reference Manual for use with --
 -- GNAT. The copyright notice above, and the license provisions that follow --
@@ -37,20 +37,18 @@
 --  extra declarations that can be introduced into System using Extend_System.
 --  It is a good idea to avoid use clauses for this package.
 
-package System.Storage_Elements is
+package System.Storage_Elements with
+  Always_Terminates
+is
    pragma Pure;
    --  Note that we take advantage of the implementation permission to make
    --  this unit Pure instead of Preelaborable; see RM 13.7.1(15). In Ada 2005,
    --  this is Pure in any case (AI-362).
 
-   pragma Annotate (GNATprove, Always_Return, Storage_Elements);
+   pragma No_Elaboration_Code_All;
+   --  Allow the use of that restriction in units that WITH this unit
 
-   type Storage_Offset is range
-     -(2 ** (Integer'(Standard'Address_Size) - 1)) ..
-     +(2 ** (Integer'(Standard'Address_Size) - 1)) - Long_Long_Integer'(1);
-   --  Note: the reason for the Long_Long_Integer qualification here is to
-   --  avoid a bogus ambiguity when this unit is analyzed in an rtsfind
-   --  context.
+   type Storage_Offset is range -Memory_Size / 2 .. Memory_Size / 2 - 1;
 
    subtype Storage_Count is Storage_Offset range 0 .. Storage_Offset'Last;
 

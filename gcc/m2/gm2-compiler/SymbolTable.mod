@@ -1,6 +1,6 @@
 (* SymbolTable.mod provides access to the symbol table.
 
-Copyright (C) 2001-2023 Free Software Foundation, Inc.
+Copyright (C) 2001-2024 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -28,11 +28,16 @@ FROM M2Debug IMPORT Assert ;
 FROM libc IMPORT printf ;
 
 IMPORT Indexing ;
-FROM Indexing IMPORT InitIndex, InBounds, LowIndice, HighIndice, PutIndice, GetIndice ;
+
+FROM Indexing IMPORT InitIndex, InBounds, LowIndice, HighIndice,
+                     PutIndice, GetIndice, InitIndexTuned ;
+
 FROM Sets IMPORT Set, InitSet, IncludeElementIntoSet, IsElementInSet ;
 FROM m2linemap IMPORT location_t ;
 
-FROM M2Options IMPORT Pedantic, ExtendedOpaque, DebugFunctionLineNumbers, ScaffoldDynamic ;
+FROM M2Options IMPORT Pedantic, ExtendedOpaque,
+                      GetDebugFunctionLineNumbers, ScaffoldDynamic,
+                      DebugBuiltins ;
 
 FROM M2LexBuf IMPORT UnknownTokenNo, TokenToLineNo,
                      FindFileNameFromToken, TokenToLocation ;
@@ -76,10 +81,11 @@ FROM M2Base IMPORT MixTypes, InitBase, Char, Integer, LongReal,
                    Cardinal, LongInt, LongCard, ZType, RType ;
 
 FROM M2System IMPORT Address ;
-FROM m2decl IMPORT ConstantStringExceedsZType ;
+FROM m2expr IMPORT OverflowZType ;
 FROM m2tree IMPORT Tree ;
 FROM m2linemap IMPORT BuiltinsLocation ;
 FROM StrLib IMPORT StrEqual ;
+FROM m2builtins IMPORT BuiltinExists ;
 
 FROM M2Comp IMPORT CompilingDefinitionModule,
                    CompilingImplementationModule ;
@@ -87,11 +93,18 @@ FROM M2Comp IMPORT CompilingDefinitionModule,
 FROM FormatStrings IMPORT HandleEscape ;
 FROM M2Scaffold IMPORT DeclareArgEnvParams ;
 
+FROM M2SymInit IMPORT InitDesc, InitSymInit, GetInitialized, ConfigSymInit,
+                      SetInitialized, SetFieldInitialized, GetFieldInitialized,
+                      PrintSymInit ;
+
 IMPORT Indexing ;
 
 
 CONST
-   DebugUnknowns        =  FALSE ;
+   DebugUnknowns        =  FALSE ;   (* Debug unknown symbols.  *)
+   DebugUnknownToken    =  FALSE ;   (* If enabled it will generate a warning every
+                                        time a symbol is created with an unknown
+                                        location.  *)
 
    (*
       The Unbounded is a pseudo type used within the compiler
@@ -107,6 +120,8 @@ CONST
    UnboundedAddressName = "_m2_contents" ;
    UnboundedHighName    = "_m2_high_%d" ;
 
+   BreakSym             = 8496 ;
+
 TYPE
    ConstLitPoolEntry = POINTER TO RECORD
                                      sym      : CARDINAL ;
@@ -117,6 +132,8 @@ TYPE
                                   END ;
 
    LRLists = ARRAY [RightValue..LeftValue] OF List ;
+
+   LRInitDesc = ARRAY [RightValue..LeftValue] OF InitDesc ;
 
    TypeOfSymbol = (RecordSym, VarientSym, DummySym,
                    VarSym, EnumerationSym, SubrangeSym, ArraySym,
@@ -142,9 +159,10 @@ TYPE
                 END ;
 
    PtrToAsmConstraint = POINTER TO RECORD
-                                      name: Name ;
-                                      str : CARDINAL ;   (* regnames or constraints     *)
-                                      obj : CARDINAL ;   (* list of M2 syms             *)
+                                      tokpos: CARDINAL ;
+                                      name  : Name ;
+                                      str   : CARDINAL ;   (* regnames or constraints     *)
+                                      obj   : CARDINAL ;   (* list of M2 syms             *)
                                    END ;
 
    ModuleCtor = RECORD
@@ -272,6 +290,7 @@ TYPE
                     Size        : PtrToValue ; (* Size of subrange type.      *)
                     Type        : CARDINAL ;   (* Index to type symbol for    *)
                                                (* the type of subrange.       *)
+                    Align       : CARDINAL ;   (* Alignment for this type.    *)
                     ConstLitTree: SymbolTree ; (* constants of this type.     *)
                     packedInfo  : PackedInfo ; (* the equivalent packed type  *)
                     oafamily    : CARDINAL ;   (* The oafamily for this sym   *)
@@ -285,7 +304,8 @@ TYPE
                                               (* of enumeration.             *)
                    NoOfElements: CARDINAL ;   (* No elements in enumeration  *)
                    LocalSymbols: SymbolTree ; (* Contains all enumeration    *)
-                                              (* fields.                     *)
+                                              (* fields (alphabetical).      *)
+                   ListOfFields: List ;       (* Ordered as declared.        *)
                    Size        : PtrToValue ; (* Size at runtime of symbol.  *)
                    packedInfo  : PackedInfo ; (* the equivalent packed type  *)
                    oafamily    : CARDINAL ;   (* The oafamily for this sym   *)
@@ -387,6 +407,7 @@ TYPE
                SavePriority  : BOOLEAN ;    (* Does procedure need to save   *)
                                             (* and restore interrupts?       *)
                ReturnType    : CARDINAL ;   (* Return type for function.     *)
+               ProcedureType : CARDINAL ;   (* Proc type for this procedure. *)
                Offset        : CARDINAL ;   (* Location of procedure used    *)
                                             (* in Pass 2 and if procedure    *)
                                             (* is a syscall.                 *)
@@ -436,7 +457,7 @@ TYPE
                  name          : Name ;       (* Index into name array, name *)
                                               (* of param.                   *)
                  Type          : CARDINAL ;   (* Index to the type of param. *)
-                 IsUnbounded   : BOOLEAN ;    (* ARRAY OF Type?              *)
+                 IsUnbounded   : BOOLEAN ;    (* Is it an ARRAY OF Type?     *)
                  ShadowVar     : CARDINAL ;   (* The local variable used to  *)
                                               (* shadow this parameter.      *)
                  At            : Where ;      (* Where was sym declared/used *)
@@ -446,7 +467,10 @@ TYPE
                     name          : Name ;    (* Index into name array, name *)
                                               (* of param.                   *)
                     Type          : CARDINAL ;(* Index to the type of param. *)
-                    IsUnbounded   : BOOLEAN ; (* ARRAY OF Type?              *)
+                    IsUnbounded   : BOOLEAN ; (* Is it an ARRAY OF Type?     *)
+                    HeapVar       : CARDINAL ;(* The pointer value on heap.  *)
+                                              (* Only used by static         *)
+                                              (* analysis.                   *)
                     ShadowVar     : CARDINAL ;(* The local variable used to  *)
                                               (* shadow this parameter.      *)
                     At            : Where ;   (* Where was sym declared/used *)
@@ -460,11 +484,8 @@ TYPE
                                                   (* of const.                   *)
                     Contents       : Name ;       (* Contents of the string.     *)
                     Length         : CARDINAL ;   (* StrLen (Contents)           *)
-                    M2Variant,
-                    NulM2Variant,
-                    CVariant,
-                    NulCVariant    : CARDINAL ;   (* variants of the same string *)
                     StringVariant  : ConstStringVariant ;
+                    Known          : BOOLEAN ;    (* Is Contents known?          *)
                     Scope          : CARDINAL ;   (* Scope of declaration.       *)
                     At             : Where ;      (* Where was sym declared/used *)
                  END ;
@@ -475,7 +496,8 @@ TYPE
                     Value        : PtrToValue ;   (* Value of the constant.      *)
                     Type         : CARDINAL ;     (* TYPE of constant, char etc  *)
                     IsSet        : BOOLEAN ;      (* is the constant a set?      *)
-                    IsConstructor: BOOLEAN ;      (* is the constant a set?      *)
+                    IsConstructor: BOOLEAN ;      (* is it a constructor?        *)
+                    IsInternal   : BOOLEAN ;      (* Generated internally?       *)
                     FromType     : CARDINAL ;     (* type is determined FromType *)
                     RangeError   : BOOLEAN ;      (* Have we reported an error?  *)
                     UnresFromType: BOOLEAN ;      (* is Type unresolved?         *)
@@ -488,6 +510,8 @@ TYPE
                                               (* of const.                   *)
                     Value        : PtrToValue ; (* Value of the constant     *)
                     Type         : CARDINAL ; (* TYPE of constant, char etc  *)
+                    IsConditional,            (* Is it the result of a       *)
+                                              (* boolean conditional?        *)
                     IsSet        : BOOLEAN ;  (* is the constant a set?      *)
                     IsConstructor: BOOLEAN ;  (* is the constant a set?      *)
                     FromType     : CARDINAL ; (* type is determined FromType *)
@@ -511,6 +535,7 @@ TYPE
                IsComponentRef: BOOLEAN ;      (* Is temporary referencing a  *)
                                               (* record field?               *)
                list          : Indexing.Index ;  (* the record and fields    *)
+               IsConditional,
                IsTemp        : BOOLEAN ;      (* Is variable a temporary?    *)
                IsParam       : BOOLEAN ;      (* Is variable a parameter?    *)
                IsPointerCheck: BOOLEAN ;      (* Is variable used to         *)
@@ -518,6 +543,10 @@ TYPE
                IsWritten     : BOOLEAN ;      (* Is variable written to?     *)
                IsSSA         : BOOLEAN ;      (* Is variable a SSA?          *)
                IsConst       : BOOLEAN ;      (* Is variable read/only?      *)
+               ArrayRef      : BOOLEAN ;      (* Is variable used to point   *)
+                                              (* to an array?                *)
+               Heap          : BOOLEAN ;      (* Is var on the heap?         *)
+               InitState     : LRInitDesc ;   (* Initialization state.       *)
                At            : Where ;        (* Where was sym declared/used *)
                ReadUsageList,                 (* list of var read quads      *)
                WriteUsageList: LRLists ;      (* list of var write quads     *)
@@ -856,9 +885,6 @@ VAR
    FreeSymbol    : CARDINAL ;         (* The next free symbol indice.       *)
    DefModuleTree : SymbolTree ;
    ModuleTree    : SymbolTree ;       (* Tree of all modules ever used.     *)
-   ConstLitStringTree
-                 : SymbolTree ;       (* String Literal Constants only need *)
-                                      (* to be declared once.               *)
    CurrentModule : CARDINAL ;         (* Index into symbols determining the *)
                                       (* current module being compiled.     *)
                                       (* This maybe an inner module.        *)
@@ -905,12 +931,12 @@ VAR
 
 PROCEDURE CheckAnonymous (name: Name) : Name ;
 BEGIN
-   IF name=NulName
+   IF name = NulName
    THEN
-      INC(AnonymousName) ;
-      name := makekey(string(Mark(Sprintf1(Mark(InitString('$$%d')), AnonymousName))))
+      INC (AnonymousName) ;
+      name := makekey (string (Mark (Sprintf1 (Mark (InitString ('__anon%d')), AnonymousName))))
    END ;
-   RETURN( name )
+   RETURN name
 END CheckAnonymous ;
 
 
@@ -921,7 +947,7 @@ END CheckAnonymous ;
 
 PROCEDURE IsNameAnonymous (sym: CARDINAL) : BOOLEAN ;
 VAR
-   a: ARRAY [0..1] OF CHAR ;
+   a: ARRAY [0..5] OF CHAR ;
    n: Name ;
 BEGIN
    n := GetSymName(sym) ;
@@ -930,7 +956,7 @@ BEGIN
       RETURN( TRUE )
    ELSE
       GetKey(n, a) ;
-      RETURN( StrEqual(a, '$$') )
+      RETURN( StrEqual(a, '__anon') )
    END
 END IsNameAnonymous ;
 
@@ -998,6 +1024,14 @@ END FinalSymbol ;
 
 
 (*
+   stop - a debugger convenience hook.
+*)
+
+PROCEDURE stop ;
+END stop ;
+
+
+(*
    NewSym - Sets Sym to a new symbol index.
 *)
 
@@ -1011,6 +1045,10 @@ BEGIN
       SymbolType := DummySym
    END ;
    PutIndice(Symbols, sym, pSym) ;
+   IF sym = BreakSym
+   THEN
+      stop
+   END ;
    INC(FreeSymbol)
 END NewSym ;
 
@@ -1343,7 +1381,7 @@ END DebugProcedureLineNumber ;
 
 PROCEDURE DebugLineNumbers (sym: CARDINAL) ;
 BEGIN
-   IF DebugFunctionLineNumbers
+   IF GetDebugFunctionLineNumbers ()
    THEN
       printf0 ('<lines>\n') ;
       ForeachProcedureDo(sym, DebugProcedureLineNumber) ;
@@ -1616,10 +1654,9 @@ BEGIN
    AnonymousName := 0 ;
    CurrentError := NIL ;
    InitTree (ConstLitPoolTree) ;
-   InitTree (ConstLitStringTree) ;
    InitTree (DefModuleTree) ;
    InitTree (ModuleTree) ;
-   Symbols := InitIndex (1) ;
+   Symbols := InitIndexTuned (1, 1024*1024 DIV 16, 16) ;
    ConstLitArray := InitIndex (1) ;
    FreeSymbol := 1 ;
    ScopePtr := 1 ;
@@ -2336,6 +2373,46 @@ END IsDeclaredIn ;
 
 
 (*
+   SetFirstUsed - assigns the FirstUsed field in at to tok providing
+                  it has not already been set.
+*)
+
+PROCEDURE SetFirstUsed (tok: CARDINAL; VAR at: Where) ;
+BEGIN
+   IF at.FirstUsed = UnknownTokenNo
+   THEN
+      at.FirstUsed := tok
+   END
+END SetFirstUsed ;
+
+
+(*
+   PutFirstUsed - sets tok to the first used providing it has not already been set.
+                  It also includes the read and write quad into the usage list
+                  providing the quad numbers are not 0.
+*)
+
+PROCEDURE PutFirstUsed (object: CARDINAL; tok: CARDINAL; read, write: CARDINAL) ;
+VAR
+   pSym: PtrToSymbol ;
+BEGIN
+   IF IsVar (object)
+   THEN
+      pSym := GetPsym (object) ;
+      SetFirstUsed (tok, pSym^.Var.At) ;
+      IF read # 0
+      THEN
+         PutReadQuad (object, GetMode (object), read)
+      END ;
+      IF write # 0
+      THEN
+         PutWriteQuad (object, GetMode (object), write)
+      END
+   END
+END PutFirstUsed ;
+
+
+(*
    MakeGnuAsm - create a GnuAsm symbol.
 *)
 
@@ -2345,12 +2422,12 @@ VAR
    Sym : CARDINAL ;
 BEGIN
    NewSym(Sym) ;
-   pSym := GetPsym(Sym) ;
+   pSym := GetPsym (Sym) ;
    WITH pSym^ DO
       SymbolType := GnuAsmSym ;
       WITH GnuAsm DO
          String   := NulSym ;
-         InitWhereDeclared(At) ;
+         InitWhereDeclared (At) ;
          Inputs   := NulSym ;
          Outputs  := NulSym ;
          Trashed  := NulSym ;
@@ -2370,7 +2447,7 @@ PROCEDURE PutGnuAsm (sym: CARDINAL; string: CARDINAL) ;
 VAR
    pSym: PtrToSymbol ;
 BEGIN
-   Assert(IsConstString(string)) ;
+   Assert (IsConstString (string)) ;
    pSym := GetPsym(sym) ;
    WITH pSym^ DO
       CASE SymbolType OF
@@ -2397,7 +2474,7 @@ BEGIN
    WITH pSym^ DO
       CASE SymbolType OF
 
-      GnuAsmSym: RETURN( GnuAsm.String )
+      GnuAsmSym: RETURN GnuAsm.String
 
       ELSE
          InternalError ('expecting GnuAsm symbol')
@@ -2435,7 +2512,7 @@ PROCEDURE PutGnuAsmInput (sym: CARDINAL; in: CARDINAL) ;
 VAR
    pSym: PtrToSymbol ;
 BEGIN
-   pSym := GetPsym(sym) ;
+   pSym := GetPsym (sym) ;
    WITH pSym^ DO
       CASE SymbolType OF
 
@@ -2456,7 +2533,7 @@ PROCEDURE PutGnuAsmTrash (sym: CARDINAL; trash: CARDINAL) ;
 VAR
    pSym: PtrToSymbol ;
 BEGIN
-   pSym := GetPsym(sym) ;
+   pSym := GetPsym (sym) ;
    WITH pSym^ DO
       CASE SymbolType OF
 
@@ -2477,11 +2554,11 @@ PROCEDURE GetGnuAsmInput (sym: CARDINAL) : CARDINAL ;
 VAR
    pSym: PtrToSymbol ;
 BEGIN
-   pSym := GetPsym(sym) ;
+   pSym := GetPsym (sym) ;
    WITH pSym^ DO
       CASE SymbolType OF
 
-      GnuAsmSym: RETURN( GnuAsm.Inputs )
+      GnuAsmSym: RETURN GnuAsm.Inputs
 
       ELSE
          InternalError ('expecting PutGnuAsm symbol')
@@ -2498,11 +2575,11 @@ PROCEDURE GetGnuAsmOutput (sym: CARDINAL) : CARDINAL ;
 VAR
    pSym: PtrToSymbol ;
 BEGIN
-   pSym := GetPsym(sym) ;
+   pSym := GetPsym (sym) ;
    WITH pSym^ DO
       CASE SymbolType OF
 
-      GnuAsmSym: RETURN( GnuAsm.Outputs )
+      GnuAsmSym: RETURN GnuAsm.Outputs
 
       ELSE
          InternalError ('expecting PutGnuAsm symbol')
@@ -2519,11 +2596,11 @@ PROCEDURE GetGnuAsmTrash (sym: CARDINAL) : CARDINAL ;
 VAR
    pSym: PtrToSymbol ;
 BEGIN
-   pSym := GetPsym(sym) ;
+   pSym := GetPsym (sym) ;
    WITH pSym^ DO
       CASE SymbolType OF
 
-      GnuAsmSym: RETURN( GnuAsm.Trashed )
+      GnuAsmSym: RETURN GnuAsm.Trashed
 
       ELSE
          InternalError ('expecting PutGnuAsm symbol')
@@ -2540,7 +2617,7 @@ PROCEDURE PutGnuAsmVolatile (Sym: CARDINAL) ;
 VAR
    pSym: PtrToSymbol ;
 BEGIN
-   pSym := GetPsym(Sym) ;
+   pSym := GetPsym (Sym) ;
    WITH pSym^ DO
       CASE SymbolType OF
 
@@ -2561,7 +2638,7 @@ PROCEDURE PutGnuAsmSimple (Sym: CARDINAL) ;
 VAR
    pSym: PtrToSymbol ;
 BEGIN
-   pSym := GetPsym(Sym) ;
+   pSym := GetPsym (Sym) ;
    WITH pSym^ DO
       CASE SymbolType OF
 
@@ -2583,13 +2660,13 @@ VAR
    pSym: PtrToSymbol ;
    Sym : CARDINAL ;
 BEGIN
-   NewSym(Sym) ;
-   pSym := GetPsym(Sym) ;
+   NewSym (Sym) ;
+   pSym := GetPsym (Sym) ;
    WITH pSym^ DO
       SymbolType := InterfaceSym ;
       WITH Interface DO
-         Parameters := InitIndex(1) ;
-         InitWhereDeclared(At)
+         Parameters := InitIndex (1) ;
+         InitWhereDeclared (At)
       END
    END ;
    RETURN( Sym )
@@ -2601,9 +2678,13 @@ END MakeRegInterface ;
                      sym, at position, i.
                      The string symbol will either be a register name or a constraint.
                      The object is an optional Modula-2 variable or constant symbol.
+                     read and write are the quadruple numbers representing any read
+                     or write operation.
 *)
 
-PROCEDURE PutRegInterface (sym: CARDINAL; i: CARDINAL; n: Name; string, object: CARDINAL) ;
+PROCEDURE PutRegInterface (tok: CARDINAL;
+                           sym: CARDINAL; i: CARDINAL; n: Name; string, object: CARDINAL;
+                           read, write: CARDINAL) ;
 VAR
    pSym : PtrToSymbol ;
    p    : PtrToAsmConstraint ;
@@ -2623,10 +2704,12 @@ BEGIN
                        InternalError ('expecting to add parameters sequentially')
                     END ;
                     WITH p^ DO
-                       name := n ;
-                       str  := string ;
-                       obj  := object
-                    END
+                       tokpos := tok ;
+                       name   := n ;
+                       str    := string ;
+                       obj    := object
+                    END ;
+                    PutFirstUsed (object, tok, read, write)
 
       ELSE
          InternalError ('expecting Interface symbol')
@@ -2640,7 +2723,8 @@ END PutRegInterface ;
                      sym, from position, i.
 *)
 
-PROCEDURE GetRegInterface (sym: CARDINAL; i: CARDINAL; VAR n: Name; VAR string, object: CARDINAL) ;
+PROCEDURE GetRegInterface (sym: CARDINAL; i: CARDINAL;
+                           VAR tok: CARDINAL; VAR n: Name; VAR string, object: CARDINAL) ;
 VAR
    pSym: PtrToSymbol ;
    p   : PtrToAsmConstraint ;
@@ -2653,11 +2737,13 @@ BEGIN
                     THEN
                        p := Indexing.GetIndice(Interface.Parameters, i) ;
                        WITH p^ DO
+                          tok    := tokpos ;
                           n      := name ;
                           string := str ;
                           object := obj
                        END
                     ELSE
+                       tok    := UnknownTokenNo ;
                        n      := NulName ;
                        string := NulSym ;
                        object := NulSym
@@ -3189,6 +3275,29 @@ END GetModuleCtors ;
 
 
 (*
+   CheckTok - checks to see that tok is at a known location.  If not
+              it uses GetTokenNo as a fall back.
+*)
+
+PROCEDURE CheckTok (tok: CARDINAL; name: ARRAY OF CHAR) : CARDINAL ;
+VAR
+   s: String ;
+BEGIN
+   IF tok = UnknownTokenNo
+   THEN
+      tok := GetTokenNo () ;
+      IF DebugUnknownToken
+      THEN
+         s := InitString (name) ;
+         s := ConCat (s, InitString (' symbol {%W} has been created with an unknown token location')) ;
+         MetaErrorStringT0 (GetTokenNo (), s)
+      END
+   END ;
+   RETURN tok
+END CheckTok ;
+
+
+(*
    MakeModule - creates a module sym with ModuleName. It returns the
                 symbol index.
 *)
@@ -3199,6 +3308,7 @@ VAR
    pCall: PtrToCallFrame ;
    Sym  : CARDINAL ;
 BEGIN
+   (* tok := CheckTok (tok, 'module') ; *)
    (*
       Make a new symbol since we are at the outer scope level.
       DeclareSym examines the current scope level for any symbols
@@ -3568,7 +3678,7 @@ BEGIN
    (* We cannot use DeclareSym as it examines the current scope *)
    (* for any symbols which have the correct name, but are yet  *)
    (* undefined.  *)
-
+   (* tok := CheckTok (tok, 'defimp') ;  *)
    NewSym(Sym) ;
    pSym := GetPsym(Sym) ;
    WITH pSym^ DO
@@ -3816,6 +3926,7 @@ VAR
    pSym: PtrToSymbol ;
    Sym : CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'procedure') ;
    Sym := DeclareSym(tok, ProcedureName) ;
    IF NOT IsError(Sym)
    THEN
@@ -3865,6 +3976,8 @@ BEGIN
             SavePriority := FALSE ;      (* Does procedure need to save   *)
                                          (* and restore interrupts?       *)
             ReturnType := NulSym ;       (* Not a function yet!           *)
+                                         (* The ProcType equivalent.      *)
+            ProcedureType := MakeProcType (tok, NulName) ;
             Offset := 0 ;                (* Location of procedure.        *)
             InitTree(LocalSymbols) ;
             InitList(EnumerationScopeList) ;
@@ -3886,7 +3999,7 @@ BEGIN
                        := InitValue() ;  (* size of all parameters.       *)
             Begin := 0 ;                 (* token number for BEGIN        *)
             End := 0 ;                   (* token number for END          *)
-            InitWhereDeclaredTok(tok, At) ;  (* Where symbol declared.        *)
+            InitWhereDeclaredTok(tok, At) ;  (* Where the symbol was declared.  *)
             errorScope := GetCurrentErrorScope () ; (* Title error scope. *)
          END
       END ;
@@ -4196,6 +4309,7 @@ BEGIN
             Scope := GetCurrentScope() ;  (* Procedure or Module?  *)
             AtAddress := FALSE ;
             Address := NulSym ;           (* Address at which declared.  *)
+            IsConditional := FALSE ;
             IsTemp := FALSE ;
             IsComponentRef := FALSE ;
             IsParam := FALSE ;
@@ -4203,12 +4317,16 @@ BEGIN
             IsWritten := FALSE ;
             IsSSA := FALSE ;
             IsConst := FALSE ;
+            ArrayRef := FALSE ;
+            Heap := FALSE ;
             InitWhereDeclaredTok(tok, At) ;
             InitWhereFirstUsedTok(tok, At) ;   (* Where symbol first used.  *)
             InitList(ReadUsageList[RightValue]) ;
             InitList(WriteUsageList[RightValue]) ;
             InitList(ReadUsageList[LeftValue]) ;
-            InitList(WriteUsageList[LeftValue])
+            InitList(WriteUsageList[LeftValue]) ;
+            InitState[LeftValue] := InitSymInit () ;
+            InitState[RightValue] := InitSymInit ()
          END
       END ;
       (* Add Var to Procedure or Module variable list.  *)
@@ -4218,6 +4336,52 @@ BEGIN
    END ;
    RETURN Sym
 END MakeVar ;
+
+
+(*
+   PutVarConditional - assign IsConditional to value.
+*)
+
+PROCEDURE PutVarConditional (sym: CARDINAL; value: BOOLEAN) ;
+VAR
+   pSym: PtrToSymbol ;
+BEGIN
+   pSym := GetPsym(sym) ;
+   WITH pSym^ DO
+      CASE SymbolType OF
+
+      VarSym     : Var.IsConditional := value |
+      ConstVarSym: ConstVar.IsConditional := value
+
+      ELSE
+         InternalError ('expecting Var')
+      END
+   END
+END PutVarConditional ;
+
+
+(*
+   IsVarConditional - return TRUE if the symbol is a var symbol
+                      containing the result of a boolean conditional.
+*)
+
+PROCEDURE IsVarConditional (sym: CARDINAL) : BOOLEAN ;
+VAR
+   pSym: PtrToSymbol ;
+BEGIN
+   pSym := GetPsym(sym) ;
+   WITH pSym^ DO
+      CASE SymbolType OF
+
+      VarSym     : RETURN Var.IsConditional |
+      ConstVarSym: RETURN ConstVar.IsConditional
+
+      ELSE
+         RETURN FALSE
+      END
+   END ;
+   RETURN FALSE
+END IsVarConditional ;
 
 
 (*
@@ -4385,6 +4549,7 @@ PROCEDURE MakeRecord (tok: CARDINAL; RecordName: Name) : CARDINAL ;
 VAR
    oaf, sym: CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'record') ;
    sym := HandleHiddenOrDeclare (tok, RecordName, oaf) ;
    FillInRecordFields (tok, sym, RecordName, GetCurrentScope (), oaf) ;
    ForeachOAFamily (oaf, doFillInOAFamily) ;
@@ -4402,6 +4567,7 @@ VAR
    pSym: PtrToSymbol ;
    Sym : CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'varient') ;
    NewSym (Sym) ;
    pSym := GetPsym(Sym) ;
    WITH pSym^ DO
@@ -4551,6 +4717,7 @@ VAR
    pSym    : PtrToSymbol ;
    sym, oaf: CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'enumeration') ;
    sym := CheckForHiddenType (EnumerationName) ;
    IF sym=NulSym
    THEN
@@ -4577,6 +4744,7 @@ BEGIN
                                            (* enumeration type.      *)
             Size := InitValue () ;         (* Size at runtime of sym *)
             InitTree (LocalSymbols) ;      (* Enumeration fields.    *)
+            InitList (ListOfFields) ;      (* Ordered as declared.   *)
             InitPacked (packedInfo) ;      (* not packed and no      *)
                                            (* equivalent (yet).      *)
             oafamily := oaf ;              (* The open array family  *)
@@ -4641,6 +4809,7 @@ VAR
    pSym: PtrToSymbol ;
    Sym : CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'hidden') ;
    Sym := DeclareSym (tok, TypeName) ;
    IF NOT IsError(Sym)
    THEN
@@ -4753,6 +4922,7 @@ VAR
    str: String ;
    sym: CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'constant') ;
    str := Sprintf1 (Mark (InitString ("%d")), value) ;
    sym := MakeConstLit (tok, makekey (string (str)), Cardinal) ;
    str := KillString (str) ;
@@ -4787,6 +4957,8 @@ BEGIN
                     PopInto (ConstLit.Value) ;
                     ConstLit.Type := constType ;
                     ConstLit.IsSet := FALSE ;
+                    ConstLit.IsInternal := FALSE ;   (* Is it a default BY constant
+                                                        expression?  *)
                     ConstLit.IsConstructor := FALSE ;
                     ConstLit.FromType := NulSym ;     (* type is determined FromType *)
                     ConstLit.RangeError := overflow ;
@@ -4886,6 +5058,7 @@ PROCEDURE MakeConstLit (tok: CARDINAL; constName: Name; constType: CARDINAL) : C
 VAR
    sym: CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'constlit') ;
    sym := LookupConstLitPoolEntry (tok, constName, constType) ;
    IF sym = NulSym
    THEN
@@ -4905,7 +5078,10 @@ PROCEDURE MakeConstVar (tok: CARDINAL; ConstVarName: Name) : CARDINAL ;
 VAR
    pSym: PtrToSymbol ;
    Sym : CARDINAL ;
+   temp: BOOLEAN ;
 BEGIN
+   temp := (ConstVarName = NulName) ;
+   ConstVarName := CheckAnonymous (ConstVarName) ;
    Sym := DeclareSym (tok, ConstVarName) ;
    IF NOT IsError(Sym)
    THEN
@@ -4917,10 +5093,11 @@ BEGIN
             Value := InitValue() ;
             Type  := NulSym ;
             IsSet := FALSE ;
+            IsConditional := FALSE ;
             IsConstructor := FALSE ;
             FromType := NulSym ;     (* type is determined FromType *)
             UnresFromType := FALSE ; (* is Type resolved?           *)
-            IsTemp := FALSE ;
+            IsTemp := temp ;
             Scope := GetCurrentScope () ;
             InitWhereDeclaredTok (tok, At)
          END
@@ -4933,82 +5110,11 @@ END MakeConstVar ;
 
 
 (*
-   MakeConstLitString - put a constant which has the string described by
-                        ConstName into the ConstantTree.
-                        The symbol number is returned.
-                        This symbol is known as a String Constant rather than a
-                        ConstLit which indicates a number.
-                        If the constant already exits
-                        then a duplicate constant is not entered in the tree.
-                        All values of constant strings
-                        are ignored in Pass 1 and evaluated in Pass 2 via
-                        character manipulation.
-                        In this procedure ConstName is the string.
-*)
-
-PROCEDURE MakeConstLitString (tok: CARDINAL; ConstName: Name) : CARDINAL ;
-VAR
-   pSym: PtrToSymbol ;
-   sym : CARDINAL ;
-BEGIN
-   sym := GetSymKey (ConstLitStringTree, ConstName) ;
-   IF sym=NulSym
-   THEN
-      NewSym (sym) ;
-      PutSymKey (ConstLitStringTree, ConstName, sym) ;
-      pSym := GetPsym (sym) ;
-      WITH pSym^ DO
-         SymbolType := ConstStringSym ;
-         CASE SymbolType OF
-
-         ConstStringSym: InitConstString (tok, sym, ConstName, ConstName,
-                                          m2str,
-                                          sym, NulSym, NulSym, NulSym)
-
-         ELSE
-            InternalError ('expecting ConstString symbol')
-         END
-      END
-   END ;
-   RETURN sym
-END MakeConstLitString ;
-
-
-(*
-   BackFillString -
-*)
-
-PROCEDURE BackFillString (sym, m2sym, m2nulsym, csym, cnulsym: CARDINAL) ;
-VAR
-   pSym: PtrToSymbol ;
-BEGIN
-   IF sym # NulSym
-   THEN
-      pSym := GetPsym (sym) ;
-      WITH pSym^ DO
-         CASE SymbolType OF
-
-         ConstStringSym:  ConstString.M2Variant := m2sym ;
-                          ConstString.NulM2Variant := m2nulsym ;
-                          ConstString.CVariant := csym ;
-                          ConstString.NulCVariant := cnulsym
-
-         ELSE
-            InternalError ('expecting ConstStringSym')
-         END
-      END
-   END
-END BackFillString ;
-
-
-(*
-   InitConstString - initialize the constant string and back fill any
-                     previous string variants.
+   InitConstString - initialize the constant string.
 *)
 
 PROCEDURE InitConstString (tok: CARDINAL; sym: CARDINAL; name, contents: Name;
-                           kind: ConstStringVariant;
-                           m2sym, m2nulsym, csym, cnulsym: CARDINAL) ;
+                           kind: ConstStringVariant; escape, known: BOOLEAN) ;
 VAR
    pSym: PtrToSymbol ;
 BEGIN
@@ -5019,113 +5125,15 @@ BEGIN
 
       ConstStringSym:  ConstString.name := name ;
                        ConstString.StringVariant := kind ;
-                       PutConstString (tok, sym, contents) ;
-                       BackFillString (sym,
-                                       m2sym, m2nulsym, csym, cnulsym) ;
-                       BackFillString (m2sym,
-                                       m2sym, m2nulsym, csym, cnulsym) ;
-                       BackFillString (m2nulsym,
-                                       m2sym, m2nulsym, csym, cnulsym) ;
-                       BackFillString (csym,
-                                       m2sym, m2nulsym, csym, cnulsym) ;
-                       BackFillString (cnulsym,
-                                       m2sym, m2nulsym, csym, cnulsym) ;
                        ConstString.Scope := GetCurrentScope() ;
-                       InitWhereDeclaredTok (tok, ConstString.At)
+                       InitWhereDeclaredTok (tok, ConstString.At) ;
+                       PutConstStringKnown (tok, sym, contents, escape, known)
 
       ELSE
          InternalError ('expecting ConstStringSym')
       END
    END
 END InitConstString ;
-
-
-(*
-   GetConstStringM2 - returns the Modula-2 variant of a string
-                      (with no added nul terminator).
-*)
-
-PROCEDURE GetConstStringM2 (sym: CARDINAL) : CARDINAL ;
-VAR
-   pSym: PtrToSymbol ;
-BEGIN
-   pSym := GetPsym (sym) ;
-   WITH pSym^ DO
-      CASE SymbolType OF
-
-      ConstStringSym:  RETURN ConstString.M2Variant
-
-      ELSE
-         InternalError ('expecting ConstStringSym')
-      END
-   END
-END GetConstStringM2 ;
-
-
-(*
-   GetConstStringC - returns the C variant of a string
-                     (with no added nul terminator).
-*)
-
-PROCEDURE GetConstStringC (sym: CARDINAL) : CARDINAL ;
-VAR
-   pSym: PtrToSymbol ;
-BEGIN
-   pSym := GetPsym (sym) ;
-   WITH pSym^ DO
-      CASE SymbolType OF
-
-      ConstStringSym:  RETURN ConstString.CVariant
-
-      ELSE
-         InternalError ('expecting ConstStringSym')
-      END
-   END
-END GetConstStringC ;
-
-
-(*
-   GetConstStringM2nul - returns the Modula-2 variant of a string
-                         (with added nul terminator).
-*)
-
-PROCEDURE GetConstStringM2nul (sym: CARDINAL) : CARDINAL ;
-VAR
-   pSym: PtrToSymbol ;
-BEGIN
-   pSym := GetPsym (sym) ;
-   WITH pSym^ DO
-      CASE SymbolType OF
-
-      ConstStringSym:  RETURN ConstString.NulM2Variant
-
-      ELSE
-         InternalError ('expecting ConstStringSym')
-      END
-   END
-END GetConstStringM2nul ;
-
-
-(*
-   GetConstStringCnul - returns the C variant of a string
-                        (with no added nul terminator).
-*)
-
-PROCEDURE GetConstStringCnul (sym: CARDINAL) : CARDINAL ;
-VAR
-   pSym: PtrToSymbol ;
-BEGIN
-   pSym := GetPsym (sym) ;
-   WITH pSym^ DO
-      CASE SymbolType OF
-
-      ConstStringSym:  RETURN ConstString.NulCVariant
-
-      ELSE
-         InternalError ('expecting ConstStringSym')
-      END
-   END
-END GetConstStringCnul ;
 
 
 (*
@@ -5153,188 +5161,158 @@ END IsConstStringNulTerminated ;
 
 (*
    MakeConstStringCnul - creates a constant string nul terminated string suitable for C.
-                         sym is a ConstString and a new symbol is returned
-                         with the escape sequences converted into characters.
+                         If known is TRUE then name is assigned to the contents
+                         and the escape sequences will be converted into characters.
 *)
 
-PROCEDURE MakeConstStringCnul (tok: CARDINAL; sym: CARDINAL) : CARDINAL ;
+PROCEDURE MakeConstStringCnul (tok: CARDINAL; name: Name; known: BOOLEAN) : CARDINAL ;
 VAR
-   pSym  : PtrToSymbol ;
    newstr: CARDINAL ;
 BEGIN
-   pSym := GetPsym (GetConstStringM2 (sym)) ;
-   WITH pSym^ DO
-      CASE SymbolType OF
-
-      ConstStringSym:  Assert (ConstString.StringVariant = m2str) ;
-                       ConstString.CVariant := MakeConstStringC (tok, sym) ;
-                       IF ConstString.NulCVariant = NulSym
-                       THEN
-                          NewSym (newstr) ;
-                          ConstString.NulCVariant := newstr ;
-                          InitConstString (tok, newstr, ConstString.name, GetString (ConstString.CVariant),
-                                           cnulstr,
-                                           ConstString.M2Variant, ConstString.NulM2Variant, ConstString.CVariant, ConstString.NulCVariant)
-                       END ;
-                       RETURN ConstString.NulCVariant
-
-      ELSE
-         InternalError ('expecting ConstStringSym')
-      END
-   END
+   tok := CheckTok (tok, 'conststringcnul') ;
+   NewSym (newstr) ;
+   InitConstString (tok, newstr, name, name, cnulstr, TRUE, known) ;
+   RETURN newstr
 END MakeConstStringCnul ;
 
 
 (*
-   MakeConstStringM2nul - creates a constant string nul terminated string.
-                          sym is a ConstString and a new symbol is returned.
+   MakeConstStringM2nul - creates a constant string nul terminated string suitable for M2.
+                          If known is TRUE then name is assigned to the contents
+                          however the escape sequences are not converted into characters.
 *)
 
-PROCEDURE MakeConstStringM2nul (tok: CARDINAL; sym: CARDINAL) : CARDINAL ;
+PROCEDURE MakeConstStringM2nul (tok: CARDINAL; name: Name; known: BOOLEAN) : CARDINAL ;
 VAR
-   pSym: PtrToSymbol ;
+   newstr: CARDINAL ;
 BEGIN
-   pSym := GetPsym (GetConstStringM2 (sym)) ;
-   WITH pSym^ DO
-      CASE SymbolType OF
-
-      ConstStringSym:  Assert (ConstString.StringVariant = m2str) ;
-                       IF ConstString.NulM2Variant = NulSym
-                       THEN
-                          NewSym (ConstString.NulM2Variant) ;
-                          InitConstString (tok, ConstString.NulM2Variant,
-                                           ConstString.name, ConstString.Contents,
-                                           m2nulstr,
-                                           ConstString.M2Variant, ConstString.NulM2Variant,
-                                           ConstString.CVariant, ConstString.NulCVariant)
-                       END ;
-                       RETURN ConstString.NulM2Variant
-
-      ELSE
-         InternalError ('expecting ConstStringSym')
-      END
-   END
+   NewSym (newstr) ;
+   InitConstString (tok, newstr, name, name, m2nulstr, FALSE, known) ;
+   RETURN newstr
 END MakeConstStringM2nul ;
 
 
 (*
-   MakeConstStringC - creates a constant string suitable for C.
-                      sym is a Modula-2 ConstString and a new symbol is returned
-                      with the escape sequences converted into characters.
-                      It is not nul terminated.
-*)
-
-PROCEDURE MakeConstStringC (tok: CARDINAL; sym: CARDINAL) : CARDINAL ;
-VAR
-   pSym  : PtrToSymbol ;
-   s     : String ;
-BEGIN
-   pSym := GetPsym (sym) ;
-   WITH pSym^ DO
-      CASE SymbolType OF
-
-      ConstStringSym:  IF ConstString.StringVariant = cstr
-                       THEN
-                          RETURN sym   (* this is already the C variant.  *)
-                       ELSIF ConstString.CVariant = NulSym
-                       THEN
-                          Assert (ConstString.StringVariant = m2str) ;  (* we can only derive string variants from Modula-2 strings.  *)
-                          Assert (sym = ConstString.M2Variant) ;
-                          (* we need to create a new one and return the new symbol.  *)
-                          s := HandleEscape (InitStringCharStar (KeyToCharStar (GetString (ConstString.M2Variant)))) ;
-                          NewSym (ConstString.CVariant) ;
-                          InitConstString (tok, ConstString.CVariant, ConstString.name, makekey (string (s)),
-                                           cstr,
-                                           ConstString.M2Variant, ConstString.NulM2Variant, ConstString.CVariant, ConstString.NulCVariant) ;
-                          s := KillString (s)
-                       END ;
-                       RETURN ConstString.CVariant
-
-      ELSE
-         InternalError ('expecting ConstStringSym')
-      END
-   END
-END MakeConstStringC ;
-
-
-(*
-   MakeConstString - puts a constant into the symboltable which is a string.
-                     The string value is unknown at this time and will be
-                     filled in later by PutString.
+   MakeConstString - create a string constant in the symboltable.
 *)
 
 PROCEDURE MakeConstString (tok: CARDINAL; ConstName: Name) : CARDINAL ;
 VAR
-   pSym: PtrToSymbol ;
-   sym : CARDINAL ;
+   newstr: CARDINAL ;
 BEGIN
-   NewSym (sym) ;
-   PutSymKey (ConstLitStringTree, ConstName, sym) ;
-   pSym := GetPsym (sym) ;
-   WITH pSym^ DO
-      SymbolType := ConstStringSym ;
-      CASE SymbolType OF
-
-      ConstStringSym :  InitConstString (tok, sym, ConstName, NulName,
-                                         m2str, sym, NulSym, NulSym, NulSym)
-
-      ELSE
-         InternalError ('expecting ConstString symbol')
-      END
-   END ;
-   RETURN sym
+   NewSym (newstr) ;
+   InitConstString (tok, newstr, ConstName, ConstName, m2nulstr, FALSE, TRUE) ;
+   RETURN newstr
 END MakeConstString ;
 
 
 (*
-   PutConstString - places a string, String, into a constant symbol, Sym.
-                    Sym maybe a ConstString or a ConstVar.  If the later is
-                    true then the ConstVar is converted to a ConstString.
+   PutConstStringKnown - if sym is a constvar then convert it into a conststring.
+                         If known is FALSE then contents is ignored and NulName is
+                         stored.  If escape is TRUE then the contents will have
+                         any escape sequences converted into single characters.
 *)
 
-PROCEDURE PutConstString (tok: CARDINAL; sym: CARDINAL; contents: Name) ;
+PROCEDURE PutConstStringKnown (tok: CARDINAL; sym: CARDINAL;
+                               contents: Name; escape, known: BOOLEAN) ;
 VAR
    pSym: PtrToSymbol ;
+   s   : String ;
 BEGIN
    pSym := GetPsym (sym) ;
    WITH pSym^ DO
       CASE SymbolType OF
 
-      ConstStringSym: ConstString.Length := LengthKey (contents) ;
-                      ConstString.Contents := contents ;
+      ConstStringSym: IF known
+                      THEN
+                         IF escape
+                         THEN
+                            s := HandleEscape (InitStringCharStar (KeyToCharStar (contents))) ;
+                            contents := makekey (string (s)) ;
+                            s := KillString (s)
+                         END ;
+                         ConstString.Length := LengthKey (contents) ;
+                         ConstString.Contents := contents
+                      ELSE
+                         ConstString.Length := 0 ;
+                         ConstString.Contents := NulName
+                      END ;
+                      ConstString.Known := known ;
+                      InitWhereDeclaredTok (tok, ConstString.At) ;
                       InitWhereFirstUsedTok (tok, ConstString.At) |
 
-      ConstVarSym   : (* ok altering this to ConstString *)
-                      (* copy name and alter symbol.     *)
+      ConstVarSym   : (* Change a ConstVar to a ConstString copy name
+                         and alter symboltype.  *)
                       InitConstString (tok, sym, ConstVar.name, contents,
-                                       m2str,
-                                       sym, NulSym, NulSym, NulSym)
-
-      ELSE
-         InternalError ('expecting ConstString or ConstVar symbol')
-      END
-   END
-END PutConstString ;
-
-
-(*
-   IsConstStringM2 - returns whether this conststring is an unaltered Modula-2 string.
-*)
-
-PROCEDURE IsConstStringM2 (sym: CARDINAL) : BOOLEAN ;
-VAR
-   pSym: PtrToSymbol ;
-BEGIN
-   pSym := GetPsym (sym) ;
-   WITH pSym^ DO
-      CASE SymbolType OF
-
-      ConstStringSym: RETURN ConstString.StringVariant = m2str
+                                       m2str, escape, known)
 
       ELSE
          InternalError ('expecting ConstString symbol')
       END
    END
+END PutConstStringKnown ;
+
+
+(*
+   CopyConstString - copies string contents from expr to des
+                     and retain the kind of string.
+*)
+
+PROCEDURE CopyConstString (tok: CARDINAL; des, expr: CARDINAL) ;
+VAR
+   pSym: PtrToSymbol ;
+BEGIN
+   Assert (IsConstStringKnown (expr)) ;
+   pSym := GetPsym (des) ;
+   WITH pSym^ DO
+      CASE SymbolType OF
+
+      ConstStringSym: InitConstString (tok, des, ConstString.name,
+                                       GetString (expr),
+                                       GetConstStringKind (expr), FALSE, TRUE) |
+      ConstVarSym   : (* Change a ConstVar to a ConstString copy name
+                         and alter symboltype.  *)
+                      InitConstString (tok, des, ConstVar.name,
+                                       GetString (expr),
+                                       GetConstStringKind (expr), FALSE, TRUE)
+
+      ELSE
+         InternalError ('expecting ConstString symbol')
+      END
+   END
+END CopyConstString ;
+
+
+(*
+   IsConstStringKnown - returns TRUE if sym is a const string
+                        and the contents are known.
+*)
+
+PROCEDURE IsConstStringKnown (sym: CARDINAL) : BOOLEAN ;
+VAR
+   pSym: PtrToSymbol ;
+BEGIN
+   pSym := GetPsym (sym) ;
+   WITH pSym^ DO
+      CASE SymbolType OF
+
+      ConstStringSym: RETURN ConstString.Known
+
+      ELSE
+         RETURN FALSE
+      END
+   END
+END IsConstStringKnown ;
+
+
+(*
+   IsConstStringM2 - returns whether this conststring is a
+                     Modula-2 string.
+*)
+
+PROCEDURE IsConstStringM2 (sym: CARDINAL) : BOOLEAN ;
+BEGIN
+   RETURN GetConstStringKind (sym) = m2str
 END IsConstStringM2 ;
 
 
@@ -5344,19 +5322,8 @@ END IsConstStringM2 ;
 *)
 
 PROCEDURE IsConstStringC (sym: CARDINAL) : BOOLEAN ;
-VAR
-   pSym: PtrToSymbol ;
 BEGIN
-   pSym := GetPsym (sym) ;
-   WITH pSym^ DO
-      CASE SymbolType OF
-
-      ConstStringSym: RETURN ConstString.StringVariant = cstr
-
-      ELSE
-         InternalError ('expecting ConstString symbol')
-      END
-   END
+   RETURN GetConstStringKind (sym) = cstr
 END IsConstStringC ;
 
 
@@ -5366,19 +5333,8 @@ END IsConstStringC ;
 *)
 
 PROCEDURE IsConstStringM2nul (sym: CARDINAL) : BOOLEAN ;
-VAR
-   pSym: PtrToSymbol ;
 BEGIN
-   pSym := GetPsym (sym) ;
-   WITH pSym^ DO
-      CASE SymbolType OF
-
-      ConstStringSym: RETURN ConstString.StringVariant = m2nulstr
-
-      ELSE
-         InternalError ('expecting ConstString symbol')
-      END
-   END
+   RETURN GetConstStringKind (sym) = m2nulstr
 END IsConstStringM2nul ;
 
 
@@ -5389,6 +5345,16 @@ END IsConstStringM2nul ;
 *)
 
 PROCEDURE IsConstStringCnul (sym: CARDINAL) : BOOLEAN ;
+BEGIN
+   RETURN GetConstStringKind (sym) = cnulstr
+END IsConstStringCnul ;
+
+
+(*
+   GetConstStringKind - return the StringVariant field associated with sym.
+*)
+
+PROCEDURE GetConstStringKind (sym: CARDINAL) : ConstStringVariant ;
 VAR
    pSym: PtrToSymbol ;
 BEGIN
@@ -5396,13 +5362,14 @@ BEGIN
    WITH pSym^ DO
       CASE SymbolType OF
 
-      ConstStringSym: RETURN ConstString.StringVariant = cnulstr
+      ConstStringSym: RETURN ConstString.StringVariant
 
       ELSE
          InternalError ('expecting ConstString symbol')
       END
    END
-END IsConstStringCnul ;
+END GetConstStringKind ;
+
 
 
 (*
@@ -5418,7 +5385,12 @@ BEGIN
    WITH pSym^ DO
       CASE SymbolType OF
 
-      ConstStringSym: RETURN ConstString.Contents
+      ConstStringSym: IF ConstString.Known
+                      THEN
+                         RETURN ConstString.Contents
+                      ELSE
+                         InternalError ('const string contents are unknown')
+                      END
 
       ELSE
          InternalError ('expecting ConstString symbol')
@@ -5431,15 +5403,21 @@ END GetString ;
    GetStringLength - returns the length of the string symbol Sym.
 *)
 
-PROCEDURE GetStringLength (Sym: CARDINAL) : CARDINAL ;
+PROCEDURE GetStringLength (tok: CARDINAL; sym: CARDINAL) : CARDINAL ;
 VAR
    pSym: PtrToSymbol ;
 BEGIN
-   pSym := GetPsym (Sym) ;
+   pSym := GetPsym (sym) ;
    WITH pSym^ DO
       CASE SymbolType OF
 
-      ConstStringSym: RETURN ConstString.Length
+      ConstStringSym: IF ConstString.Known
+                      THEN
+                         RETURN ConstString.Length
+                      ELSE
+                         MetaErrorT0 (tok, 'const string contents are unknown') ;
+                         RETURN 0
+                      END
 
       ELSE
          InternalError ('expecting ConstString symbol')
@@ -5716,6 +5694,30 @@ BEGIN
       END
    END
 END IsProcedureBuiltin ;
+
+
+(*
+   CanUseBuiltin - returns TRUE if the procedure, Sym, can be
+                   inlined via a builtin function.
+*)
+
+PROCEDURE CanUseBuiltin (Sym: CARDINAL) : BOOLEAN ;
+BEGIN
+   RETURN( (NOT DebugBuiltins) AND
+           (BuiltinExists (KeyToCharStar (GetProcedureBuiltin (Sym))) OR
+            BuiltinExists (KeyToCharStar (GetSymName (Sym)))) )
+END CanUseBuiltin ;
+
+
+(*
+   IsProcedureBuiltinAvailable - return TRUE if procedure is available as a builtin
+                                 for the target architecture.
+*)
+
+PROCEDURE IsProcedureBuiltinAvailable (procedure: CARDINAL) : BOOLEAN ;
+BEGIN
+   RETURN IsProcedureBuiltin (procedure) AND CanUseBuiltin (procedure)
+END IsProcedureBuiltinAvailable ;
 
 
 (*
@@ -6038,6 +6040,7 @@ VAR
    pSym    : PtrToSymbol ;
    sym, oaf: CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'subrange') ;
    sym := HandleHiddenOrDeclare (tok, SubrangeName, oaf) ;
    IF NOT IsError(sym)
    THEN
@@ -6058,6 +6061,7 @@ BEGIN
                                         (* ConstExpression.              *)
             Type := NulSym ;            (* Index to a type. Determines   *)
                                         (* the type of subrange.         *)
+            Align := NulSym ;           (* The alignment of this type.   *)
             InitPacked(packedInfo) ;    (* not packed and no equivalent  *)
             InitTree(ConstLitTree) ;    (* constants of this type.       *)
             Size := InitValue() ;       (* Size determines the type size *)
@@ -6185,7 +6189,7 @@ BEGIN
       SubrangeSym         : type := Subrange.Type |
       ArraySym            : type := Array.Type |
       SubscriptSym        : type := Subscript.Type |
-      SetSym              : type := Set.Type |
+      SetSym              : type := Sym |    (* Stop at the set type.  *)
       UnboundedSym        : type := Unbounded.Type |
       UndefinedSym        : type := NulSym |
       DummySym            : type := NulSym
@@ -6492,17 +6496,33 @@ BEGIN
       loc := TokenToLocation (tok) ;
       CASE char (s, -1) OF
 
-      'H':  overflow := ConstantStringExceedsZType (loc, string (s), 16, issueError) |
-      'B':  overflow := ConstantStringExceedsZType (loc, string (s), 8, issueError) |
-      'A':  overflow := ConstantStringExceedsZType (loc, string (s), 2, issueError)
+      'H':  overflow := OverflowZType (loc, string (s), 16, issueError) |
+      'B':  overflow := OverflowZType (loc, string (s), 8, issueError) |
+      'A':  overflow := OverflowZType (loc, string (s), 2, issueError)
 
       ELSE
-         overflow := ConstantStringExceedsZType (loc, string (s), 10, issueError)
+         overflow := OverflowZType (loc, string (s), 10, issueError)
       END ;
       s := KillString (s) ;
       RETURN ZType
    END
 END GetConstLitType ;
+
+
+(*
+   GetTypeMode - return the type of sym, it returns Address is the
+                 symbol is a LValue.
+*)
+
+PROCEDURE GetTypeMode (sym: CARDINAL) : CARDINAL ;
+BEGIN
+   IF GetMode (sym) = LeftValue
+   THEN
+      RETURN( Address )
+   ELSE
+      RETURN( GetType (sym) )
+   END
+END GetTypeMode ;
 
 
 (*
@@ -6569,8 +6589,9 @@ END GetNthFromComponent ;
 
 
 (*
-   GetNth - returns the n th symbol in the list of father Sym.
-            Sym may be a Module, DefImp, Procedure or Record symbol.
+   GetNth - returns the n th symbol in the list associated with the scope
+            of Sym.  Sym may be a Module, DefImp, Procedure, Record or
+            Enumeration symbol.
 *)
 
 PROCEDURE GetNth (Sym: CARDINAL; n: CARDINAL) : CARDINAL ;
@@ -6582,14 +6603,15 @@ BEGIN
    WITH pSym^ DO
       CASE SymbolType OF
 
-      RecordSym       : i := GetItemFromList(Record.ListOfSons, n) |
-      VarientSym      : i := GetItemFromList(Varient.ListOfSons, n) |
-      VarientFieldSym : i := GetItemFromList(VarientField.ListOfSons, n) |
-      ProcedureSym    : i := GetItemFromList(Procedure.ListOfVars, n) |
-      DefImpSym       : i := GetItemFromList(DefImp.ListOfVars, n) |
-      ModuleSym       : i := GetItemFromList(Module.ListOfVars, n) |
-      TupleSym        : i := GetFromIndex(Tuple.list, n) |
-      VarSym          : i := GetNthFromComponent(Sym, n)
+      RecordSym       : i := GetItemFromList (Record.ListOfSons, n) |
+      VarientSym      : i := GetItemFromList (Varient.ListOfSons, n) |
+      VarientFieldSym : i := GetItemFromList (VarientField.ListOfSons, n) |
+      ProcedureSym    : i := GetItemFromList (Procedure.ListOfVars, n) |
+      DefImpSym       : i := GetItemFromList (DefImp.ListOfVars, n) |
+      ModuleSym       : i := GetItemFromList (Module.ListOfVars, n) |
+      TupleSym        : i := GetFromIndex (Tuple.list, n) |
+      VarSym          : i := GetNthFromComponent (Sym, n) |
+      EnumerationSym  : i := GetItemFromList (Enumeration.ListOfFields, n)
 
       ELSE
          InternalError ('cannot GetNth from this symbol')
@@ -6646,7 +6668,9 @@ BEGIN
    WITH pSym^ DO
       CASE SymbolType OF
 
-      VarSym     : Var.Type := VarType |
+      VarSym     : Var.Type := VarType ;
+                   ConfigSymInit (Var.InitState[LeftValue], Sym) ;
+                   ConfigSymInit (Var.InitState[RightValue], Sym) |
       ConstVarSym: ConstVar.Type := VarType
 
       ELSE
@@ -6841,6 +6865,137 @@ BEGIN
       END
    END
 END PutConst ;
+
+
+(*
+   PutConstLitInternal - marks the sym as being an internal constant.
+                         Currently this is used when generating a default
+                         BY constant expression during a FOR loop.
+                         A constant marked as internal will always pass
+                         an expression type check.
+*)
+
+PROCEDURE PutConstLitInternal (sym: CARDINAL; value: BOOLEAN) ;
+VAR
+   pSym: PtrToSymbol ;
+BEGIN
+   pSym := GetPsym (sym) ;
+   WITH pSym^ DO
+      CASE SymbolType OF
+
+      ConstLitSym: ConstLit.IsInternal := value
+
+      ELSE
+         InternalError ('expecting ConstLitSym')
+      END
+   END
+END PutConstLitInternal ;
+
+
+(*
+   IsConstLitInternal - returns the value of the IsInternal field within
+                        a constant expression.
+*)
+
+PROCEDURE IsConstLitInternal (sym: CARDINAL) : BOOLEAN ;
+VAR
+   pSym: PtrToSymbol ;
+BEGIN
+   pSym := GetPsym (sym) ;
+   WITH pSym^ DO
+      CASE SymbolType OF
+
+      ConstLitSym: RETURN ConstLit.IsInternal
+
+      ELSE
+         InternalError ('expecting ConstLitSym')
+      END
+   END
+END IsConstLitInternal ;
+
+
+(*
+   PutVarArrayRef - assigns ArrayRef field with value.
+*)
+
+PROCEDURE PutVarArrayRef (sym: CARDINAL; value: BOOLEAN) ;
+VAR
+   pSym: PtrToSymbol ;
+BEGIN
+   pSym := GetPsym(sym) ;
+   WITH pSym^ DO
+      CASE SymbolType OF
+
+      VarSym: Var.ArrayRef := value
+
+      ELSE
+         InternalError ('expecting VarSym')
+      END
+   END
+END PutVarArrayRef ;
+
+
+(*
+   IsVarArrayRef - returns ArrayRef field value.
+*)
+
+PROCEDURE IsVarArrayRef (sym: CARDINAL) : BOOLEAN ;
+VAR
+   pSym: PtrToSymbol ;
+BEGIN
+   pSym := GetPsym(sym) ;
+   WITH pSym^ DO
+      CASE SymbolType OF
+
+      VarSym: RETURN (Var.ArrayRef)
+
+      ELSE
+         InternalError ('expecting VarSym')
+      END
+   END
+END IsVarArrayRef ;
+
+
+(*
+   PutVarHeap - assigns ArrayRef field with value.
+*)
+
+PROCEDURE PutVarHeap (sym: CARDINAL; value: BOOLEAN) ;
+VAR
+   pSym: PtrToSymbol ;
+BEGIN
+   pSym := GetPsym(sym) ;
+   WITH pSym^ DO
+      CASE SymbolType OF
+
+      VarSym: Var.Heap := value
+
+      ELSE
+         InternalError ('expecting VarSym')
+      END
+   END
+END PutVarHeap ;
+
+
+(*
+   IsVarHeap - returns ArrayRef field value.
+*)
+
+PROCEDURE IsVarHeap (sym: CARDINAL) : BOOLEAN ;
+VAR
+   pSym: PtrToSymbol ;
+BEGIN
+   pSym := GetPsym(sym) ;
+   WITH pSym^ DO
+      CASE SymbolType OF
+
+      VarSym: RETURN (Var.Heap)
+
+      ELSE
+         InternalError ('expecting VarSym')
+      END
+   END
+END IsVarHeap ;
 
 
 (*
@@ -7375,7 +7530,8 @@ BEGIN
                                                     FieldName,
                                                     GetDeclaredMod(GetSymKey(LocalSymbols, FieldName)))
                             ELSE
-                               PutSymKey(LocalSymbols, FieldName, Field)
+                               PutSymKey(LocalSymbols, FieldName, Field) ;
+                               IncludeItemIntoList (ListOfFields, Field)
                             END
                          END
 
@@ -7503,7 +7659,9 @@ BEGIN
          PartialUnboundedSym : n := GetSymName(PartialUnbounded.Type) |
          TupleSym            : n := NulName |
          GnuAsmSym           : n := NulName |
-         InterfaceSym        : n := NulName
+         InterfaceSym        : n := NulName |
+         ImportSym           : n := NulName |
+         ImportStatementSym  : n := NulName
 
          ELSE
             InternalError ('unexpected symbol type')
@@ -7652,6 +7810,7 @@ END IsComponent ;
 
 PROCEDURE MakeTemporary (tok: CARDINAL; Mode: ModeOfAddr) : CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'temporary') ;
    RETURN buildTemporary (tok, Mode, FALSE, NulSym)
 END MakeTemporary ;
 
@@ -7883,7 +8042,7 @@ BEGIN
       IsHiddenTypeDeclared(CurrentModule) AND
       (TypeName#NulName)
    THEN
-      (* Check to see whether we are declaring a HiddenType. *)
+      (* Check to see whether we are declaring a HiddenType.  *)
       pSym := GetPsym(CurrentModule) ;
       WITH pSym^ DO
          CASE SymbolType OF
@@ -7906,34 +8065,13 @@ END CheckForHiddenType ;
 
 PROCEDURE IsReallyPointer (Sym: CARDINAL) : BOOLEAN ;
 BEGIN
-   IF IsVar(Sym)
+   IF IsVar (Sym)
    THEN
-      Sym := GetType(Sym)
+      Sym := GetType (Sym)
    END ;
-   Sym := SkipType(Sym) ;
-   RETURN( IsPointer(Sym) OR (Sym=Address) )
+   Sym := SkipType (Sym) ;
+   RETURN IsPointer (Sym) OR (Sym = Address) OR IsHiddenReallyPointer (Sym)
 END IsReallyPointer ;
-
-
-(*
-   SkipHiddenType - if sym is a TYPE foo = bar
-                    then call SkipType(bar)
-                    else return sym
-
-                    it does skip over hidden type.
-*)
-
-(*
-PROCEDURE SkipHiddenType (Sym: CARDINAL) : CARDINAL ;
-BEGIN
-   IF (Sym#NulSym) AND IsType(Sym) AND (GetType(Sym)#NulSym)
-   THEN
-      RETURN( SkipType(GetType(Sym)) )
-   ELSE
-      RETURN( Sym )
-   END
-END SkipHiddenType ;
-*)
 
 
 (*
@@ -8938,6 +9076,31 @@ END ForeachLocalSymDo ;
 
 
 (*
+   ForeachParamSymDo - foreach parameter symbol in procedure, Sym,
+                       perform the procedure, P.  Each symbol
+                       looked up will be VarParam or Param
+                       (not the shadow variable).
+*)
+
+PROCEDURE ForeachParamSymDo (Sym: CARDINAL; P: PerformOperation) ;
+VAR
+   param: CARDINAL ;
+   p, i : CARDINAL ;
+BEGIN
+   IF IsProcedure (Sym)
+   THEN
+      p := NoOfParam (Sym) ;
+      i := p ;
+      WHILE i>0 DO
+         param := GetNthParam (Sym, i) ;
+         P (param) ;
+         DEC(i)
+      END
+   END
+END ForeachParamSymDo ;
+
+
+(*
    CheckForUnknownInModule - checks for any unknown symbols in the
                              current module.
                              If any unknown symbols are found then
@@ -8953,20 +9116,20 @@ BEGIN
       CASE SymbolType OF
 
       DefImpSym: WITH DefImp DO
-                    CheckForUnknowns( name, ExportQualifiedTree,
-                                      'EXPORT QUALIFIED' ) ;
-                    CheckForUnknowns( name, ExportUnQualifiedTree,
-                                      'EXPORT UNQUALIFIED' ) ;
-                    CheckForSymbols ( ExportRequest,
-                                      'requested by another modules import (symbols have not been exported by the appropriate definition module)' ) ;
-                    CheckForUnknowns( name, Unresolved, 'unresolved' ) ;
-                    CheckForUnknowns( name, LocalSymbols, 'locally used' )
+                    CheckForUnknowns (name, ExportQualifiedTree,
+                                      'EXPORT QUALIFIED') ;
+                    CheckForUnknowns (name, ExportUnQualifiedTree,
+                                      'EXPORT UNQUALIFIED') ;
+                    CheckForSymbols  (ExportRequest,
+                                      'requested by another modules import (symbols have not been exported by the appropriate definition module)') ;
+                    CheckForUnknowns (name, Unresolved, 'unresolved') ;
+                    CheckForUnknowns (name, LocalSymbols, 'locally used')
                  END |
       ModuleSym: WITH Module DO
-                    CheckForUnknowns( name, Unresolved, 'unresolved' ) ;
-                    CheckForUnknowns( name, ExportUndeclared, 'exported but undeclared' ) ;
-                    CheckForUnknowns( name, ExportTree, 'exported but undeclared' ) ;
-                    CheckForUnknowns( name, LocalSymbols, 'locally used' )
+                    CheckForUnknowns (name, Unresolved, 'unresolved') ;
+                    CheckForUnknowns (name, ExportUndeclared, 'exported but undeclared') ;
+                    CheckForUnknowns (name, ExportTree, 'exported but undeclared') ;
+                    CheckForUnknowns (name, LocalSymbols, 'locally used')
                  END
 
       ELSE
@@ -9028,12 +9191,16 @@ VAR
 PROCEDURE AddListify (sym: CARDINAL) ;
 BEGIN
    INC (ListifyWordCount) ;
-   IF ListifyWordCount = ListifyTotal
+   (* printf ("AddListify: ListifyWordCount = %d, ListifyTotal = %d\n",
+              ListifyWordCount, ListifyTotal) ;  *)
+   IF ListifyWordCount > 1
    THEN
-      ListifySentance := ConCat (ListifySentance, Mark (InitString (" and ")))
-   ELSIF ListifyWordCount > 1
-   THEN
-      ListifySentance := ConCat (ListifySentance, Mark (InitString (", ")))
+      IF ListifyWordCount = ListifyTotal
+      THEN
+         ListifySentance := ConCat (ListifySentance, Mark (InitString (" and ")))
+      ELSE
+         ListifySentance := ConCat (ListifySentance, Mark (InitString (", ")))
+      END
    END ;
    ListifySentance := ConCat (ListifySentance,
                               Mark (InitStringCharStar (KeyToCharStar (GetSymName (sym)))))
@@ -9961,8 +10128,11 @@ BEGIN
       CASE SymbolType OF
 
       ErrorSym: |
-      ProcedureSym: CheckOptFunction(Sym, FALSE) ; Procedure.ReturnType := TypeSym |
-      ProcTypeSym : CheckOptFunction(Sym, FALSE) ; ProcType.ReturnType := TypeSym
+      ProcedureSym: CheckOptFunction(Sym, FALSE) ;
+                    Procedure.ReturnType := TypeSym ;
+                    PutFunction (Procedure.ProcedureType, TypeSym) |
+      ProcTypeSym : CheckOptFunction(Sym, FALSE) ;
+                    ProcType.ReturnType := TypeSym
 
       ELSE
          InternalError ('expecting a Procedure or ProcType symbol')
@@ -9979,13 +10149,16 @@ PROCEDURE PutOptFunction (Sym: CARDINAL; TypeSym: CARDINAL) ;
 VAR
    pSym: PtrToSymbol ;
 BEGIN
-   pSym := GetPsym(Sym) ;
+   pSym := GetPsym (Sym) ;
    WITH pSym^ DO
       CASE SymbolType OF
 
       ErrorSym: |
-      ProcedureSym: CheckOptFunction(Sym, TRUE) ; Procedure.ReturnType := TypeSym |
-      ProcTypeSym : CheckOptFunction(Sym, TRUE) ; ProcType.ReturnType := TypeSym
+      ProcedureSym: CheckOptFunction (Sym, TRUE) ;
+                    Procedure.ReturnType := TypeSym ;
+                    PutOptFunction (Procedure.ProcedureType, TypeSym) |
+      ProcTypeSym : CheckOptFunction (Sym, TRUE) ;
+                    ProcType.ReturnType := TypeSym
 
       ELSE
          InternalError ('expecting a Procedure or ProcType symbol')
@@ -10006,31 +10179,32 @@ VAR
    pSym       : PtrToSymbol ;
    VariableSym: CARDINAL ;
 BEGIN
-   VariableSym := MakeVar(tok, ParamName) ;
-   pSym := GetPsym(VariableSym) ;
+   tok := CheckTok (tok, 'parameter') ;
+   VariableSym := MakeVar (tok, ParamName) ;
+   pSym := GetPsym (VariableSym) ;
    WITH pSym^ DO
       CASE SymbolType OF
 
       ErrorSym: RETURN( NulSym ) |
-      VarSym  : Var.IsParam := TRUE     (* Variable is really a parameter *)
+      VarSym  : Var.IsParam := TRUE     (* Variable is really a parameter.  *)
 
       ELSE
          InternalError ('expecting a Var symbol')
       END
    END ;
-   (* Note that the parameter is now treated as a local variable *)
-   PutVar(VariableSym, GetType(GetNthParam(ProcSym, no))) ;
-   PutDeclared(tok, VariableSym) ;
+   (* Note that the parameter is now treated as a local variable.  *)
+   PutVar (VariableSym, GetType(GetNthParam(ProcSym, no))) ;
+   PutDeclared (tok, VariableSym) ;
    (*
       Normal VAR parameters have LeftValue,
       however Unbounded VAR parameters have RightValue.
       Non VAR parameters always have RightValue.
    *)
-   IF IsVarParam(ProcSym, no) AND (NOT IsUnboundedParam(ProcSym, no))
+   IF IsVarParam (ProcSym, no) AND (NOT IsUnboundedParam (ProcSym, no))
    THEN
-      PutMode(VariableSym, LeftValue)
+      PutMode (VariableSym, LeftValue)
    ELSE
-      PutMode(VariableSym, RightValue)
+      PutMode (VariableSym, RightValue)
    END ;
    RETURN( VariableSym )
 END MakeVariableForParam ;
@@ -10080,7 +10254,8 @@ BEGIN
             pSym := GetPsym(ParSym) ;
             pSym^.Param.ShadowVar := VariableSym
          END
-      END
+      END ;
+      AddProcedureProcTypeParam (Sym, ParamType, isUnbounded, FALSE)
    END ;
    RETURN( TRUE )
 END PutParam ;
@@ -10117,6 +10292,7 @@ BEGIN
             Type := ParamType ;
             IsUnbounded := isUnbounded ;
             ShadowVar := NulSym ;
+            HeapVar := NulSym ;  (* Will contain a pointer value.  *)
             InitWhereDeclaredTok(tok, At)
          END
       END ;
@@ -10132,6 +10308,7 @@ BEGIN
             pSym^.VarParam.ShadowVar := VariableSym
          END
       END ;
+      AddProcedureProcTypeParam (Sym, ParamType, isUnbounded, TRUE) ;
       RETURN( TRUE )
    END
 END PutVarParam ;
@@ -10207,6 +10384,36 @@ BEGIN
       END
    END
 END AddParameter ;
+
+
+(*
+   AddProcedureProcTypeParam - adds ParamType to the parameter ProcType
+                               associated with procedure Sym.
+*)
+
+PROCEDURE AddProcedureProcTypeParam (Sym, ParamType: CARDINAL;
+                                     isUnbounded, isVarParam: BOOLEAN) ;
+VAR
+   pSym: PtrToSymbol ;
+BEGIN
+   pSym := GetPsym (Sym) ;
+   WITH pSym^ DO
+      CASE SymbolType OF
+
+      ProcedureSym: IF isVarParam
+                    THEN
+                       PutProcTypeVarParam (Procedure.ProcedureType,
+                                            ParamType, isUnbounded)
+                    ELSE
+                       PutProcTypeParam (Procedure.ProcedureType,
+                                         ParamType, isUnbounded)
+                    END
+
+      ELSE
+         InternalError ('expecting Sym to be a procedure')
+      END
+   END
+END AddProcedureProcTypeParam ;
 
 
 (*
@@ -10477,6 +10684,84 @@ BEGIN
    END ;
    RETURN( NulSym )
 END GetOptArgInit ;
+
+
+(*
+   MakeParameterHeapVar - create a heap variable if sym is a pointer.
+*)
+
+PROCEDURE MakeParameterHeapVar (tok: CARDINAL; type: CARDINAL; mode: ModeOfAddr) : CARDINAL ;
+VAR
+   heapvar: CARDINAL ;
+BEGIN
+   tok := CheckTok (tok, 'parameter heap var') ;
+   heapvar := NulSym ;
+   type := SkipType (type) ;
+   IF IsPointer (type)
+   THEN
+      heapvar := MakeTemporary (tok, mode) ;
+      PutVar (heapvar, type) ;
+      PutVarHeap (heapvar, TRUE)
+   END ;
+   RETURN heapvar
+END MakeParameterHeapVar ;
+
+
+(*
+   GetParameterHeapVar - return the heap variable associated with the
+                         parameter or NulSym.
+*)
+
+PROCEDURE GetParameterHeapVar (ParSym: CARDINAL) : CARDINAL ;
+VAR
+   pSym: PtrToSymbol ;
+BEGIN
+   pSym := GetPsym (ParSym) ;
+   WITH pSym^ DO
+      CASE SymbolType OF
+
+      ParamSym   :  RETURN NulSym |   (* Only VarParam has the pointer.  *)
+      VarParamSym:  RETURN VarParam.HeapVar
+
+      ELSE
+         InternalError ('expecting Param or VarParam symbol')
+      END
+   END
+END GetParameterHeapVar ;
+
+
+(*
+   PutParameterHeapVar - creates a heap variable associated with parameter sym.
+*)
+
+PROCEDURE PutParameterHeapVar (sym: CARDINAL) ;
+VAR
+   pSym : PtrToSymbol ;
+BEGIN
+   pSym := GetPsym (sym) ;
+   WITH pSym^ DO
+      CASE SymbolType OF
+
+      ParamSym   : |  (* Nothing to do for the non var parameter.  *)
+      VarParamSym: VarParam.HeapVar := MakeParameterHeapVar (GetDeclaredMod (sym),
+                                                             VarParam.Type, LeftValue)
+
+      ELSE
+         InternalError ('Param or VarParam symbol expected')
+      END
+   END
+END PutParameterHeapVar ;
+
+
+(*
+   PutProcedureParameterHeapVars - creates heap variables for parameter sym.
+*)
+
+PROCEDURE PutProcedureParameterHeapVars (sym: CARDINAL) ;
+BEGIN
+   Assert (IsProcedure (sym)) ;
+   ForeachParamSymDo (sym, PutParameterHeapVar)
+END PutProcedureParameterHeapVars ;
 
 
 (*
@@ -10885,6 +11170,7 @@ PROCEDURE MakePointer (tok: CARDINAL; PointerName: Name) : CARDINAL ;
 VAR
    oaf, sym: CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'pointer') ;
    sym := HandleHiddenOrDeclare(tok, PointerName, oaf) ;
    FillInPointerFields(sym, PointerName, GetCurrentScope(), oaf) ;
    ForeachOAFamily(oaf, doFillInOAFamily) ;
@@ -11147,6 +11433,7 @@ VAR
    pSym    : PtrToSymbol ;
    oaf, sym: CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'set') ;
    sym := HandleHiddenOrDeclare(tok, SetName, oaf) ;
    IF NOT IsError(sym)
    THEN
@@ -11486,6 +11773,7 @@ PROCEDURE MakeUnbounded (tok: CARDINAL;
 VAR
    sym, oaf: CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'unbounded') ;
    oaf := MakeOAFamily(SimpleType) ;
    sym := GetUnbounded(oaf, ndim) ;
    IF sym=NulSym
@@ -12073,6 +12361,7 @@ VAR
    pSym: PtrToSymbol ;
    s   : CARDINAL ;
 BEGIN
+   s := NulSym ;
    IF IsModule (sym) OR IsDefImp (sym)
    THEN
       RETURN( CollectSymbolFrom (tok, sym, n) )
@@ -12095,10 +12384,9 @@ BEGIN
             END
          END ;
          s := CollectUnknown (tok, GetScope (sym), n)
-      END ;
-      RETURN( s )
+      END
    END ;
-   InternalError ('expecting sym should be a module, defimp or procedure symbol')
+   RETURN( s )
 END CollectUnknown ;
 
 
@@ -12212,6 +12500,7 @@ BEGIN
       ConstLitSym        : RETURN( ConstLit.Scope ) |
       ConstStringSym     : RETURN( ConstString.Scope ) |
       ConstVarSym        : RETURN( ConstVar.Scope ) |
+      UndefinedSym       : RETURN( NulSym ) |
       PartialUnboundedSym: InternalError ('should not be requesting the scope of a PartialUnbounded symbol')
 
       ELSE
@@ -12319,6 +12608,7 @@ VAR
    pSym    : PtrToSymbol ;
    oaf, sym: CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'proctype') ;
    sym := HandleHiddenOrDeclare (tok, ProcTypeName, oaf) ;
    IF NOT IsError(sym)
    THEN
@@ -12403,6 +12693,27 @@ BEGIN
    END ;
    AddParameter(Sym, ParSym)
 END PutProcTypeVarParam ;
+
+
+(*
+   GetProcedureProcType - returns the proctype matching procedure sym.
+*)
+
+PROCEDURE GetProcedureProcType (sym: CARDINAL) : CARDINAL ;
+VAR
+   pSym: PtrToSymbol ;
+BEGIN
+   pSym := GetPsym(sym) ;
+   WITH pSym^ DO
+      CASE SymbolType OF
+
+      ProcedureSym: RETURN Procedure.ProcedureType
+
+      ELSE
+         InternalError ('expecting Procedure symbol')
+      END
+   END
+END GetProcedureProcType ;
 
 
 (*
@@ -13402,7 +13713,9 @@ END ForeachModuleDo ;
 
 (*
    ForeachFieldEnumerationDo - for each field in enumeration, Sym,
-                               do procedure, P.
+                               do procedure, P.  Each call to P contains
+                               an enumeration field, the order is alphabetical.
+                               Use ForeachLocalSymDo for declaration order.
 *)
 
 PROCEDURE ForeachFieldEnumerationDo (Sym: CARDINAL; P: PerformOperation) ;
@@ -13413,7 +13726,7 @@ BEGIN
    WITH pSym^ DO
       CASE SymbolType OF
 
-      EnumerationSym: ForeachNodeDo( Enumeration.LocalSymbols, P)
+      EnumerationSym: ForeachNodeDo (Enumeration.LocalSymbols, P)
 
       ELSE
          InternalError ('expecting Enumeration symbol')
@@ -14308,10 +14621,11 @@ BEGIN
       RecordFieldSym:  RecordField.Align := align |
       TypeSym       :  Type.Align := align |
       ArraySym      :  Array.Align := align |
-      PointerSym    :  Pointer.Align := align
+      PointerSym    :  Pointer.Align := align |
+      SubrangeSym   :  Subrange.Align := align
 
       ELSE
-         InternalError ('expecting record, field, pointer, type or an array symbol')
+         InternalError ('expecting record, field, pointer, type, subrange or an array symbol')
       END
    END
 END PutAlignment ;
@@ -14336,10 +14650,11 @@ BEGIN
       ArraySym       :  RETURN( Array.Align ) |
       PointerSym     :  RETURN( Pointer.Align ) |
       VarientFieldSym:  RETURN( GetAlignment(VarientField.Parent) ) |
-      VarientSym     :  RETURN( GetAlignment(Varient.Parent) )
+      VarientSym     :  RETURN( GetAlignment(Varient.Parent) ) |
+      SubrangeSym    :  RETURN( Subrange.Align )
 
       ELSE
-         InternalError ('expecting record, field, pointer, type or an array symbol')
+         InternalError ('expecting record, field, pointer, type, subrange or an array symbol')
       END
    END
 END GetAlignment ;
@@ -14389,6 +14704,162 @@ BEGIN
       END
    END
 END GetDefaultRecordFieldAlignment ;
+
+
+(*
+   VarCheckReadInit - returns TRUE if sym has been initialized.
+*)
+
+PROCEDURE VarCheckReadInit (sym: CARDINAL; mode: ModeOfAddr) : BOOLEAN ;
+VAR
+   pSym: PtrToSymbol ;
+BEGIN
+   IF IsVar (sym)
+   THEN
+      pSym := GetPsym (sym) ;
+      WITH pSym^ DO
+         CASE SymbolType OF
+
+         VarSym:  RETURN GetInitialized (Var.InitState[mode])
+
+         ELSE
+         END
+      END
+   END ;
+   RETURN FALSE
+END VarCheckReadInit ;
+
+
+(*
+   VarInitState - initializes the init state for variable sym.
+*)
+
+PROCEDURE VarInitState (sym: CARDINAL) ;
+VAR
+   pSym: PtrToSymbol ;
+BEGIN
+   IF IsVar (sym)
+   THEN
+      pSym := GetPsym (sym) ;
+      WITH pSym^ DO
+         CASE SymbolType OF
+
+         VarSym:  ConfigSymInit (Var.InitState[LeftValue], sym) ;
+                  ConfigSymInit (Var.InitState[RightValue], sym)
+
+         ELSE
+         END
+      END
+   END
+END VarInitState ;
+
+
+(*
+   PutVarInitialized - set sym as initialized.
+*)
+
+PROCEDURE PutVarInitialized (sym: CARDINAL; mode: ModeOfAddr) ;
+VAR
+   pSym: PtrToSymbol ;
+BEGIN
+   IF IsVar (sym)
+   THEN
+      pSym := GetPsym (sym) ;
+      WITH pSym^ DO
+         CASE SymbolType OF
+
+         VarSym:  WITH Var DO
+                     SetInitialized (InitState[mode])
+                  END
+
+         ELSE
+         END
+      END
+   END
+END PutVarInitialized ;
+
+
+(*
+   PutVarFieldInitialized - records that field has been initialized with
+                            variable sym.  TRUE is returned if the field
+                            is detected and changed to initialized.
+*)
+
+PROCEDURE PutVarFieldInitialized (sym: CARDINAL; mode: ModeOfAddr;
+                                  fieldlist: List) : BOOLEAN ;
+VAR
+   pSym: PtrToSymbol ;
+BEGIN
+   IF IsVar (sym)
+   THEN
+      pSym := GetPsym (sym) ;
+      WITH pSym^ DO
+         CASE SymbolType OF
+
+         VarSym:  WITH Var DO
+                     RETURN SetFieldInitialized (InitState[mode], fieldlist)
+                  END
+
+         ELSE
+         END
+      END
+   END ;
+   RETURN FALSE
+END PutVarFieldInitialized ;
+
+
+(*
+   GetVarFieldInitialized - return TRUE if fieldlist has been initialized
+                            within variable sym.
+*)
+
+PROCEDURE GetVarFieldInitialized (sym: CARDINAL; mode: ModeOfAddr;
+                                  fieldlist: List) : BOOLEAN ;
+VAR
+   pSym: PtrToSymbol ;
+BEGIN
+   IF IsVar (sym)
+   THEN
+      pSym := GetPsym (sym) ;
+      WITH pSym^ DO
+         CASE SymbolType OF
+
+         VarSym:  WITH Var DO
+                     RETURN GetFieldInitialized (InitState[mode], fieldlist)
+                  END
+
+         ELSE
+         END
+      END
+   END ;
+   RETURN FALSE
+END GetVarFieldInitialized ;
+
+
+(*
+   PrintInitialized - display variable sym initialization state.
+*)
+
+PROCEDURE PrintInitialized (sym: CARDINAL) ;
+VAR
+   pSym: PtrToSymbol ;
+BEGIN
+   IF IsVar (sym)
+   THEN
+      pSym := GetPsym (sym) ;
+      WITH pSym^ DO
+         CASE SymbolType OF
+
+         VarSym:  printf0 ("LeftMode init: ") ;
+                  PrintSymInit (Var.InitState[LeftValue]) ;
+                  printf0 ("RightMode init: ") ;
+                  PrintSymInit (Var.InitState[RightValue])
+
+         ELSE
+         END
+      END
+   END
+END PrintInitialized ;
 
 
 (*

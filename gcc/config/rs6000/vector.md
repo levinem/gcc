@@ -3,7 +3,7 @@
 ;; expander, and the actual vector instructions will be in altivec.md and
 ;; vsx.md
 
-;; Copyright (C) 2009-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2024 Free Software Foundation, Inc.
 ;; Contributed by Michael Meissner <meissner@linux.vnet.ibm.com>
 
 ;; This file is part of GCC.
@@ -163,20 +163,6 @@
     }
 })
 
-;; Generic vector floating point load/store instructions.  These will match
-;; insns defined in vsx.md or altivec.md depending on the switches.
-(define_expand "vector_load_<mode>"
-  [(set (match_operand:VEC_M 0 "vfloat_operand")
-	(match_operand:VEC_M 1 "memory_operand"))]
-  "VECTOR_MEM_ALTIVEC_OR_VSX_P (<MODE>mode)"
-  "")
-
-(define_expand "vector_store_<mode>"
-  [(set (match_operand:VEC_M 0 "memory_operand")
-	(match_operand:VEC_M 1 "vfloat_operand"))]
-  "VECTOR_MEM_ALTIVEC_OR_VSX_P (<MODE>mode)"
-  "")
-
 ;; Splits if a GPR register was chosen for the move
 (define_split
   [(set (match_operand:VEC_L 0 "nonimmediate_operand")
@@ -332,8 +318,8 @@
 
 (define_expand "vector_copysign<mode>3"
   [(set (match_operand:VEC_F 0 "vfloat_operand")
-	(unspec:VEC_F [(match_operand:VEC_F 1 "vfloat_operand")
-		       (match_operand:VEC_F 2 "vfloat_operand")] UNSPEC_COPYSIGN))]
+	(copysign:VEC_F (match_operand:VEC_F 1 "vfloat_operand")
+			(match_operand:VEC_F 2 "vfloat_operand")))]
   "VECTOR_UNIT_ALTIVEC_OR_VSX_P (<MODE>mode)"
 {
   if (<MODE>mode == V4SFmode && VECTOR_UNIT_ALTIVEC_P (<MODE>mode))

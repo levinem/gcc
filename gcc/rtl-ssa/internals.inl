@@ -1,5 +1,5 @@
 // Implementation of private inline member functions for RTL SSA    -*- C++ -*-
-// Copyright (C) 2020-2023 Free Software Foundation, Inc.
+// Copyright (C) 2020-2024 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
@@ -415,6 +415,7 @@ inline insn_info::insn_info (bb_info *bb, rtx_insn *rtl, int cost_or_uid)
     m_is_asm (false),
     m_has_pre_post_modify (false),
     m_has_volatile_refs (false),
+    m_is_temp (false),
     m_spare (0),
     m_point (0),
     m_cost_or_uid (cost_or_uid),
@@ -672,6 +673,9 @@ combine_modes (machine_mode mode1, machine_mode mode2)
 
   if (mode2 == E_BLKmode)
     return mode1;
+
+  if (!ordered_p (GET_MODE_SIZE (mode1), GET_MODE_SIZE (mode2)))
+    return BLKmode;
 
   return wider_subreg_mode (mode1, mode2);
 }

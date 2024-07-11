@@ -1,5 +1,5 @@
 /* SSA Dominator optimizations for trees
-   Copyright (C) 2001-2023 Free Software Foundation, Inc.
+   Copyright (C) 2001-2024 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@redhat.com>
 
 This file is part of GCC.
@@ -1338,6 +1338,71 @@ all_uses_feed_or_dominated_by_stmt (tree name, gimple *stmt)
   return true;
 }
 
+/* Handle
+   _4 = x_3 & 31;
+   if (_4 != 0)
+     goto <bb 6>;
+   else
+     goto <bb 7>;
+   <bb 6>:
+   __builtin_unreachable ();
+   <bb 7>:
+
+   If x_3 has no other immediate uses (checked by caller), var is the
+   x_3 var, we can clear low 5 bits from the non-zero bitmask.  */
+
+static void
+maybe_set_nonzero_bits (edge e, tree var)
+{
+  basic_block cond_bb = e->src;
+  gcond *cond = safe_dyn_cast <gcond *> (*gsi_last_bb (cond_bb));
+  tree cst;
+
+  if (cond == NULL
+      || gimple_cond_code (cond) != ((e->flags & EDGE_TRUE_VALUE)
+				     ? EQ_EXPR : NE_EXPR)
+      || TREE_CODE (gimple_cond_lhs (cond)) != SSA_NAME
+      || !integer_zerop (gimple_cond_rhs (cond)))
+    return;
+
+  gimple *stmt = SSA_NAME_DEF_STMT (gimple_cond_lhs (cond));
+  if (!is_gimple_assign (stmt)
+      || gimple_assign_rhs_code (stmt) != BIT_AND_EXPR
+      || TREE_CODE (gimple_assign_rhs2 (stmt)) != INTEGER_CST)
+    return;
+  if (gimple_assign_rhs1 (stmt) != var)
+    {
+      gimple *stmt2;
+
+      if (TREE_CODE (gimple_assign_rhs1 (stmt)) != SSA_NAME)
+	return;
+      stmt2 = SSA_NAME_DEF_STMT (gimple_assign_rhs1 (stmt));
+      if (!gimple_assign_cast_p (stmt2)
+	  || gimple_assign_rhs1 (stmt2) != var
+	  || !CONVERT_EXPR_CODE_P (gimple_assign_rhs_code (stmt2))
+	  || (TYPE_PRECISION (TREE_TYPE (gimple_assign_rhs1 (stmt)))
+			      != TYPE_PRECISION (TREE_TYPE (var))))
+	return;
+    }
+  cst = gimple_assign_rhs2 (stmt);
+  if (POINTER_TYPE_P (TREE_TYPE (var)))
+    {
+      struct ptr_info_def *pi = SSA_NAME_PTR_INFO (var);
+      if (pi && pi->misalign)
+	return;
+      wide_int w = wi::bit_not (wi::to_wide (cst));
+      unsigned int bits = wi::ctz (w);
+      if (bits == 0 || bits >= HOST_BITS_PER_INT)
+	return;
+      unsigned int align = 1U << bits;
+      if (pi == NULL || pi->align < align)
+	set_ptr_info_alignment (get_ptr_info (var), align, 0);
+    }
+  else
+    set_nonzero_bits (var, wi::bit_and_not (get_nonzero_bits (var),
+					    wi::to_wide (cst)));
+}
+
 /* Set global ranges that can be determined from the C->M edge:
 
    <bb C>:
@@ -1365,15 +1430,14 @@ dom_opt_dom_walker::set_global_ranges_from_unreachable_edges (basic_block bb)
     return;
 
   tree name;
-  gori_compute &gori = m_ranger->gori ();
-  FOR_EACH_GORI_EXPORT_NAME (gori, pred_e->src, name)
+  FOR_EACH_GORI_EXPORT_NAME (m_ranger->gori_ssa (), pred_e->src, name)
     if (all_uses_feed_or_dominated_by_stmt (name, stmt)
 	// The condition must post-dominate the definition point.
 	&& (SSA_NAME_IS_DEFAULT_DEF (name)
 	    || (gimple_bb (SSA_NAME_DEF_STMT (name))
 		== pred_e->src)))
       {
-	Value_Range r (TREE_TYPE (name));
+	value_range r (TREE_TYPE (name));
 
 	if (m_ranger->range_on_edge (r, pred_e, name)
 	    && !r.varying_p ()
@@ -1417,9 +1481,10 @@ record_equivalences_from_incoming_edge (basic_block bb,
 static void
 htab_statistics (FILE *file, const hash_table<expr_elt_hasher> &htab)
 {
-  fprintf (file, "size %ld, %ld elements, %f collision/search ratio\n",
-	   (long) htab.size (),
-	   (long) htab.elements (),
+  fprintf (file, "size " HOST_SIZE_T_PRINT_DEC ", " HOST_SIZE_T_PRINT_DEC
+	   " elements, %f collision/search ratio\n",
+	   (fmt_size_t) htab.size (),
+	   (fmt_size_t) htab.elements (),
 	   htab.collisions ());
 }
 
@@ -1967,7 +2032,7 @@ cprop_operand (gimple *stmt, use_operand_p op_p, range_query *query)
   val = SSA_NAME_VALUE (op);
   if (!val)
     {
-      Value_Range r (TREE_TYPE (op));
+      value_range r (TREE_TYPE (op));
       tree single;
       if (query->range_of_expr (r, op, stmt) && r.singleton_p (&single))
 	val = single;

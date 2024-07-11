@@ -1,5 +1,5 @@
 /* Exception handling semantics and decomposition for trees.
-   Copyright (C) 2003-2023 Free Software Foundation, Inc.
+   Copyright (C) 2003-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -2274,8 +2274,8 @@ make_eh_dispatch_edges (geh_dispatch *stmt)
 /* Create the single EH edge from STMT to its nearest landing pad,
    if there is such a landing pad within the current function.  */
 
-void
-make_eh_edges (gimple *stmt)
+edge
+make_eh_edge (gimple *stmt)
 {
   basic_block src, dst;
   eh_landing_pad lp;
@@ -2283,14 +2283,14 @@ make_eh_edges (gimple *stmt)
 
   lp_nr = lookup_stmt_eh_lp (stmt);
   if (lp_nr <= 0)
-    return;
+    return NULL;
 
   lp = get_eh_landing_pad_from_number (lp_nr);
   gcc_assert (lp != NULL);
 
   src = gimple_bb (stmt);
   dst = label_to_block (cfun, lp->post_landing_pad);
-  make_edge (src, dst, EDGE_EH);
+  return make_edge (src, dst, EDGE_EH);
 }
 
 /* Do the work in redirecting EDGE_IN to NEW_BB within the EH region tree;
@@ -3382,8 +3382,22 @@ lower_resx (basic_block bb, gresx *stmt,
 	      lab = gimple_block_label (new_bb);
 	      gsi2 = gsi_start_bb (new_bb);
 
+	      /* Handle failure fns that expect either no arguments or the
+		 exception pointer.  */
 	      fn = dst_r->u.must_not_throw.failure_decl;
-	      x = gimple_build_call (fn, 0);
+	      if (TYPE_ARG_TYPES (TREE_TYPE (fn)) != void_list_node)
+		{
+		  tree epfn = builtin_decl_implicit (BUILT_IN_EH_POINTER);
+		  src_nr = build_int_cst (integer_type_node, src_r->index);
+		  x = gimple_build_call (epfn, 1, src_nr);
+		  tree var = create_tmp_var (ptr_type_node);
+		  var = make_ssa_name (var, x);
+		  gimple_call_set_lhs (x, var);
+		  gsi_insert_after (&gsi2, x, GSI_CONTINUE_LINKING);
+		  x = gimple_build_call (fn, 1, var);
+		}
+	      else
+		x = gimple_build_call (fn, 0);
 	      gimple_set_location (x, dst_r->u.must_not_throw.failure_loc);
 	      gsi_insert_after (&gsi2, x, GSI_CONTINUE_LINKING);
 
@@ -4907,7 +4921,7 @@ make_pass_cleanup_eh (gcc::context *ctxt)
 #endif
 
 /* Verify that BB containing STMT as the last statement, has precisely the
-   edge that make_eh_edges would create.  */
+   edge that make_eh_edge would create.  */
 
 DEBUG_FUNCTION bool
 verify_eh_edges (gimple *stmt)

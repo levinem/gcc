@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-march=rv32gc_zve64d -mabi=ilp32 -O3 -fno-vect-cost-model --param=riscv-autovec-preference=scalable -fdump-tree-vect-details" } */
+/* { dg-options "-march=rv32gc_zve64d -mabi=ilp32 -O3 -fno-vect-cost-model -mrvv-vector-bits=scalable -fdump-tree-vect-details" } */
 
 #include "riscv_vector.h"
 
@@ -14,4 +14,4 @@ f (int32_t *__restrict f, int32_t *__restrict d, int n)
     }
 }
 
-/* { dg-final { scan-tree-dump-times "vectorized 1 loops in function" 0 "vect" } } */
+/* { dg-final { scan-tree-dump-times "vectorized 1 loops in function" 1 "vect" } } */

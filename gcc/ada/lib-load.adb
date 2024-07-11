@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -313,6 +313,7 @@ package body Lib.Load is
         Is_Predefined_Renaming_File_Name (Fname);
       GNAT_Name : constant Boolean :=
         Is_GNAT_File_Name (Fname);
+      Saved_Error_Count : constant Nat := Total_Errors_Detected;
       Version : Word := 0;
 
    begin
@@ -336,7 +337,14 @@ package body Lib.Load is
          if Main_Source_File > No_Source_File then
             Version := Source_Checksum (Main_Source_File);
 
-         else
+         --  If we get here and Saved_Error_Count /= Total_Errors_Detected,
+         --  then an error occurred during preprocessing. In this case
+         --  we have already generated an error message during preprocessing
+         --  and we do not want to emit an incorrect "file foo.adb not found"
+         --  message here.
+
+         elsif Saved_Error_Count = Total_Errors_Detected then
+
             --  To avoid emitting a source location (since there is no file),
             --  we write a custom error message instead of using the machinery
             --  in errout.adb.
@@ -645,11 +653,16 @@ package body Lib.Load is
                   if Is_Predefined_File_Name (Fname) then
                      Error_Msg_Unit_1 := Uname_Actual;
                      Error_Msg
-                       ("$$ is not a language defined unit", Load_Msg_Sloc);
+                       ("$$ is not a language defined unit",
+                        Load_Msg_Sloc,
+                        Error_Node);
                   else
                      Error_Msg_File_1 := Fname;
                      Error_Msg_Unit_1 := Uname_Actual;
-                     Error_Msg ("file{ does not contain unit$", Load_Msg_Sloc);
+                     Error_Msg
+                       ("file{ does not contain unit$",
+                        Load_Msg_Sloc,
+                        Error_Node);
                   end if;
 
                   Write_Dependency_Chain;
@@ -697,7 +710,8 @@ package body Lib.Load is
             end if;
 
             if Present (Error_Node) then
-               Error_Msg ("circular unit dependency", Load_Msg_Sloc);
+               Error_Msg
+                 ("circular unit dependency", Load_Msg_Sloc, Error_Node);
                Write_Dependency_Chain;
             else
                Load_Stack.Decrement_Last;
@@ -798,11 +812,14 @@ package body Lib.Load is
             then
                Error_Msg_File_1 := Unit_File_Name (Corr_Body);
                Error_Msg
-                 ("cannot compile subprogram in file {!", Load_Msg_Sloc);
+                 ("cannot compile subprogram in file {!",
+                  Load_Msg_Sloc,
+                  Error_Node);
                Error_Msg_File_1 := Unit_File_Name (Unum);
                Error_Msg
                  ("\incorrect spec in file { must be removed first!",
-                  Load_Msg_Sloc);
+                  Load_Msg_Sloc,
+                  Error_Node);
                Unum := No_Unit;
                goto Done;
             end if;
@@ -879,15 +896,21 @@ package body Lib.Load is
 
                   Error_Msg_Unit_1 := Uname_Actual;
                   Error_Msg -- CODEFIX
-                    ("$$ is not a predefined library unit", Load_Msg_Sloc);
+                    ("$$ is not a predefined library unit",
+                     Load_Msg_Sloc,
+                     Error_Node);
 
                else
                   Error_Msg_File_1 := Fname;
 
                   if Src_Ind = No_Access_To_Source_File then
-                     Error_Msg ("no read access to file{", Load_Msg_Sloc);
+                     Error_Msg
+                       ("no read access to file{",
+                        Load_Msg_Sloc,
+                        Error_Node
+                        );
                   else
-                     Error_Msg ("file{ not found", Load_Msg_Sloc);
+                     Error_Msg ("file{ not found", Load_Msg_Sloc, Error_Node);
                   end if;
                end if;
 

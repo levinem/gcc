@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -208,16 +208,6 @@ package Opt is
    --  (list representation information). It is also set true if certain
    --  Unchecked_Conversion instantiations require checking based on annotated
    --  values.
-
-   Back_End_Handles_Limited_Types : Boolean;
-   --  This flag is set True if the back end can properly handle limited or
-   --  other by reference types, and avoid copies. If this flag is False, then
-   --  the front end does special expansion for if/case expressions to make
-   --  sure that no copy occurs. If the flag is True, then the expansion for
-   --  if and case expressions relies on the back end properly handling things.
-   --  Currently the default is False for all cases (set in gnat1drv). The
-   --  default can be modified using -gnatd.L (sets the flag True). This is
-   --  used to test the possibility of having the backend handle this.
 
    Back_End_Inlining : Boolean := False;
    --  GNAT
@@ -826,10 +816,6 @@ package Opt is
    --  cause implicit packing instead of generating an error message. Set by
    --  use of pragma Implicit_Packing.
 
-   Include_Subprogram_In_Messages : Boolean := False;
-   --  GNAT
-   --  Set True to include the enclosing subprogram in compiler messages.
-
    Init_Or_Norm_Scalars : Boolean := False;
    --  GNAT, GNATBIND
    --  Set True if a pragma Initialize_Scalars applies to the current unit.
@@ -1123,6 +1109,10 @@ package Opt is
    --  This flag is set True if a No_Run_Time pragma is encountered. See spec
    --  of Rtsfind for a full description of handling of this pragma.
 
+   Interrupts_System_By_Default : Boolean := False;
+   --  GNATBIND
+   --  Set True if pragma Interrupts_System_By_Default is seen.
+
    No_Split_Units : Boolean := False;
    --  GPRBUILD
    --  Set to True with switch --no-split-units. When True, unit sources, spec,
@@ -1341,6 +1331,11 @@ package Opt is
    Replace_In_Comments : Boolean := False;
    --  GNATPREP
    --  Set to True if -C switch used.
+
+   Reverse_Bit_Order_Threshold : Int := -1;
+   --  GNAT
+   --  Set to the threshold from which the RM 13.5.1(13.3/2) clause applies,
+   --  or -1 if the size of the largest machine scalar is to be used.
 
    RTS_Lib_Path_Name : String_Ptr := null;
    RTS_Src_Path_Name : String_Ptr := null;
@@ -1675,6 +1670,11 @@ package Opt is
    --  ignored (except for legality checks), unless we are in GNATprove_Mode,
    --  which requires pragma Warnings to be stored for the formal verification
    --  backend.
+
+   Info_Suppressed : Boolean := False;
+   --  GNAT
+   --  Controls whether informational messages are suppressed. Set True by
+   --  -gnatis. If True, informational messages will not be printed.
 
    Wide_Character_Encoding_Method : WC_Encoding_Method := WCEM_Brackets;
    --  GNAT, GNATBIND

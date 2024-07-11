@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -30,6 +30,10 @@ with Types; use Types;
 package Exp_Prag is
 
    procedure Expand_N_Pragma (N : Node_Id);
+
+   procedure Expand_Pragma_Always_Terminates (Prag : Node_Id);
+   --  This routine only exists for consistency with other pragmas, since
+   --  Always_Terminates has no meaningful expansion.
 
    procedure Expand_Pragma_Contract_Cases
      (CCs     : Node_Id;

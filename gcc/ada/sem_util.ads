@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -110,10 +110,9 @@ package Sem_Util is
    --  because those are the only dynamic cases.
 
    procedure Append_Entity_Name (Buf : in out Bounded_String; E : Entity_Id);
-   --  Recursive procedure to construct string for qualified name of enclosing
-   --  program unit. The qualification stops at an enclosing scope has no
-   --  source name (block or loop). If entity is a subprogram instance, skip
-   --  enclosing wrapper package. The name is appended to Buf.
+   --  Construct a user-readable expanded name for E, for printing in messages,
+   --  such as run-time errors for unhandled exceptions. Names created for
+   --  internal use are not included. The name is appended to Buf.
 
    procedure Append_Inherited_Subprogram (S : Entity_Id);
    --  If the parent of the operation is declared in the visible part of
@@ -282,14 +281,13 @@ package Sem_Util is
    --  subtype. Otherwise, simply return T.
 
    function Build_Default_Subtype_OK (T : Entity_Id) return Boolean;
-   --  When analyzing components or object declarations, it is possible, in
-   --  some cases, to build subtypes for discriminated types. This is
-   --  worthwhile to avoid the backend allocating the maximum possible size for
-   --  objects of the type.
+   --  When analyzing object declarations, it is possible, in some cases, to
+   --  build subtypes for discriminated types. This is worthwhile to avoid the
+   --  backend allocating the maximum possible size for objects of the type.
    --  In particular, when T is limited, the discriminants and therefore the
    --  size of an object of type T cannot change. Furthermore, if T is definite
-   --  with statically initialized defaulted discriminants, we are able and
-   --  want to build a constrained subtype of the right size.
+   --  with initialized defaulted discriminants, we are able and want to build
+   --  a constrained subtype of the right size.
 
    function Build_Discriminal_Subtype_Of_Component
      (T : Entity_Id) return Node_Id;
@@ -375,7 +373,7 @@ package Sem_Util is
    --  call C2 (not including the construct N itself), there is no other name
    --  anywhere within a direct constituent of the construct C other than
    --  the one containing C2, that is known to refer to the same object (RM
-   --  6.4.1(6.17/3)).
+   --  6.4.1(6.18-6.19)).
 
    procedure Check_Implicit_Dereference (N : Node_Id; Typ : Entity_Id);
    --  AI05-139-2: Accessors and iterators for containers. This procedure
@@ -414,10 +412,6 @@ package Sem_Util is
    --  whose declaration includes a non-empty interface list).
    --  In the error case, error message is associate with Inheritor;
    --  Inheritor parameter is otherwise unused.
-
-   procedure Check_Nonvolatile_Function_Profile (Func_Id : Entity_Id);
-   --  Verify that the profile of nonvolatile function Func_Id does not contain
-   --  effectively volatile parameters or return type for reading.
 
    function Check_Parents (N : Node_Id; List : Elist_Id) return Boolean;
    --  Return True if all the occurrences of subtree N referencing entities in
@@ -466,19 +460,6 @@ package Sem_Util is
    --  Check whether the expression is a pointer to a protected component,
    --  and the context is external to the protected operation, to warn against
    --  a possible unlocked access to data.
-
-   procedure Check_Volatility_Compatibility
-     (Id1, Id2                     : Entity_Id;
-      Description_1, Description_2 : String;
-      Srcpos_Bearer                : Node_Id);
-   --  Id1 and Id2 should each be the entity of a state abstraction, a
-   --  variable, or a type (i.e., something suitable for passing to
-   --  Async_Readers_Enabled and similar functions).
-   --  Does nothing if SPARK_Mode /= On. Otherwise, flags a legality violation
-   --  if one or more of the four volatility-related aspects is False for Id1
-   --  and True for Id2. The two descriptions are included in the error message
-   --  text; the source position for the generated message is determined by
-   --  Srcpos_Bearer.
 
    function Choice_List (N : Node_Id) return List_Id;
    --  Utility to retrieve the choices of a Component_Association or the
@@ -809,8 +790,10 @@ package Sem_Util is
    procedure Enter_Name (Def_Id : Entity_Id);
    --  Insert new name in symbol table of current scope with check for
    --  duplications (error message is issued if a conflict is found).
-   --  Note: Enter_Name is not used for overloadable entities, instead these
-   --  are entered using Sem_Ch6.Enter_Overloaded_Entity.
+   --  Note: Enter_Name is not used for most overloadable entities, instead
+   --  they are entered using Sem_Ch6.Enter_Overloaded_Entity. However,
+   --  this is used for SOME overloadable entities, such as enumeration
+   --  literals and certain operator symbols.
 
    function Entity_Of (N : Node_Id) return Entity_Id;
    --  Obtain the entity of arbitrary node N. If N is a renaming, return the
@@ -887,7 +870,8 @@ package Sem_Util is
    --  such a loop exists, return the entity of its identifier (E_Loop scope),
    --  otherwise return Empty.
 
-   function Find_Enclosing_Scope (N : Node_Id) return Entity_Id;
+   function Find_Enclosing_Scope (N : Node_Id) return Scope_Kind_Id with
+     Post => Find_Enclosing_Scope'Result /= N;
    --  Find the nearest scope which encloses arbitrary node N
 
    function Find_Loop_In_Conditional_Block (N : Node_Id) return Node_Id;
@@ -1078,7 +1062,6 @@ package Sem_Util is
    --
    --    Report_Errors is set to True if the values of the discriminants are
    --     insufficiently static (see body for details of what that means).
-
    --
    --    Allow_Compile_Time if set to True, allows compile time known values in
    --     Governed_By expressions in addition to static expressions.
@@ -1474,6 +1457,13 @@ package Sem_Util is
    --  Return True if the loop has no side effect and can therefore be
    --  marked for removal. Return False if N is not a N_Loop_Statement.
 
+   function Is_Container_Aggregate (Exp : Node_Id) return Boolean;
+   --  Is the given expression a container aggregate?
+
+   function Is_Function_With_Side_Effects (Subp : Entity_Id) return Boolean;
+   --  Return True if Subp is a function with side effects, ie. it has a
+   --  (direct or inherited) pragma Side_Effects with static value True.
+
    function Is_Newly_Constructed
      (Exp : Node_Id; Context_Requires_NC : Boolean) return Boolean;
    --  Indicates whether a given expression is "newly constructed" (RM 4.4).
@@ -1525,9 +1515,9 @@ package Sem_Util is
 
    function Has_Relaxed_Initialization (E : Entity_Id) return Boolean;
    --  Returns True iff entity E is subject to the Relaxed_Initialization
-   --  aspect. Entity E can be either type, variable, constant, subprogram,
-   --  entry or an abstract state. For private types and deferred constants
-   --  E should be the private view, because aspect can only be attached there.
+   --  aspect. Entity E can be either type, variable, constant, subprogram or
+   --  entry. For private types and deferred constants E should be the private
+   --  view, because aspect can only be attached there.
 
    function Has_Signed_Zeros (E : Entity_Id) return Boolean;
    --  Determines if the floating-point type E supports signed zeros.
@@ -1568,6 +1558,12 @@ package Sem_Util is
      (Typ : Entity_Id) return Boolean;
    --  Given arbitrary type Typ, determine whether it contains at least one
    --  effectively volatile component.
+
+   function Has_Enabled_Aspect (Id : Entity_Id; A : Aspect_Id) return Boolean
+     with Pre => A in Boolean_Aspects;
+   --  Returns True if a Boolean-valued aspect is enabled on entity Id; i.e. it
+   --  is present and either has no aspect definition or its aspect definition
+   --  statically evaluates to True.
 
    function Has_Volatile_Component (Typ : Entity_Id) return Boolean;
    --  Given arbitrary type Typ, determine whether it contains at least one
@@ -1695,9 +1691,14 @@ package Sem_Util is
    --  either the value is not yet known before back-end processing or it is
    --  not known at compile time after back-end processing.
 
-   procedure Inherit_Predicate_Flags (Subt, Par : Entity_Id);
+   procedure Inherit_Predicate_Flags
+     (Subt, Par  : Entity_Id;
+      Only_Flags : Boolean := False);
    --  Propagate static and dynamic predicate flags from a parent to the
-   --  subtype in a subtype declaration with and without constraints.
+   --  subtype in a subtype declaration with and without constraints, or from
+   --  a parent to the derived type in a derived type declaration. Only_Flags
+   --  is True in the case of a derived type declaration to inherit only the
+   --  flags, not the predicate functions.
 
    procedure Inherit_Rep_Item_Chain (Typ : Entity_Id; From_Typ : Entity_Id);
    --  Inherit the rep item chain of type From_Typ without clobbering any
@@ -2079,12 +2080,6 @@ package Sem_Util is
    --  E is a subprogram. Return True is E is an implicit operation inherited
    --  by a derived type declaration.
 
-   function Is_Inherited_Operation_For_Type
-     (E   : Entity_Id;
-      Typ : Entity_Id) return Boolean;
-   --  E is a subprogram. Return True is E is an implicit operation inherited
-   --  by the derived type declaration for type Typ.
-
    function Is_Inlinable_Expression_Function (Subp : Entity_Id) return Boolean;
    --  Return True if Subp is an expression function that fulfills all the
    --  following requirements for inlining:
@@ -2098,6 +2093,11 @@ package Sem_Util is
    --     8. Return expression naming an object global to the function
    --     9. Nominal subtype of the returned object statically compatible
    --        with the result subtype of the expression function.
+
+   function Is_Internal_Block (N : Node_Id) return Boolean;
+   pragma Inline (Is_Internal_Block);
+   --  Determine if N is an N_Block_Statement with an internal label. See
+   --  Add_Block_Identifier.
 
    function Is_Iterator (Typ : Entity_Id) return Boolean;
    --  AI05-0139-2: Check whether Typ is one of the predefined interfaces in
@@ -2186,7 +2186,7 @@ package Sem_Util is
       Obj_Ref       : Node_Id;
       Check_Actuals : Boolean) return Boolean;
    --  Determine whether node Context denotes a "non-interfering context" (as
-   --  defined in SPARK RM 7.1.3(10)) where volatile reference Obj_Ref can
+   --  defined in SPARK RM 7.1.3(9)) where volatile reference Obj_Ref can
    --  safely reside. When examining references that might be located within
    --  actual parameters of a subprogram call that has not been resolved yet,
    --  Check_Actuals should be False; such references will be assumed to be
@@ -2219,7 +2219,7 @@ package Sem_Util is
    --  type be partially initialized.
 
    function Is_Potentially_Unevaluated (N : Node_Id) return Boolean;
-   --  Predicate to implement definition given in RM 6.1.1 (20/3)
+   --  Predicate to implement definition given in RM 2012 6.1.1 (20/3)
 
    function Is_Potentially_Persistent_Type (T : Entity_Id) return Boolean;
    --  Determines if type T is a potentially persistent type. A potentially
@@ -2341,6 +2341,7 @@ package Sem_Util is
    function Is_Subprogram_Contract_Annotation (Item : Node_Id) return Boolean;
    --  Determine whether aspect specification or pragma Item is one of the
    --  following subprogram contract annotations:
+   --    Always_Terminates
    --    Contract_Cases
    --    Depends
    --    Exceptional_Cases
@@ -2395,6 +2396,11 @@ package Sem_Util is
    function Is_Universal_Numeric_Type (T : Entity_Id) return Boolean;
    pragma Inline (Is_Universal_Numeric_Type);
    --  True if T is Universal_Integer or Universal_Real
+
+   function Is_Unconstrained_Or_Tagged_Item (Item : Entity_Id) return Boolean;
+   --  Subsidiary to Collect_Subprogram_Inputs_Outputs and the analysis of
+   --  pragma Depends. Determine whether the type of dependency item Item is
+   --  tagged, unconstrained array or unconstrained record.
 
    function Is_User_Defined_Equality (Id : Entity_Id) return Boolean;
    --  Determine whether an entity denotes a user-defined equality
@@ -2465,6 +2471,13 @@ package Sem_Util is
    procedure Iterate_Call_Parameters (Call : Node_Id);
    --  Calls Handle_Parameter for each pair of formal and actual parameters of
    --  a function, procedure, or entry call.
+
+   function Iterator_Interface_Ancestor (Typ : Entity_Id) return Entity_Id;
+   --  If Typ has an ancestor that is an iterator interface type declared in
+   --  an instance of Ada.Iterator_Interfaces, then returns that interface
+   --  type. Otherwise returns Empty. (It's not clear what it means if there
+   --  is more than one such ancestor, perhaps coming from multiple instances,
+   --  but this function returns the first such ancestor it finds. ???)
 
    procedure Kill_Current_Values (Last_Assignment_Only : Boolean := False);
    --  This procedure is called to clear all constant indications from all
@@ -2617,22 +2630,11 @@ package Sem_Util is
    --  below. As for New_Copy_Tree, it is illegal to attempt to copy extended
    --  nodes (entities) either directly or indirectly using this function.
 
-   function New_Copy_Separate_List (List : List_Id) return List_Id;
-   --  Copy recursively a list of nodes using New_Copy_Separate_Tree
-
-   function New_Copy_Separate_Tree (Source : Node_Id) return Node_Id;
-   --  Perform a deep copy of the subtree rooted at Source using New_Copy_Tree
-   --  replacing entities of local declarations by new entities. This behavior
-   --  is required by the backend to ensure entities uniqueness when a copy of
-   --  a subtree is attached to the tree. The new entities keep their original
-   --  names to facilitate debugging the tree copy.
-
    function New_Copy_Tree
-     (Source           : Node_Id;
-      Map              : Elist_Id   := No_Elist;
-      New_Sloc         : Source_Ptr := No_Location;
-      New_Scope        : Entity_Id  := Empty;
-      Scopes_In_EWA_OK : Boolean    := False) return Node_Id;
+     (Source    : Node_Id;
+      Map       : Elist_Id   := No_Elist;
+      New_Sloc  : Source_Ptr := No_Location;
+      New_Scope : Entity_Id  := Empty) return Node_Id;
    --  Perform a deep copy of the subtree rooted at Source. Entities, itypes,
    --  and nodes are handled separately as follows:
    --
@@ -2702,10 +2704,6 @@ package Sem_Util is
    --
    --  Parameter New_Scope may be used to specify a new scope for all copied
    --  entities and itypes.
-   --
-   --  Parameter Scopes_In_EWA_OK may be used to force the replication of both
-   --  scoping entities and non-scoping entities found within expression with
-   --  actions nodes.
 
    function New_External_Entity
      (Kind         : Entity_Kind;
@@ -2797,7 +2795,7 @@ package Sem_Util is
    --   2) N is a comparison operator, one of the operands is null, and the
    --      type of the other operand is a descendant of System.Address.
 
-   function Number_Of_Elements_In_Array (T : Entity_Id) return Int;
+   function Number_Of_Elements_In_Array (T : Entity_Id) return Nat;
    --  Returns the number of elements in the array T if the index bounds of T
    --  is known at compile time. If the bounds are not known at compile time,
    --  the function returns the value zero.
@@ -2915,6 +2913,18 @@ package Sem_Util is
    --  are set (recursively) on any composite type that has a component marked
    --  by one of these flags. This procedure can only set flags for Typ, and
    --  never clear them. Comp_Typ is the type of a component or a parent.
+
+   procedure Propagate_Controlled_Flags
+     (Typ      : Entity_Id;
+      From_Typ : Entity_Id;
+      Comp     : Boolean := False;
+      Deriv    : Boolean := False);
+   --  Set Disable_Controlled, Finalize_Storage_Only, Has_Controlled_Component,
+   --  Has_Relaxed_Finalization, and Is_Controlled_Active on Typ when the flags
+   --  are set on From_Typ. If Comp is True, From_Typ is assumed to be the type
+   --  of a component of Typ while, if Deriv is True, From_Typ is assumed to be
+   --  the parent type of Typ. This procedure can only set flags for Typ, and
+   --  never clear them.
 
    procedure Propagate_DIC_Attributes
      (Typ      : Entity_Id;
@@ -3170,9 +3180,6 @@ package Sem_Util is
    --  from sub(type) entity T2 to (sub)type entity T1, as well as Is_Volatile
    --  if T1 is a base type.
 
-   procedure Set_Scope_Is_Transient (V : Boolean := True);
-   --  Set the flag Is_Transient of the current scope
-
    procedure Set_Size_Info (T1, T2 : Entity_Id);
    pragma Inline (Set_Size_Info);
    --  Copies the Esize field and Has_Biased_Representation flag from sub(type)
@@ -3337,8 +3344,8 @@ package Sem_Util is
    function Validated_View (Typ : Entity_Id) return Entity_Id;
    --  Obtain the "validated view" of arbitrary type Typ which is suitable for
    --  verification by attribute 'Valid_Scalars. This view is the type itself
-   --  or its full view while stripping away concurrency, derivations, and
-   --  privacy.
+   --  or its full view or nonlimited view, while stripping away concurrency,
+   --  derivations, and privacy.
 
    function Visible_Ancestors (Typ : Entity_Id) return Elist_Id;
    --  [Ada 2012:AI-0125-1]: Collect all the visible parents and progenitors
@@ -3368,12 +3375,16 @@ package Sem_Util is
    --  is potentially issued: it is the visible entity in the former case, and
    --  the use_clause in the latter case.
 
-   procedure Wrong_Type (Expr : Node_Id; Expected_Type : Entity_Id);
+   procedure Wrong_Type
+     (Expr          : Node_Id;
+      Expected_Type : Entity_Id;
+      Multiple      : Boolean := False);
    --  Output error message for incorrectly typed expression. Expr is the node
    --  for the incorrectly typed construct (Etype (Expr) is the type found),
    --  and Expected_Type is the entity for the expected type. Note that Expr
    --  does not have to be a subexpression, anything with an Etype field may
-   --  be used.
+   --  be used. If Multiple is False, do not output the message if an error
+   --  has already been posted for Expr.
 
    function Yields_Synchronized_Object (Typ : Entity_Id) return Boolean;
    --  Determine whether type Typ "yields synchronized object" as specified by
@@ -3388,6 +3399,9 @@ package Sem_Util is
 
    function Yields_Universal_Type (N : Node_Id) return Boolean;
    --  Determine whether unanalyzed node N yields a universal type
+
+   procedure Preanalyze_And_Resolve_Without_Errors (N : Node_Id);
+   --  Preanalyze and resolve N without reporting errors
 
    procedure Preanalyze_Without_Errors (N : Node_Id);
    --  Preanalyze N without reporting errors

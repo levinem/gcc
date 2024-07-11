@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2011-2023 Free Software Foundation, Inc.
+// Copyright (C) 2011-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -83,7 +83,7 @@ namespace __gnu_test
       return 0.0;
   }
 
-#ifdef _GLIBCXX_USE_C99_MATH_TR1
+#ifdef _GLIBCXX_USE_C99_MATH_FUNCS
   inline double
   binomial_pdf(int k, int n, double p)
   {
@@ -141,7 +141,7 @@ namespace __gnu_test
       return p * std::pow(1 - p, k);
   }
 
-#ifdef _GLIBCXX_USE_C99_MATH_TR1
+#ifdef _GLIBCXX_USE_C99_MATH_FUNCS
   inline double
   negative_binomial_pdf(int k, int n, double p)
   {
@@ -179,7 +179,7 @@ namespace __gnu_test
       return 1.0 / (b - a + 1.0);
   }
 
-#ifdef _GLIBCXX_USE_C99_MATH_TR1
+#ifdef _GLIBCXX_USE_C99_MATH_FUNCS
   inline double
   lbincoef(int n, int k)
   {

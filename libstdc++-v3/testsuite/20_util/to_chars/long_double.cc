@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2023 Free Software Foundation, Inc.
+// Copyright (C) 2020-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -36,7 +36,7 @@
 
 // On systems that use double-precision from_chars for long double,
 // this is expected to fail.
-// { dg-xfail-run-if "from_chars limited to double-precision" { aarch64-*-vxworks* } }
+// { dg-xfail-run-if "from_chars limited to double-precision" { aarch64-*-vxworks* i*86-*-vxworks* x86_64-*-vxworks* } }
 
 // { dg-require-effective-target ieee_floats }
 // { dg-require-effective-target size32plus }

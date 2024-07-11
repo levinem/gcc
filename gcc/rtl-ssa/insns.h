@@ -1,5 +1,5 @@
 // Instruction-related RTL SSA classes                              -*- C++ -*-
-// Copyright (C) 2020-2023 Free Software Foundation, Inc.
+// Copyright (C) 2020-2024 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
@@ -306,6 +306,8 @@ public:
   // Print a full description of the instruction.
   void print_full (pretty_printer *) const;
 
+  bool is_temporary () const { return m_is_temp; }
+
 private:
   // The first-order way of representing the order between instructions
   // is to assign "program points", with higher point numbers coming
@@ -327,6 +329,9 @@ private:
 
     // Return the uid of the instruction that this node describes.
     int uid () const { return m_data32; }
+
+    // Change the uid of the instruction that this node describes.
+    void set_uid (int uid) { m_data32 = uid; }
 
     // The splay tree pointers.
     order_node *m_children[2];
@@ -372,6 +377,7 @@ private:
   void set_bb (bb_info *bb) { m_bb = bb; }
 
   void add_note (insn_note *note);
+  void remove_note (insn_note *note);
 
   order_node *get_order_node () const;
   order_node *get_known_order_node () const;
@@ -414,8 +420,11 @@ private:
   unsigned int m_has_pre_post_modify : 1;
   unsigned int m_has_volatile_refs : 1;
 
+  // Indicates the insn is a temporary / new user-allocated insn.
+  unsigned int m_is_temp : 1;
+
   // For future expansion.
-  unsigned int m_spare : 27;
+  unsigned int m_spare : 26;
 
   // The program point at which the instruction occurs.
   //
@@ -486,18 +495,6 @@ public:
   // The lower and upper bounds of the range.
   insn_info *first;
   insn_info *last;
-};
-
-// A class that represents a closure of operator== for instructions.
-// This is used by insn_is; see there for details.
-class insn_is_closure
-{
-public:
-  insn_is_closure (const insn_info *insn) : m_insn (insn) {}
-  bool operator() (const insn_info *other) const { return m_insn == other; }
-
-private:
-  const insn_info *m_insn;
 };
 
 void pp_insn (pretty_printer *, const insn_info *);

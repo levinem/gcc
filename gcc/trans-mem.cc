@@ -1,5 +1,5 @@
 /* Passes for transactional memory support.
-   Copyright (C) 2008-2023 Free Software Foundation, Inc.
+   Copyright (C) 2008-2024 Free Software Foundation, Inc.
    Contributed by Richard Henderson <rth@redhat.com>
    and Aldy Hernandez <aldyh@redhat.com>.
 
@@ -637,6 +637,9 @@ diagnose_tm_1 (gimple_stmt_iterator *gsi, bool *handled_ops_p,
     {
     case GIMPLE_CALL:
       {
+	if (gimple_call_internal_p (stmt))
+	  break;
+
 	tree fn = gimple_call_fn (stmt);
 
 	if ((d->summary_flags & DIAG_TM_OUTER) == 0

@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O0 -Werror-implicit-function-declaration -march=k8 -msse4a -m3dnow -mavx -mavx2 -mfma4 -mxop -maes -mpclmul -mpopcnt -mabm -mlzcnt -mbmi -mbmi2 -mtbm -mlwp -mfsgsbase -mrdrnd -mf16c -mfma -mrtm -mrdseed -mprfchw -madx -mfxsr -mxsaveopt -mavx512f -mavx512er -mavx512cd -mavx512pf -msha -mprefetchwt1 -mxsavec -mxsaves -mclflushopt -mavx512dq -mavx512bw -mavx512vl -mavx512ifma -mavx512vbmi -mavx512vbmi2 -mavx5124fmaps -mavx5124vnniw -mavx512vpopcntdq -mclwb -mmwaitx -mclzero -mpku -msgx -mrdpid -mgfni -mpconfig -mwbnoinvd -mavx512vl -mavx512bf16 -menqcmd -mavx512vp2intersect -mserialize -mtsxldtrk -mamx-tile -mamx-int8 -mamx-bf16 -mkl -mwidekl -mavxvnni -mavx512fp16 -mavxifma -mavxvnniint8 -mavxneconvert -mamx-fp16 -mraoint -mamx-complex" } */
+/* { dg-options "-O0 -Werror-implicit-function-declaration -march=k8 -msse4a -m3dnow -mavx -mavx2 -mfma4 -mxop -maes -mpclmul -mpopcnt -mabm -mlzcnt -mbmi -mbmi2 -mtbm -mlwp -mfsgsbase -mrdrnd -mf16c -mfma -mrtm -mrdseed -mprfchw -madx -mfxsr -mxsaveopt -mavx512f -mavx512cd -msha -mxsavec -mxsaves -mclflushopt -mavx512dq -mavx512bw -mavx512vl -mavx512ifma -mavx512vbmi -mavx512vbmi2 -mavx512vpopcntdq -mclwb -mmwaitx -mclzero -mpku -msgx -mrdpid -mgfni -mpconfig -mwbnoinvd -mavx512vl -mavx512bf16 -menqcmd -mavx512vp2intersect -mserialize -mtsxldtrk -mamx-tile -mamx-int8 -mamx-bf16 -mkl -mwidekl -mavxvnni -mavx512fp16 -mavxifma -mavxvnniint8 -mavxneconvert -mamx-fp16 -mraoint -mamx-complex -mavxvnniint16 -msm3 -msha512 -msm4" } */
 /* { dg-add-options bind_pic_locally } */
 
 #include <mm_malloc.h>
@@ -635,44 +635,6 @@ test_4x (_mm_mask_fixupimm_round_ss, __m128, __m128, __mmask8, __m128, __m128i, 
 test_4x (_mm_maskz_fixupimm_round_sd, __m128d, __mmask8, __m128d, __m128d, __m128i, 1, 8)
 test_4x (_mm_maskz_fixupimm_round_ss, __m128, __mmask8, __m128, __m128, __m128i, 1, 8)
 
-/* avx512pfintrin.h */
-test_2vx (_mm512_prefetch_i32gather_ps, __m512i, void const *, 1, _MM_HINT_T0)
-test_2vx (_mm512_prefetch_i32scatter_ps, void const *, __m512i, 1, _MM_HINT_T0)
-test_2vx (_mm512_prefetch_i64gather_ps, __m512i, void const *, 1, _MM_HINT_T0)
-test_2vx (_mm512_prefetch_i64scatter_ps, void const *, __m512i, 1, _MM_HINT_T0)
-test_2vx (_mm512_prefetch_i32gather_pd, __m256i, void const *, 1, _MM_HINT_T0)
-test_2vx (_mm512_prefetch_i32scatter_pd, void const *, __m256i, 1, _MM_HINT_T0)
-test_2vx (_mm512_prefetch_i64gather_pd, __m512i, void const *, 1, _MM_HINT_T0)
-test_2vx (_mm512_prefetch_i64scatter_pd, void const *, __m512i, 1, _MM_HINT_T0)
-test_3vx (_mm512_mask_prefetch_i32gather_ps, __m512i, __mmask16, void const *, 1, _MM_HINT_T0)
-test_3vx (_mm512_mask_prefetch_i32scatter_ps, void const *, __mmask16, __m512i, 1, _MM_HINT_T0)
-test_3vx (_mm512_mask_prefetch_i64gather_ps, __m512i, __mmask8, void const *, 1, _MM_HINT_T0)
-test_3vx (_mm512_mask_prefetch_i64scatter_ps, void const *, __mmask8, __m512i, 1, _MM_HINT_T0)
-test_3vx (_mm512_mask_prefetch_i32gather_pd, __m256i, __mmask8, void const *, 1, _MM_HINT_T0)
-test_3vx (_mm512_mask_prefetch_i32scatter_pd, void const *, __mmask8, __m256i, 1, _MM_HINT_T0)
-test_3vx (_mm512_mask_prefetch_i64gather_pd, __m512i, __mmask8, void const *, 1, _MM_HINT_T0)
-test_3vx (_mm512_mask_prefetch_i64scatter_pd, void const *, __mmask8, __m512i, 1, _MM_HINT_T0)
-
-/* avx512erintrin.h */
-test_1 (_mm512_exp2a23_round_pd, __m512d, __m512d, 8)
-test_1 (_mm512_exp2a23_round_ps, __m512, __m512, 8)
-test_1 (_mm512_rcp28_round_pd, __m512d, __m512d, 8)
-test_1 (_mm512_rcp28_round_ps, __m512, __m512, 8)
-test_1 (_mm512_rsqrt28_round_pd, __m512d, __m512d, 8)
-test_1 (_mm512_rsqrt28_round_ps, __m512, __m512, 8)
-test_2 (_mm512_maskz_exp2a23_round_pd, __m512d, __mmask8, __m512d, 8)
-test_2 (_mm512_maskz_exp2a23_round_ps, __m512, __mmask16, __m512, 8)
-test_2 (_mm512_maskz_rcp28_round_pd, __m512d, __mmask8, __m512d, 8)
-test_2 (_mm512_maskz_rcp28_round_ps, __m512, __mmask16, __m512, 8)
-test_2 (_mm512_maskz_rsqrt28_round_pd, __m512d, __mmask8, __m512d, 8)
-test_2 (_mm512_maskz_rsqrt28_round_ps, __m512, __mmask16, __m512, 8)
-test_3 (_mm512_mask_exp2a23_round_pd, __m512d, __m512d, __mmask8, __m512d, 8)
-test_3 (_mm512_mask_exp2a23_round_ps, __m512, __m512, __mmask16, __m512, 8)
-test_3 (_mm512_mask_rcp28_round_pd, __m512d, __m512d, __mmask8, __m512d, 8)
-test_3 (_mm512_mask_rcp28_round_ps, __m512, __m512, __mmask16, __m512, 8)
-test_3 (_mm512_mask_rsqrt28_round_pd, __m512d, __m512d, __mmask8, __m512d, 8)
-test_3 (_mm512_mask_rsqrt28_round_ps, __m512, __m512, __mmask16, __m512, 8)
-
 /* avx512fp16intrin.h */
 test_1 (_mm512_sqrt_round_ph, __m512h, __m512h, 8)
 test_1 (_mm_reduce_ph, __m128h, __m128h, 123)
@@ -1054,3 +1016,6 @@ test_2 (_mm512_gf2p8affineinv_epi64_epi8, __m512i, __m512i, __m512i, 1)
 test_2 (_mm_gf2p8affine_epi64_epi8, __m128i, __m128i, __m128i, 1)
 test_2 (_mm256_gf2p8affine_epi64_epi8, __m256i, __m256i, __m256i, 1)
 test_2 (_mm512_gf2p8affine_epi64_epi8, __m512i, __m512i, __m512i, 1)
+
+/* sm3intrin.h */
+test_3 (_mm_sm3rnds2_epi32, __m128i, __m128i, __m128i, __m128i, 1)

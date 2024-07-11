@@ -1,7 +1,7 @@
 /* Routines for saving various data types to a file stream.  This deals
    with various data types like strings, integers, enums, etc.
 
-   Copyright (C) 2011-2023 Free Software Foundation, Inc.
+   Copyright (C) 2011-2024 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@google.com>
 
 This file is part of GCC.
@@ -410,7 +410,7 @@ streamer_write_vrange (struct output_block *ob, const vrange &v)
   gcc_checking_assert (!v.undefined_p ());
 
   // Write the common fields to all vranges.
-  value_range_kind kind = v.varying_p () ? VR_VARYING : VR_RANGE;
+  value_range_kind kind = v.m_kind;
   streamer_write_enum (ob->main_stream, value_range_kind, VR_LAST, kind);
   stream_write_tree (ob, v.type (), true);
 
@@ -423,21 +423,41 @@ streamer_write_vrange (struct output_block *ob, const vrange &v)
 	  streamer_write_wide_int (ob, r.lower_bound (i));
 	  streamer_write_wide_int (ob, r.upper_bound (i));
 	}
-      streamer_write_wide_int (ob, r.get_nonzero_bits ());
+      // TODO: We could avoid streaming out the value if the mask is -1.
+      irange_bitmask bm = r.get_bitmask ();
+      streamer_write_wide_int (ob, bm.value ());
+      streamer_write_wide_int (ob, bm.mask ());
       return;
     }
   if (is_a <frange> (v))
     {
       const frange &r = as_a <frange> (v);
-      REAL_VALUE_TYPE lb = r.lower_bound ();
-      REAL_VALUE_TYPE ub = r.upper_bound ();
-      streamer_write_real_value (ob, &lb);
-      streamer_write_real_value (ob, &ub);
+
+      // Stream out NAN bits.
       bitpack_d bp = bitpack_create (ob->main_stream);
       nan_state nan = r.get_nan_state ();
       bp_pack_value (&bp, nan.pos_p (), 1);
       bp_pack_value (&bp, nan.neg_p (), 1);
       streamer_write_bitpack (&bp);
+
+      // Stream out bounds.
+      if (kind != VR_NAN)
+	{
+	  REAL_VALUE_TYPE lb = r.lower_bound ();
+	  REAL_VALUE_TYPE ub = r.upper_bound ();
+	  streamer_write_real_value (ob, &lb);
+	  streamer_write_real_value (ob, &ub);
+	}
+      return;
+    }
+  if (is_a <prange> (v))
+    {
+      const prange &r = as_a <prange> (v);
+      streamer_write_wide_int (ob, r.lower_bound ());
+      streamer_write_wide_int (ob, r.upper_bound ());
+      irange_bitmask bm = r.get_bitmask ();
+      streamer_write_wide_int (ob, bm.value ());
+      streamer_write_wide_int (ob, bm.mask ());
       return;
     }
   gcc_unreachable ();

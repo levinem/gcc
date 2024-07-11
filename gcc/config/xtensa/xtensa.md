@@ -1,5 +1,5 @@
 ;; GCC machine description for Tensilica's Xtensa architecture.
-;; Copyright (C) 2001-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2024 Free Software Foundation, Inc.
 ;; Contributed by Bob Wilson (bwilson@tensilica.com) at Tensilica.
 
 ;; This file is part of GCC.
@@ -87,8 +87,9 @@
 ;; the same template.
 (define_mode_iterator HQI [HI QI])
 
-;; This code iterator is for *shlrd and its variants.
-(define_code_iterator ior_op [ior plus])
+;; This mode iterator allows the SI and HI patterns to be defined from
+;; the same template.
+(define_mode_iterator SHI [SI HI])
 
 
 ;; Attributes.
@@ -179,19 +180,55 @@
   "TARGET_ADDX"
 {
   operands[3] = GEN_INT (1 << INTVAL (operands[3]));
-  switch (GET_CODE (operands[4]))
-    {
-    case PLUS:
-      return "addx%3\t%0, %1, %2";
-    case MINUS:
-      return "subx%3\t%0, %1, %2";
-    default:
-      gcc_unreachable ();
-    }
+  return GET_CODE (operands[4]) == PLUS
+	  ? "addx%3\t%0, %1, %2" : "subx%3\t%0, %1, %2";
 }
   [(set_attr "type"	"arith")
    (set_attr "mode"	"SI")
    (set_attr "length"	"3")])
+
+(define_split
+  [(set (match_operand:SI 0 "register_operand")
+	(plus:SI (ashift:SI (match_operand:SI 1 "register_operand")
+			    (match_operand:SI 3 "addsubx_operand"))
+		 (match_operand:SI 2 "const_int_operand")))]
+  "TARGET_ADDX && can_create_pseudo_p ()"
+  [(set (match_dup 0)
+	(plus:SI (ashift:SI (match_dup 1)
+			    (match_dup 3))
+		 (match_dup 2)))]
+{
+  operands[2] = force_reg (SImode, operands[2]);
+})
+
+(define_expand "adddi3"
+  [(set (match_operand:DI 0 "register_operand")
+	(plus:DI (match_operand:DI 1 "register_operand")
+		 (match_operand:DI 2 "register_operand")))]
+  ""
+{
+  rtx lo_dest, hi_dest, lo_op0, hi_op0, lo_op1, hi_op1;
+  rtx_code_label *label;
+  if (rtx_equal_p (operands[0], operands[1])
+      || rtx_equal_p (operands[0], operands[2])
+      || ! REG_P (operands[1]) || ! REG_P (operands[2]))
+    FAIL;
+  lo_dest = gen_lowpart (SImode, operands[0]);
+  hi_dest = gen_highpart (SImode, operands[0]);
+  lo_op0 = gen_lowpart (SImode, operands[1]);
+  hi_op0 = gen_highpart (SImode, operands[1]);
+  lo_op1 = gen_lowpart (SImode, operands[2]);
+  hi_op1 = gen_highpart (SImode, operands[2]);
+  emit_insn (gen_addsi3 (hi_dest, hi_op0, hi_op1));
+  emit_insn (gen_addsi3 (lo_dest, lo_op0, lo_op1));
+  emit_cmp_and_jump_insns (lo_dest,
+			   (REGNO (operands[1]) < REGNO (operands[2])
+			    ? lo_op1 : lo_op0), GEU, const0_rtx,
+			   SImode, true, label = gen_label_rtx ());
+  emit_insn (gen_addsi3 (hi_dest, hi_dest, const1_rtx));
+  emit_label (label);
+  DONE;
+})
 
 (define_insn "addsf3"
   [(set (match_operand:SF 0 "register_operand" "=f")
@@ -215,6 +252,53 @@
   [(set_attr "type"	"arith")
    (set_attr "mode"	"SI")
    (set_attr "length"	"3")])
+
+(define_insn_and_split "*subsi3_from_const"
+  [(set (match_operand:SI 0 "register_operand" "=a")
+	(minus:SI (match_operand:SI 1 "const_int_operand" "i")
+		  (match_operand:SI 2 "register_operand" "r")))]
+  "xtensa_simm8 (-INTVAL (operands[1]))
+   || xtensa_simm8x256 (-INTVAL (operands[1]))"
+  "#"
+  "&& 1"
+  [(set (match_dup 0)
+	(plus:SI (match_dup 2)
+		 (match_dup 1)))
+   (set (match_dup 0)
+	(neg:SI (match_dup 0)))]
+{
+  operands[1] = GEN_INT (-INTVAL (operands[1]));
+}
+  [(set_attr "type"	"arith")
+   (set_attr "mode"	"SI")
+   (set (attr "length")
+	(if_then_else (match_test "TARGET_DENSITY
+				   && xtensa_m1_or_1_thru_15 (-INTVAL (operands[1]))")
+		      (const_int 5)
+		      (const_int 6)))])
+
+(define_expand "subdi3"
+  [(set (match_operand:DI 0 "register_operand")
+	(minus:DI (match_operand:DI 1 "register_operand")
+		  (match_operand:DI 2 "register_operand")))]
+  ""
+{
+  rtx lo_dest, hi_dest, lo_op0, hi_op0, lo_op1, hi_op1;
+  rtx_code_label *label;
+  lo_dest = gen_lowpart (SImode, operands[0]);
+  hi_dest = gen_highpart (SImode, operands[0]);
+  lo_op0 = gen_lowpart (SImode, operands[1]);
+  hi_op0 = gen_highpart (SImode, operands[1]);
+  lo_op1 = gen_lowpart (SImode, operands[2]);
+  hi_op1 = gen_highpart (SImode, operands[2]);
+  emit_insn (gen_subsi3 (hi_dest, hi_op0, hi_op1));
+  emit_cmp_and_jump_insns (lo_op0, lo_op1, GEU, const0_rtx,
+			   SImode, true, label = gen_label_rtx ());
+  emit_insn (gen_addsi3 (hi_dest, hi_dest, constm1_rtx));
+  emit_label (label);
+  emit_insn (gen_subsi3 (lo_dest, lo_op0, lo_op1));
+  DONE;
+})
 
 (define_insn "subsf3"
   [(set (match_operand:SF 0 "register_operand" "=f")
@@ -444,34 +528,23 @@
 
 ;; Signed clamp.
 
-(define_insn_and_split "*xtensa_clamps"
-  [(set (match_operand:SI 0 "register_operand" "=a")
-	(smax:SI (smin:SI (match_operand:SI 1 "register_operand" "r")
-			  (match_operand:SI 2 "const_int_operand" "i"))
-		 (match_operand:SI 3 "const_int_operand" "i")))]
-  "TARGET_CLAMPS
-   && xtensa_match_CLAMPS_imms_p (operands[3], operands[2])"
-  "#"
-  "&& 1"
-  [(set (match_dup 0)
-	(smin:SI (smax:SI (match_dup 1)
-			  (match_dup 3))
-		 (match_dup 2)))]
-  ""
-  [(set_attr "type"	"arith")
-   (set_attr "mode"	"SI")
-   (set_attr "length"	"3")])
-
 (define_insn "*xtensa_clamps"
   [(set (match_operand:SI 0 "register_operand" "=a")
-	(smin:SI (smax:SI (match_operand:SI 1 "register_operand" "r")
-			  (match_operand:SI 2 "const_int_operand" "i"))
-		 (match_operand:SI 3 "const_int_operand" "i")))]
-  "TARGET_CLAMPS
-   && xtensa_match_CLAMPS_imms_p (operands[2], operands[3])"
+        (match_operator:SI 5 "xtensa_sminmax_operator"
+	  [(match_operator:SI 4 "xtensa_sminmax_operator"
+	    [(match_operand:SI 1 "register_operand" "r")
+	     (match_operand:SI 2 "const_int_operand" "i")])
+	   (match_operand:SI 3 "const_int_operand" "i")]))]
+  "TARGET_MINMAX && TARGET_CLAMPS
+   && INTVAL (operands[2]) + INTVAL (operands[3]) == -1
+   && ((GET_CODE (operands[5]) == SMIN && GET_CODE (operands[4]) == SMAX
+	&& IN_RANGE (exact_log2 (-INTVAL (operands[2])), 7, 22))
+       || (GET_CODE (operands[5]) == SMAX && GET_CODE (operands[4]) == SMIN
+	   && IN_RANGE (exact_log2 (-INTVAL (operands[3])), 7, 22)))"
 {
   static char result[64];
-  sprintf (result, "clamps\t%%0, %%1, %d", floor_log2 (-INTVAL (operands[2])));
+  rtx bound = operands[GET_CODE (operands[4]) == SMAX ? 2 : 3];
+  sprintf (result, "clamps\t%%0, %%1, %d", floor_log2 (-INTVAL (bound)));
   return result;
 }
   [(set_attr "type"	"arith")
@@ -1009,19 +1082,8 @@
 	(ashift:SI (match_dup 0)
 		   (match_dup 3)))]
 {
-  int pos = INTVAL (operands[2]),
-      shift = floor_log2 (INTVAL (operands[3]));
-  switch (GET_CODE (operands[4]))
-    {
-    case ASHIFT:
-      pos = shift - pos;
-      break;
-    case LSHIFTRT:
-      pos = shift + pos;
-      break;
-    default:
-      gcc_unreachable ();
-    }
+  int pos = INTVAL (operands[2]), shift = floor_log2 (INTVAL (operands[3]));
+  pos = GET_CODE (operands[4]) == ASHIFT ? shift - pos : shift + pos;
   if (BITS_BIG_ENDIAN)
     pos = (32 - (1 + pos)) & 0x1f;
   operands[2] = GEN_INT (pos);
@@ -1029,7 +1091,10 @@
 }
   [(set_attr "type"	"arith")
    (set_attr "mode"	"SI")
-   (set_attr "length"	"6")])
+   (set (attr "length")
+        (if_then_else (match_test "TARGET_DENSITY && INTVAL (operands[3]) == 2")
+		      (const_int 5)
+		      (const_int 6)))])
 
 (define_insn_and_split "*extzvsi-1bit_addsubx"
   [(set (match_operand:SI 0 "register_operand" "=a")
@@ -1053,19 +1118,8 @@
 			    (match_dup 4))
 		 (match_dup 2)]))]
 {
-  int pos = INTVAL (operands[3]),
-      shift = floor_log2 (INTVAL (operands[4]));
-  switch (GET_CODE (operands[6]))
-    {
-    case ASHIFT:
-      pos = shift - pos;
-      break;
-    case LSHIFTRT:
-      pos = shift + pos;
-      break;
-    default:
-      gcc_unreachable ();
-    }
+  int pos = INTVAL (operands[3]), shift = floor_log2 (INTVAL (operands[4]));
+  pos = GET_CODE (operands[6]) == ASHIFT ? shift - pos : shift + pos;
   if (BITS_BIG_ENDIAN)
     pos = (32 - (1 + pos)) & 0x1f;
   operands[3] = GEN_INT (pos);
@@ -1170,7 +1224,7 @@
 (define_split
   [(set (match_operand:DI 0 "register_operand")
 	(match_operand:DI 1 "const_int_operand"))]
-  "!TARGET_CONST16 && !TARGET_AUTO_LITPOOLS
+  "!TARGET_CONST16
    && ! xtensa_split1_finished_p ()"
   [(set (match_dup 0)
 	(match_dup 1))
@@ -1192,13 +1246,15 @@
 })
 
 (define_insn "movsi_internal"
-  [(set (match_operand:SI 0 "nonimmed_operand" "=D,D,D,D,R,R,a,q,a,a,W,a,a,U,*a,*A")
-	(match_operand:SI 1 "move_operand" "M,D,d,R,D,d,r,r,I,Y,i,T,U,r,*A,*r"))]
+  [(set (match_operand:SI 0 "nonimmed_operand" "=D,D,D,a,U,D,R,R,a,q,a,a,W,a,*a,*A")
+	(match_operand:SI 1 "move_operand" "M,D,d,U,r,R,D,d,r,r,I,Y,i,T,*A,*r"))]
   "xtensa_valid_move (SImode, operands)"
   "@
    movi.n\t%0, %x1
    mov.n\t%0, %1
    mov.n\t%0, %1
+   %v1l32i\t%0, %1
+   %v0s32i\t%1, %0
    %v1l32i.n\t%0, %1
    %v0s32i.n\t%1, %0
    %v0s32i.n\t%1, %0
@@ -1208,38 +1264,46 @@
    movi\t%0, %1
    const16\t%0, %t1\;const16\t%0, %b1
    %v1l32r\t%0, %1
-   %v1l32i\t%0, %1
-   %v0s32i\t%1, %0
    rsr\t%0, ACCLO
    wsr\t%1, ACCLO"
-  [(set_attr "type"	"move,move,move,load,store,store,move,move,move,move,move,load,load,store,rsr,wsr")
+  [(set_attr "type"	"move,move,move,load,store,load,store,store,move,move,move,move,move,load,rsr,wsr")
    (set_attr "mode"	"SI")
-   (set_attr "length"	"2,2,2,2,2,2,3,3,3,3,6,3,3,3,3,3")])
+   (set_attr "length"	"2,2,2,3,3,2,2,2,3,3,3,3,6,3,3,3")])
 
 (define_split
-  [(set (match_operand:SI 0 "register_operand")
-	(match_operand:SI 1 "const_int_operand"))]
+  [(set (match_operand:SHI 0 "register_operand")
+	(match_operand:SHI 1 "const_int_operand"))]
   "!TARGET_CONST16 && !TARGET_AUTO_LITPOOLS
    && ! xtensa_split1_finished_p ()
    && ! xtensa_simm12b (INTVAL (operands[1]))"
   [(set (match_dup 0)
 	(match_dup 1))]
 {
-  operands[1] = force_const_mem (SImode, operands[1]);
+  operands[1] = force_const_mem (<MODE>mode, operands[1]);
 })
 
 (define_split
-  [(set (match_operand:SI 0 "register_operand")
-	(match_operand:SI 1 "constantpool_operand"))]
-  "! optimize_debug && reload_completed"
+  [(set (match_operand:SHI 0 "register_operand")
+	(match_operand:SHI 1 "constantpool_operand"))]
+  "!optimize_debug && reload_completed"
   [(const_int 0)]
 {
-  rtx x = avoid_constant_pool_reference (operands[1]);
-  if (! CONST_INT_P (x))
-    FAIL;
-  if (! xtensa_constantsynth (operands[0], INTVAL (x)))
-    emit_move_insn (operands[0], x);
-  DONE;
+  if (xtensa_constantsynth (operands[0], operands[1]))
+    DONE;
+  FAIL;
+})
+
+(define_split
+  [(set (match_operand:SHI 0 "register_operand")
+	(match_operand:SHI 1 "const_int_operand"))]
+  "!optimize_debug && reload_completed
+   && !TARGET_CONST16 && TARGET_AUTO_LITPOOLS
+   && ! xtensa_simm12b (INTVAL (operands[1]))"
+  [(const_int 0)]
+{
+  if (xtensa_constantsynth (operands[0], operands[1]))
+    DONE;
+  FAIL;
 })
 
 ;; 16-bit Integer moves
@@ -1254,8 +1318,8 @@
 })
 
 (define_insn "movhi_internal"
-  [(set (match_operand:HI 0 "nonimmed_operand" "=D,D,a,a,a,a,U,*a,*A")
-	(match_operand:HI 1 "move_operand" "M,d,r,I,Y,U,r,*A,*r"))]
+  [(set (match_operand:HI 0 "nonimmed_operand" "=D,D,a,a,a,a,a,U,*a,*A")
+	(match_operand:HI 1 "move_operand" "M,d,r,I,Y,T,U,r,*A,*r"))]
   "xtensa_valid_move (HImode, operands)"
   "@
    movi.n\t%0, %x1
@@ -1263,13 +1327,14 @@
    mov\t%0, %1
    movi\t%0, %x1
    movi\t%0, %1
+   %v1l32r\t%0, %1
    %v1l16ui\t%0, %1
    %v0s16i\t%1, %0
    rsr\t%0, ACCLO
    wsr\t%1, ACCLO"
-  [(set_attr "type"	"move,move,move,move,move,load,store,rsr,wsr")
+  [(set_attr "type"	"move,move,move,move,move,load,load,store,rsr,wsr")
    (set_attr "mode"	"HI")
-   (set_attr "length"	"2,2,3,3,3,3,3,3,3")])
+   (set_attr "length"	"2,2,3,3,3,3,3,3,3,3")])
 
 ;; 8-bit Integer moves
 
@@ -1318,7 +1383,7 @@
     }
   else
     {
-      gcc_assert (GET_CODE (operands[1]) == SUBREG);
+      gcc_assert (SUBREG_P (operands[1]));
       lit = SUBREG_REG (operands[1]);
       word_off = SUBREG_BYTE (operands[1]) & ~(UNITS_PER_WORD - 1);
       byte_off = SUBREG_BYTE (operands[1]) - word_off;
@@ -1346,7 +1411,7 @@
   if ((!register_operand (operands[0], SFmode)
        && !register_operand (operands[1], SFmode))
       || (FP_REG_P (xt_true_regnum (operands[0]))
-	  && !(reload_in_progress | reload_completed)
+	  && can_create_pseudo_p ()
 	  && (constantpool_mem_p (operands[1])
 	      || CONSTANT_P (operands[1]))))
     operands[1] = force_reg (SFmode, operands[1]);
@@ -1446,21 +1511,25 @@
 
 (define_split
   [(set (match_operand:SF 0 "register_operand")
-	(match_operand:SF 1 "constantpool_operand"))]
-  "! optimize_debug && reload_completed"
+	(match_operand 1 "constantpool_operand"))]
+  "!optimize_debug && reload_completed"
   [(const_int 0)]
 {
-  rtx x = avoid_constant_pool_reference (operands[1]);
-  long l;
-  HOST_WIDE_INT value;
-  if (! CONST_DOUBLE_P (x) || GET_MODE (x) != SFmode)
-    FAIL;
-  REAL_VALUE_TO_TARGET_SINGLE (*CONST_DOUBLE_REAL_VALUE (x), l);
-  x = gen_rtx_REG (SImode, REGNO (operands[0]));
-  value = (int32_t)l;
-  if (! xtensa_constantsynth (x, value))
-    emit_move_insn (x, GEN_INT (value));
-  DONE;
+  if (xtensa_constantsynth (operands[0], operands[1]))
+    DONE;
+  FAIL;
+})
+
+(define_split
+  [(set (match_operand:SF 0 "register_operand")
+	(match_operand 1 "const_double_operand"))]
+  "!optimize_debug && reload_completed
+   && !TARGET_CONST16 && TARGET_AUTO_LITPOOLS"
+  [(const_int 0)]
+{
+  if (xtensa_constantsynth (operands[0], operands[1]))
+    DONE;
+  FAIL;
 })
 
 ;; 64-bit floating point moves
@@ -1522,9 +1591,7 @@
    (match_operand:SI 3 "const_int_operand")]
   "!optimize_debug && optimize"
 {
-  if (xtensa_expand_block_set_unrolled_loop (operands))
-    DONE;
-  if (xtensa_expand_block_set_small_loop (operands))
+  if (xtensa_expand_block_set (operands))
     DONE;
   FAIL;
 })
@@ -1659,21 +1726,22 @@
    (set_attr "mode"	"SI")
    (set_attr "length"	"9")])
 
-(define_insn "*shlrd_reg_<code>"
+(define_insn "*shlrd_reg"
   [(set (match_operand:SI 0 "register_operand" "=a")
-	(ior_op:SI (match_operator:SI 4 "logical_shift_operator"
+	(match_operator:SI 6 "xtensa_bit_join_operator"
+		[(match_operator:SI 4 "logical_shift_operator"
 			[(match_operand:SI 1 "register_operand" "r")
-			 (match_operand:SI 2 "register_operand" "r")])
-		   (match_operator:SI 5 "logical_shift_operator"
-			[(match_operand:SI 3 "register_operand" "r")
-			 (neg:SI (match_dup 2))])))]
+			 (match_operand:SI 3 "register_operand" "r")])
+		 (match_operator:SI 5 "logical_shift_operator"
+			[(match_operand:SI 2 "register_operand" "r")
+			 (neg:SI (match_dup 3))])]))]
   "!optimize_debug && optimize
    && xtensa_shlrd_which_direction (operands[4], operands[5]) != UNKNOWN"
 {
   switch (xtensa_shlrd_which_direction (operands[4], operands[5]))
     {
-    case ASHIFT:	return "ssl\t%2\;src\t%0, %1, %3";
-    case LSHIFTRT:	return "ssr\t%2\;src\t%0, %3, %1";
+    case ASHIFT:	return "ssl\t%3\;src\t%0, %1, %2";
+    case LSHIFTRT:	return "ssr\t%3\;src\t%0, %2, %1";
     default:		gcc_unreachable ();
     }
 }
@@ -1681,14 +1749,42 @@
    (set_attr "mode"	"SI")
    (set_attr "length"	"6")])
 
-(define_insn "*shlrd_const_<code>"
+(define_insn_and_split "*shlrd_reg"
   [(set (match_operand:SI 0 "register_operand" "=a")
-	(ior_op:SI (match_operator:SI 5 "logical_shift_operator"
+	(match_operator:SI 6 "xtensa_bit_join_operator"
+		[(match_operator:SI 4 "logical_shift_operator"
+			[(match_operand:SI 1 "register_operand" "r")
+			 (neg:SI (match_operand:SI 3 "register_operand" "r"))])
+		 (match_operator:SI 5 "logical_shift_operator"
+			[(match_operand:SI 2 "register_operand" "r")
+			 (match_dup 3)])]))]
+  "!optimize_debug && optimize
+   && xtensa_shlrd_which_direction (operands[5], operands[4]) != UNKNOWN"
+  "#"
+  "&& 1"
+  [(set (match_dup 0)
+	(match_op_dup 6
+		[(match_op_dup 5
+			[(match_dup 2)
+			 (match_dup 3)])
+		 (match_op_dup 4
+			[(match_dup 1)
+			 (neg:SI (match_dup 3))])]))]
+  ""
+  [(set_attr "type"	"arith")
+   (set_attr "mode"	"SI")
+   (set_attr "length"	"6")])
+
+
+(define_insn "*shlrd_const"
+  [(set (match_operand:SI 0 "register_operand" "=a")
+	(match_operator:SI 7 "xtensa_bit_join_operator"
+		[(match_operator:SI 5 "logical_shift_operator"
 			[(match_operand:SI 1 "register_operand" "r")
 			 (match_operand:SI 3 "const_int_operand" "i")])
-		   (match_operator:SI 6 "logical_shift_operator"
+		 (match_operator:SI 6 "logical_shift_operator"
 			[(match_operand:SI 2 "register_operand" "r")
-			 (match_operand:SI 4 "const_int_operand" "i")])))]
+			 (match_operand:SI 4 "const_int_operand" "i")])]))]
   "!optimize_debug && optimize
    && xtensa_shlrd_which_direction (operands[5], operands[6]) != UNKNOWN
    && IN_RANGE (INTVAL (operands[3]), 1, 31)
@@ -1706,16 +1802,17 @@
    (set_attr "mode"	"SI")
    (set_attr "length"	"6")])
 
-(define_insn "*shlrd_per_byte_<code>"
+(define_insn "*shlrd_per_byte"
   [(set (match_operand:SI 0 "register_operand" "=a")
-	(ior_op:SI (match_operator:SI 4 "logical_shift_operator"
+	(match_operator:SI 6 "xtensa_bit_join_operator"
+		[(match_operator:SI 4 "logical_shift_operator"
 			[(match_operand:SI 1 "register_operand" "r")
 			 (ashift:SI (match_operand:SI 2 "register_operand" "r")
 				    (const_int 3))])
-		   (match_operator:SI 5 "logical_shift_operator"
+		 (match_operator:SI 5 "logical_shift_operator"
 			[(match_operand:SI 3 "register_operand" "r")
 			 (neg:SI (ashift:SI (match_dup 2)
-					    (const_int 3)))])))]
+					    (const_int 3)))])]))]
   "!optimize_debug && optimize
    && xtensa_shlrd_which_direction (operands[4], operands[5]) != UNKNOWN"
 {
@@ -1730,32 +1827,34 @@
    (set_attr "mode"	"SI")
    (set_attr "length"	"6")])
 
-(define_insn_and_split "*shlrd_per_byte_<code>_omit_AND"
+(define_insn_and_split "*shlrd_per_byte_omit_AND"
   [(set (match_operand:SI 0 "register_operand" "=a")
-	(ior_op:SI (match_operator:SI 5 "logical_shift_operator"
+	(match_operator:SI 7 "xtensa_bit_join_operator"
+		[(match_operator:SI 5 "logical_shift_operator"
 			[(match_operand:SI 1 "register_operand" "r")
 			 (and:SI (ashift:SI (match_operand:SI 2 "register_operand" "r")
 					    (const_int 3))
 				 (match_operand:SI 4 "const_int_operand" "i"))])
-		   (match_operator:SI 6 "logical_shift_operator"
+		 (match_operator:SI 6 "logical_shift_operator"
 			[(match_operand:SI 3 "register_operand" "r")
 			 (neg:SI (and:SI (ashift:SI (match_dup 2)
 						    (const_int 3))
-					 (match_dup 4)))])))]
+					 (match_dup 4)))])]))]
   "!optimize_debug && optimize
    && xtensa_shlrd_which_direction (operands[5], operands[6]) != UNKNOWN
    && (INTVAL (operands[4]) & 0x1f) == 3 << 3"
   "#"
   "&& 1"
   [(set (match_dup 0)
-	(ior_op:SI (match_op_dup 5
+	(match_op_dup 7
+		[(match_op_dup 5
 			[(match_dup 1)
 			 (ashift:SI (match_dup 2)
 				    (const_int 3))])
-		   (match_op_dup 6
+		 (match_op_dup 6
 			[(match_dup 3)
 			 (neg:SI (ashift:SI (match_dup 2)
-					    (const_int 3)))])))]
+					    (const_int 3)))])]))]
   ""
   [(set_attr "type"	"arith")
    (set_attr "mode"	"SI")
@@ -1835,6 +1934,37 @@
 				       || GET_CODE (operands[3]) == NE)")
                       (const_int 2)
                       (const_int 3)))])
+
+(define_insn_and_split "*btrue_INT_MIN"
+  [(set (pc)
+	(if_then_else (match_operator 2 "boolean_operator"
+			[(match_operand:SI 0 "register_operand" "r")
+			 (const_int -2147483648)])
+		      (label_ref (match_operand 1 ""))
+		      (pc)))]
+  "TARGET_ABS"
+  "#"
+  "&& can_create_pseudo_p ()"
+  [(set (match_dup 3)
+	(abs:SI (match_dup 0)))
+   (set (pc)
+	(if_then_else (match_op_dup 2
+			[(zero_extract:SI (match_dup 3)
+					  (const_int 1)
+					  (match_dup 4))
+			 (const_int 0)])
+		      (label_ref (match_dup 1))
+		      (pc)))]
+{
+  operands[3] = gen_reg_rtx (SImode);
+  operands[4] = GEN_INT (BITS_BIG_ENDIAN ? 0 : 31);
+  operands[2] = gen_rtx_fmt_ee (reverse_condition (GET_CODE (operands[2])),
+				VOIDmode, XEXP (operands[2], 0),
+				const0_rtx);
+}
+  [(set_attr "type"	"jump")
+   (set_attr "mode"	"none")
+   (set_attr "length"	"6")])
 
 (define_insn "*ubtrue"
   [(set (pc)
@@ -1963,11 +2093,12 @@
 (define_split
   [(set (pc)
 	(if_then_else (match_operator 2 "boolean_operator"
-			[(subreg:HQI (not:SI (match_operand:SI 0 "register_operand")) 0)
+			[(match_operator 3 "subreg_HQI_lowpart_operator"
+			   [(not:SI (match_operand:SI 0 "register_operand"))])
 			 (const_int 0)])
 		      (label_ref (match_operand 1 ""))
 		      (pc)))]
-  "!BYTES_BIG_ENDIAN"
+  ""
   [(set (pc)
 	(if_then_else (match_op_dup 2
 			[(and:SI (not:SI (match_dup 0))
@@ -1976,40 +2107,8 @@
 		      (label_ref (match_dup 1))
 		      (pc)))]
 {
-  operands[3] = GEN_INT ((1 << GET_MODE_BITSIZE (<MODE>mode)) - 1);
+  operands[3] = GEN_INT ((1 << GET_MODE_BITSIZE (GET_MODE (operands[3]))) - 1);
 })
-
-(define_split
-  [(set (pc)
-	(if_then_else (match_operator 2 "boolean_operator"
-			[(subreg:HI (not:SI (match_operand:SI 0 "register_operand")) 2)
-			 (const_int 0)])
-		      (label_ref (match_operand 1 ""))
-		      (pc)))]
-  "BYTES_BIG_ENDIAN"
-  [(set (pc)
-	(if_then_else (match_op_dup 2
-			[(and:SI (not:SI (match_dup 0))
-				 (const_int 65535))
-			 (const_int 0)])
-		      (label_ref (match_dup 1))
-		      (pc)))])
-
-(define_split
-  [(set (pc)
-	(if_then_else (match_operator 2 "boolean_operator"
-			[(subreg:QI (not:SI (match_operand:SI 0 "register_operand")) 3)
-			 (const_int 0)])
-		      (label_ref (match_operand 1 ""))
-		      (pc)))]
-  "BYTES_BIG_ENDIAN"
-  [(set (pc)
-	(if_then_else (match_op_dup 2
-			[(and:SI (not:SI (match_dup 0))
-				 (const_int 255))
-			 (const_int 0)])
-		      (label_ref (match_dup 1))
-		      (pc)))])
 
 (define_insn_and_split "*masktrue_const_pow2_minus_one"
   [(set (pc)
@@ -2233,14 +2332,12 @@
 	      (set (match_dup 0)
 		   (plus:SI (match_dup 0)
 			    (const_int -1)))
-	      (unspec [(const_int 0)] UNSPEC_LSETUP_END)
-	      (clobber (match_dup 2))])] ; match_scratch
+	      (unspec [(const_int 0)] UNSPEC_LSETUP_END)])]
   "TARGET_LOOPS && optimize"
 {
   /* The loop optimizer doesn't check the predicates... */
   if (GET_MODE (operands[0]) != SImode)
     FAIL;
-  operands[2] = gen_rtx_SCRATCH (SImode);
 })
 
 
@@ -2257,6 +2354,26 @@
     FAIL;
   DONE;
 })
+
+(define_insn "salt"
+  [(set (match_operand:SI 0 "register_operand" "=a")
+	(lt:SI (match_operand:SI 1 "register_operand" "r")
+	       (match_operand:SI 2 "register_operand" "r")))]
+  "TARGET_SALT"
+  "salt\t%0, %1, %2"
+  [(set_attr "type"	"arith")
+   (set_attr "mode"	"SI")
+   (set_attr "length"	"3")])
+
+(define_insn "saltu"
+  [(set (match_operand:SI 0 "register_operand" "=a")
+	(ltu:SI (match_operand:SI 1 "register_operand" "r")
+		(match_operand:SI 2 "register_operand" "r")))]
+  "TARGET_SALT"
+  "saltu\t%0, %1, %2"
+  [(set_attr "type"	"arith")
+   (set_attr "mode"	"SI")
+   (set_attr "length"	"3")])
 
 (define_expand "cstoresf4"
   [(match_operand:SI 0 "register_operand")
@@ -2391,7 +2508,7 @@
   ""
 {
   rtx dest = operands[0];
-  if (GET_CODE (dest) != REG || GET_MODE (dest) != Pmode)
+  if (! REG_P (dest) || GET_MODE (dest) != Pmode)
     operands[0] = copy_to_mode_reg (Pmode, dest);
 
   emit_jump_insn (gen_indirect_jump_internal (dest));
@@ -2448,7 +2565,7 @@
 	 (match_operand 1 "" ""))]
   ""
 {
-  xtensa_expand_call (0, operands);
+  xtensa_expand_call (0, operands, false);
   DONE;
 })
 
@@ -2469,7 +2586,7 @@
 	      (match_operand 2 "" "")))]
   ""
 {
-  xtensa_expand_call (1, operands);
+  xtensa_expand_call (1, operands, false);
   DONE;
 })
 
@@ -2490,7 +2607,7 @@
 	 (match_operand 1 "" ""))]
   "!TARGET_WINDOWED_ABI"
 {
-  xtensa_expand_call (0, operands);
+  xtensa_expand_call (0, operands, true);
   DONE;
 })
 
@@ -2511,7 +2628,7 @@
 	      (match_operand 2 "" "")))]
   "!TARGET_WINDOWED_ABI"
 {
-  xtensa_expand_call (1, operands);
+  xtensa_expand_call (1, operands, true);
   DONE;
 })
 
@@ -2561,7 +2678,10 @@
 (define_insn "return"
   [(return)
    (use (reg:SI A0_REG))]
-  "xtensa_use_return_instruction_p ()"
+  "reload_completed
+   && (TARGET_WINDOWED_ABI
+       || compute_frame_size (get_frame_size ()) == 0
+       || epilogue_completed)"
 {
   return TARGET_WINDOWED_ABI ?
       (TARGET_DENSITY ? "retw.n" : "retw") :
@@ -2615,7 +2735,8 @@
   [(return)]
   ""
 {
-  xtensa_expand_epilogue (false);
+  xtensa_expand_epilogue ();
+  emit_jump_insn (gen_return ());
   DONE;
 })
 
@@ -2623,7 +2744,7 @@
   [(return)]
   "!TARGET_WINDOWED_ABI"
 {
-  xtensa_expand_epilogue (true);
+  xtensa_expand_epilogue ();
   DONE;
 })
 
@@ -3053,6 +3174,118 @@
 		      (const_int 5)
 		      (const_int 6)))])
 
+(define_insn_and_split "eq_zero_NSA"
+  [(set (match_operand:SI 0 "register_operand" "=a")
+	(eq:SI (match_operand:SI 1 "register_operand" "r")
+	       (const_int 0)))]
+  "TARGET_NSA"
+  "#"
+  "&& 1"
+  [(set (match_dup 0)
+	(clz:SI (match_dup 1)))
+   (set (match_dup 0)
+	(lshiftrt:SI (match_dup 0)
+		     (const_int 5)))]
+  ""
+  [(set_attr "type"	"move")
+   (set_attr "mode"	"SI")
+   (set_attr "length"	"6")])
+
+(define_insn_and_split "eqne_zero"
+  [(set (match_operand:SI 0 "register_operand" "=a,&a")
+	(match_operator:SI 2 "boolean_operator"
+		[(match_operand:SI 1 "register_operand" "0,r")
+		 (const_int 0)]))
+   (clobber (match_scratch:SI 3 "=&a,X"))]
+  ""
+  "#"
+  "&& reload_completed"
+  [(const_int 0)]
+{
+  enum rtx_code code = GET_CODE (operands[2]);
+  int same_p = REGNO (operands[0]) == REGNO (operands[1]);
+  emit_move_insn (same_p ? operands[3] : operands[0],
+		  code == EQ ? constm1_rtx : const1_rtx);
+  emit_insn (gen_movsicc_internal0 (operands[0], operands[1],
+				    same_p ? operands[3] : operands[1],
+				    operands[0],
+				    gen_rtx_fmt_ee (same_p ? NE : EQ,
+						    VOIDmode,
+						    operands[1],
+						    const0_rtx)));
+  if (code == EQ)
+    emit_insn (gen_addsi3 (operands[0], operands[0], const1_rtx));
+  DONE;
+}
+  [(set_attr "type"	"move")
+   (set_attr "mode"	"SI")
+   (set (attr "length")
+	(if_then_else (match_test "GET_CODE (operands[2]) == EQ")
+                      (if_then_else (match_test "TARGET_DENSITY")
+				    (const_int 7)
+				    (const_int 9))
+		      (if_then_else (match_test "TARGET_DENSITY")
+				    (const_int 5)
+				    (const_int 6))))])
+
+(define_insn_and_split "*eqne_zero_masked_bits"
+  [(set (match_operand:SI 0 "register_operand" "=a")
+	(match_operator:SI 3 "boolean_operator"
+		[(and:SI (match_operand:SI 1 "register_operand" "r")
+			 (match_operand:SI 2 "const_int_operand" "i"))
+		 (const_int 0)]))]
+  "IN_RANGE (exact_log2 (INTVAL (operands[2]) + 1), 17, 31)
+   || IN_RANGE (exact_log2 (-INTVAL (operands[2])), 1, 30)"
+  "#"
+  "&& 1"
+  [(const_int 0)]
+{
+  HOST_WIDE_INT mask = INTVAL (operands[2]);
+  int n;
+  enum rtx_code code = GET_CODE (operands[3]);
+  if (IN_RANGE (n = exact_log2 (mask + 1), 17, 31))
+    emit_insn (gen_ashlsi3 (operands[0], operands[1], GEN_INT (32 - n)));
+  else
+    emit_insn (gen_lshrsi3 (operands[0], operands[1],
+			    GEN_INT (floor_log2 (-mask))));
+  if (TARGET_NSA && code == EQ)
+    emit_insn (gen_eq_zero_NSA (operands[0], operands[0]));
+  else
+    emit_insn (gen_eqne_zero (operands[0], operands[0],
+			      gen_rtx_fmt_ee (code, VOIDmode,
+					      operands[0], const0_rtx)));
+  DONE;
+})
+
+(define_insn_and_split "*eqne_INT_MIN"
+  [(set (match_operand:SI 0 "register_operand" "=a")
+	(match_operator:SI 2 "boolean_operator"
+		[(match_operand:SI 1 "register_operand" "r")
+		 (const_int -2147483648)]))]
+  "TARGET_ABS"
+  "#"
+  "&& 1"
+  [(const_int 0)]
+{
+  emit_insn (gen_abssi2 (operands[0], operands[1]));
+  if (GET_CODE (operands[2]) == EQ)
+    emit_insn (gen_lshrsi3 (operands[0], operands[0], GEN_INT (31)));
+  else
+    {
+      emit_insn (gen_ashrsi3 (operands[0], operands[0], GEN_INT (31)));
+      emit_insn (gen_addsi3 (operands[0], operands[0], const1_rtx));
+    }
+  DONE;
+}
+  [(set_attr "type"	"move")
+   (set_attr "mode"	"SI")
+   (set (attr "length")
+	(if_then_else (match_test "GET_CODE (operands[2]) == EQ")
+		      (const_int 6)
+		      (if_then_else (match_test "TARGET_DENSITY")
+				    (const_int 8)
+				    (const_int 9))))])
+
 (define_peephole2
   [(set (match_operand:SI 0 "register_operand")
 	(match_operand:SI 6 "reload_operand"))
@@ -3071,15 +3304,14 @@
    (set (match_dup 3)
 	(match_dup 7))]
 {
-  uint32_t check = 0;
+  HARD_REG_SET regs;
   int i;
+  CLEAR_HARD_REG_SET (regs);
   for (i = 0; i <= 3; ++i)
-    {
-      uint32_t mask = (uint32_t)1 << REGNO (operands[i]);
-      if (check & mask)
-	FAIL;
-      check |= mask;
-    }
+    if (TEST_HARD_REG_BIT (regs, REGNO (operands[i])))
+      FAIL;
+    else
+      SET_HARD_REG_BIT (regs, REGNO (operands[i]));
   operands[6] = gen_rtx_MEM (SFmode, XEXP (operands[6], 0));
   operands[7] = gen_rtx_MEM (SFmode, XEXP (operands[7], 0));
 })

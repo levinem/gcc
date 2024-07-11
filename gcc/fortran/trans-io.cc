@@ -1,5 +1,5 @@
 /* IO Code translation/library interface
-   Copyright (C) 2002-2023 Free Software Foundation, Inc.
+   Copyright (C) 2002-2024 Free Software Foundation, Inc.
    Contributed by Paul Brook
 
 This file is part of GCC.
@@ -1692,8 +1692,10 @@ transfer_namelist_element (stmtblock_t * block, const char * var_name,
   gcc_assert (sym || c);
 
   /* Build the namelist object name.  */
-
-  string = gfc_build_cstring_const (var_name);
+  if (sym && !sym->attr.use_only && sym->attr.use_rename)
+    string = gfc_build_cstring_const (sym->ns->use_stmts->rename->local_name);
+  else
+    string = gfc_build_cstring_const (var_name);
   string = gfc_build_addr_expr (pchar_type_node, string);
 
   /* Build ts, as and data address using symbol or component.  */
@@ -2460,8 +2462,8 @@ transfer_expr (gfc_se * se, gfc_typespec * ts, tree addr_expr,
 		  || (ts->type == BT_CLASS
 		      && !GFC_CLASS_TYPE_P (TREE_TYPE (decl))))
 		gfc_conv_derived_to_class (se, code->expr1,
-					   dtio_sub->formal->sym->ts,
-					   vptr, false, false);
+					   dtio_sub->formal->sym, vptr, false,
+					   false, "transfer");
 	      addr_expr = se->expr;
 	      function = iocall[IOCALL_X_DERIVED];
 	      break;
@@ -2620,9 +2622,13 @@ gfc_trans_transfer (gfc_code * code)
 	  gcc_assert (ref && ref->type == REF_ARRAY);
 	}
 
+      /* These expressions don't always have the dtype element length set
+	 correctly, rendering them useless for array transfer.  */
       if (expr->ts.type != BT_CLASS
 	 && expr->expr_type == EXPR_VARIABLE
 	 && ((expr->symtree->n.sym->ts.type == BT_DERIVED && expr->ts.deferred)
+	     || (expr->symtree->n.sym->assoc
+		 && expr->symtree->n.sym->assoc->variable)
 	     || gfc_expr_attr (expr).pointer))
 	goto scalarize;
 

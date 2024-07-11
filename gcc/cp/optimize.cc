@@ -1,5 +1,5 @@
 /* Perform optimizations on tree structure.
-   Copyright (C) 1998-2023 Free Software Foundation, Inc.
+   Copyright (C) 1998-2024 Free Software Foundation, Inc.
    Written by Mark Michell (mark@codesourcery.com).
 
 This file is part of GCC.
@@ -28,6 +28,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "debug.h"
 #include "tree-inline.h"
 #include "tree-iterator.h"
+#include "attribs.h"
 
 /* Prototypes.  */
 
@@ -219,10 +220,8 @@ can_alias_cdtor (tree fn)
   gcc_assert (DECL_MAYBE_IN_CHARGE_CDTOR_P (fn));
   /* Don't use aliases for weak/linkonce definitions unless we can put both
      symbols in the same COMDAT group.  */
-  return (DECL_INTERFACE_KNOWN (fn)
-	  && (SUPPORTS_ONE_ONLY || !DECL_WEAK (fn))
-	  && (!DECL_ONE_ONLY (fn)
-	      || (HAVE_COMDAT_GROUP && DECL_WEAK (fn))));
+  return (DECL_WEAK (fn) ? (HAVE_COMDAT_GROUP && DECL_ONE_ONLY (fn))
+			 : (DECL_INTERFACE_KNOWN (fn) && !DECL_ONE_ONLY (fn)));
 }
 
 /* FN is a [cd]tor, fns is a pointer to an array of length 3.  Fill fns
@@ -446,6 +445,29 @@ maybe_thunk_body (tree fn, bool force)
   return 1;
 }
 
+/* Copy most attributes from ATTRS, omitting attributes that can really only
+   apply to a single decl.  */
+
+tree
+clone_attrs (tree attrs)
+{
+  tree new_attrs = NULL_TREE;
+  tree *p = &new_attrs;
+
+  for (tree a = attrs; a; a = TREE_CHAIN (a))
+    {
+      tree aname = get_attribute_name (a);
+      if (is_attribute_namespace_p ("", a)
+	  && (is_attribute_p ("alias", aname)
+	      || is_attribute_p ("ifunc", aname)))
+	continue;
+      *p = copy_node (a);
+      p = &TREE_CHAIN (*p);
+    }
+  *p = NULL_TREE;
+  return new_attrs;
+}
+
 /* FN is a function that has a complete body.  Clone the body as
    necessary.  Returns nonzero if there's no longer any need to
    process the main body.  */
@@ -503,7 +525,7 @@ maybe_clone_body (tree fn)
       DECL_VISIBILITY (clone) = DECL_VISIBILITY (fn);
       DECL_VISIBILITY_SPECIFIED (clone) = DECL_VISIBILITY_SPECIFIED (fn);
       DECL_DLLIMPORT_P (clone) = DECL_DLLIMPORT_P (fn);
-      DECL_ATTRIBUTES (clone) = copy_list (DECL_ATTRIBUTES (fn));
+      DECL_ATTRIBUTES (clone) = clone_attrs (DECL_ATTRIBUTES (fn));
       DECL_DISREGARD_INLINE_LIMITS (clone) = DECL_DISREGARD_INLINE_LIMITS (fn);
       set_decl_section_name (clone, fn);
 
@@ -688,7 +710,7 @@ maybe_clone_body (tree fn)
 	  if (expand_or_defer_fn_1 (clone))
 	    emit_associated_thunks (clone);
 	  /* We didn't generate a body, so remove the empty one.  */
-	  DECL_SAVED_TREE (clone) = NULL_TREE;
+	  DECL_SAVED_TREE (clone) = void_node;
 	}
       else
 	expand_or_defer_fn (clone);

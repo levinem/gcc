@@ -1,5 +1,5 @@
 /* Support for suggestions about missing #include directives.
-   Copyright (C) 2017-2023 Free Software Foundation, Inc.
+   Copyright (C) 2017-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -182,6 +182,7 @@ get_stdlib_header_for_name (const char *name, enum stdlib lib)
     {"strchr", {"<string.h>", "<cstring>"} },
     {"strcmp", {"<string.h>", "<cstring>"} },
     {"strcpy", {"<string.h>", "<cstring>"} },
+    {"strerror", {"<string.h>", "<cstring>"} },
     {"strlen", {"<string.h>", "<cstring>"} },
     {"strncat", {"<string.h>", "<cstring>"} },
     {"strncmp", {"<string.h>", "<cstring>"} },
@@ -320,6 +321,6 @@ suggest_missing_header::~suggest_missing_header ()
   maybe_add_include_fixit (&richloc, m_header_hint, true);
   inform (&richloc,
 	  "%qs is defined in header %qs;"
-	  " did you forget to %<#include %s%>?",
+	  " this is probably fixable by adding %<#include %s%>",
 	  m_name_str, m_header_hint, m_header_hint);
 }

@@ -1,5 +1,5 @@
 /* Tree based points-to analysis
-   Copyright (C) 2005-2023 Free Software Foundation, Inc.
+   Copyright (C) 2005-2024 Free Software Foundation, Inc.
    Contributed by Daniel Berlin <dberlin@dberlin.org>
 
    This file is part of GCC.
@@ -237,6 +237,7 @@ static struct constraint_stats
   unsigned int iterations;
   unsigned int num_edges;
   unsigned int num_implicit_edges;
+  unsigned int num_avoided_edges;
   unsigned int points_to_sets_created;
 } stats;
 
@@ -364,8 +365,8 @@ vi_next (varinfo_t vi)
 /* Static IDs for the special variables.  Variable ID zero is unused
    and used as terminator for the sub-variable chain.  */
 enum { nothing_id = 1, anything_id = 2, string_id = 3,
-       escaped_id = 4, nonlocal_id = 5,
-       storedanything_id = 6, integer_id = 7 };
+       escaped_id = 4, nonlocal_id = 5, escaped_return_id = 6,
+       storedanything_id = 7, integer_id = 8 };
 
 /* Return a new variable info structure consisting for a variable
    named NAME, and using constraint graph node NODE.  Append it
@@ -965,28 +966,40 @@ solution_set_expand (bitmap set, bitmap *expanded)
 
   *expanded = BITMAP_ALLOC (&iteration_obstack);
 
-  /* In a first pass expand to the head of the variables we need to
-     add all sub-fields off.  This avoids quadratic behavior.  */
+  /* In a first pass expand variables, once for each head to avoid
+     quadratic behavior, to include all sub-fields.  */
+  unsigned prev_head = 0;
   EXECUTE_IF_SET_IN_BITMAP (set, 0, j, bi)
     {
       varinfo_t v = get_varinfo (j);
       if (v->is_artificial_var
 	  || v->is_full_var)
 	continue;
-      bitmap_set_bit (*expanded, v->head);
+      if (v->head != prev_head)
+	{
+	  varinfo_t head = get_varinfo (v->head);
+	  unsigned num = 1;
+	  for (varinfo_t n = vi_next (head); n != NULL; n = vi_next (n))
+	    {
+	      if (n->id != head->id + num)
+		{
+		  /* Usually sub variables are adjacent but since we
+		     create pointed-to restrict representatives there
+		     can be gaps as well.  */
+		  bitmap_set_range (*expanded, head->id, num);
+		  head = n;
+		  num = 1;
+		}
+	      else
+		num++;
+	    }
+
+	  bitmap_set_range (*expanded, head->id, num);
+	  prev_head = v->head;
+	}
     }
 
-  /* In the second pass now expand all head variables with subfields.  */
-  EXECUTE_IF_SET_IN_BITMAP (*expanded, 0, j, bi)
-    {
-      varinfo_t v = get_varinfo (j);
-      if (v->head != j)
-	continue;
-      for (v = vi_next (v); v != NULL; v = vi_next (v))
-	bitmap_set_bit (*expanded, v->id);
-    }
-
-  /* And finally set the rest of the bits from SET.  */
+  /* And finally set the rest of the bits from SET in an efficient way.  */
   bitmap_ior_into (*expanded, set);
 
   return *expanded;
@@ -1213,7 +1226,10 @@ add_graph_edge (constraint_graph_t graph, unsigned int to,
       if (to < FIRST_REF_NODE
 	  && bitmap_bit_p (graph->succs[from], find (escaped_id))
 	  && bitmap_bit_p (get_varinfo (find (to))->solution, escaped_id))
-	return false;
+	{
+	  stats.num_avoided_edges++;
+	  return false;
+	}
 
       if (bitmap_set_bit (graph->succs[from], to))
 	{
@@ -1296,7 +1312,12 @@ build_pred_graph (void)
 	{
 	  /* *x = y.  */
 	  if (rhs.offset == 0 && lhs.offset == 0 && rhs.type == SCALAR)
-	    add_pred_graph_edge (graph, FIRST_REF_NODE + lhsvar, rhsvar);
+	    {
+	      if (lhs.var == anything_id)
+		add_pred_graph_edge (graph, storedanything_id, rhsvar);
+	      else
+		add_pred_graph_edge (graph, FIRST_REF_NODE + lhsvar, rhsvar);
+	    }
 	}
       else if (rhs.type == DEREF)
 	{
@@ -1382,7 +1403,12 @@ build_succ_graph (void)
       if (lhs.type == DEREF)
 	{
 	  if (rhs.offset == 0 && lhs.offset == 0 && rhs.type == SCALAR)
-	    add_graph_edge (graph, FIRST_REF_NODE + lhsvar, rhsvar);
+	    {
+	      if (lhs.var == anything_id)
+		add_graph_edge (graph, storedanything_id, rhsvar);
+	      else
+		add_graph_edge (graph, FIRST_REF_NODE + lhsvar, rhsvar);
+	    }
 	}
       else if (rhs.type == DEREF)
 	{
@@ -1402,13 +1428,11 @@ build_succ_graph (void)
 	}
     }
 
-  /* Add edges from STOREDANYTHING to all non-direct nodes that can
-     receive pointers.  */
+  /* Add edges from STOREDANYTHING to all nodes that can receive pointers.  */
   t = find (storedanything_id);
   for (i = integer_id + 1; i < FIRST_REF_NODE; ++i)
     {
-      if (!bitmap_bit_p (graph->direct_nodes, i)
-	  && get_varinfo (i)->may_have_pointers)
+      if (get_varinfo (i)->may_have_pointers)
 	add_graph_edge (graph, find (i), t);
     }
 
@@ -1518,8 +1542,10 @@ scc_visit (constraint_graph_t graph, class scc_info *si, unsigned int n)
 		  graph->indirect_cycles[i - FIRST_REF_NODE] = lowest_node;
 		}
 	    }
+	  bitmap_set_bit (si->deleted, lowest_node);
 	}
-      bitmap_set_bit (si->deleted, n);
+      else
+	bitmap_set_bit (si->deleted, n);
     }
   else
     si->scc_stack.safe_push (n);
@@ -1579,65 +1605,6 @@ unify_nodes (constraint_graph_t graph, unsigned int to, unsigned int from,
     }
   if (graph->succs[to])
     bitmap_clear_bit (graph->succs[to], to);
-}
-
-/* Information needed to compute the topological ordering of a graph.  */
-
-struct topo_info
-{
-  /* sbitmap of visited nodes.  */
-  sbitmap visited;
-  /* Array that stores the topological order of the graph, *in
-     reverse*.  */
-  vec<unsigned> topo_order;
-};
-
-
-/* Initialize and return a topological info structure.  */
-
-static struct topo_info *
-init_topo_info (void)
-{
-  size_t size = graph->size;
-  struct topo_info *ti = XNEW (struct topo_info);
-  ti->visited = sbitmap_alloc (size);
-  bitmap_clear (ti->visited);
-  ti->topo_order.create (1);
-  return ti;
-}
-
-
-/* Free the topological sort info pointed to by TI.  */
-
-static void
-free_topo_info (struct topo_info *ti)
-{
-  sbitmap_free (ti->visited);
-  ti->topo_order.release ();
-  free (ti);
-}
-
-/* Visit the graph in topological order, and store the order in the
-   topo_info structure.  */
-
-static void
-topo_visit (constraint_graph_t graph, struct topo_info *ti,
-	    unsigned int n)
-{
-  bitmap_iterator bi;
-  unsigned int j;
-
-  bitmap_set_bit (ti->visited, n);
-
-  if (graph->succs[n])
-    EXECUTE_IF_SET_IN_BITMAP (graph->succs[n], 0, j, bi)
-      {
-	unsigned k = find (j);
-	if (!bitmap_bit_p (ti->visited, k))
-	  topo_visit (graph, ti, k);
-      }
-
-  ti->topo_order.safe_push (n);
 }
 
 /* Add a copy edge FROM -> TO, optimizing special cases.  Returns TRUE
@@ -1921,19 +1888,56 @@ find_indirect_cycles (constraint_graph_t graph)
       scc_visit (graph, &si, i);
 }
 
-/* Compute a topological ordering for GRAPH, and store the result in the
-   topo_info structure TI.  */
+/* Visit the graph in topological order starting at node N, and store the
+   order in TOPO_ORDER using VISITED to indicate visited nodes.  */
 
 static void
-compute_topo_order (constraint_graph_t graph,
-		    struct topo_info *ti)
+topo_visit (constraint_graph_t graph, vec<unsigned> &topo_order,
+	    sbitmap visited, unsigned int n)
+{
+  bitmap_iterator bi;
+  unsigned int j;
+
+  bitmap_set_bit (visited, n);
+
+  if (graph->succs[n])
+    EXECUTE_IF_SET_IN_BITMAP (graph->succs[n], 0, j, bi)
+      {
+	unsigned k = find (j);
+	if (!bitmap_bit_p (visited, k))
+	  topo_visit (graph, topo_order, visited, k);
+      }
+
+  topo_order.quick_push (n);
+}
+
+/* Compute a topological ordering for GRAPH, and return the result.  */
+
+static auto_vec<unsigned>
+compute_topo_order (constraint_graph_t graph)
 {
   unsigned int i;
   unsigned int size = graph->size;
 
+  auto_sbitmap visited (size);
+  bitmap_clear (visited);
+
+  /* For the heuristic in add_graph_edge to work optimally make sure to
+     first visit the connected component of the graph containing
+     ESCAPED.  Do this by extracting the connected component
+     with ESCAPED and append that to all other components as solve_graph
+     pops from the order.  */
+  auto_vec<unsigned> tail (size);
+  topo_visit (graph, tail, visited, find (escaped_id));
+
+  auto_vec<unsigned> topo_order (size);
+
   for (i = 0; i != size; ++i)
-    if (!bitmap_bit_p (ti->visited, i) && find (i) == i)
-      topo_visit (graph, ti, i);
+    if (!bitmap_bit_p (visited, i) && find (i) == i)
+      topo_visit (graph, topo_order, visited, i);
+
+  topo_order.splice (tail);
+  return topo_order;
 }
 
 /* Structure used to for hash value numbering of pointer equivalence
@@ -2761,17 +2765,14 @@ solve_graph (constraint_graph_t graph)
   while (!bitmap_empty_p (changed))
     {
       unsigned int i;
-      struct topo_info *ti = init_topo_info ();
       stats.iterations++;
 
       bitmap_obstack_initialize (&iteration_obstack);
 
-      compute_topo_order (graph, ti);
-
-      while (ti->topo_order.length () != 0)
+      auto_vec<unsigned> topo_order = compute_topo_order (graph);
+      while (topo_order.length () != 0)
 	{
-
-	  i = ti->topo_order.pop ();
+	  i = topo_order.pop ();
 
 	  /* If this variable is not a representative, skip it.  */
 	  if (find (i) != i)
@@ -2906,7 +2907,6 @@ solve_graph (constraint_graph_t graph)
 		}
 	    }
 	}
-      free_topo_info (ti);
       bitmap_obstack_release (&iteration_obstack);
     }
 
@@ -3114,7 +3114,7 @@ process_constraint (constraint_t t)
      it here by turning it into *ANYTHING.  */
   if (lhs.type == ADDRESSOF
       && lhs.var == anything_id)
-    lhs.type = DEREF;
+    t->lhs.type = lhs.type = DEREF;
 
   /* ADDRESSOF on the lhs is invalid.  */
   gcc_assert (lhs.type != ADDRESSOF);
@@ -3585,6 +3585,10 @@ get_constraint_for_1 (tree t, vec<ce_s> *results, bool address_p,
       }
     case tcc_reference:
       {
+	if (TREE_THIS_VOLATILE (t))
+	  /* Fall back to anything.  */
+	  break;
+
 	switch (TREE_CODE (t))
 	  {
 	  case MEM_REF:
@@ -3686,6 +3690,9 @@ get_constraint_for_1 (tree t, vec<ce_s> *results, bool address_p,
       }
     case tcc_declaration:
       {
+	if (VAR_P (t) && TREE_THIS_VOLATILE (t))
+	  /* Fall back to anything.  */
+	  break;
 	get_constraint_for_ssa_var (t, results, address_p);
 	return;
       }
@@ -5231,23 +5238,18 @@ find_func_aliases (struct function *fn, gimple *origt)
 	   && gimple_return_retval (as_a <greturn *> (t)) != NULL_TREE)
     {
       greturn *return_stmt = as_a <greturn *> (t);
-      fi = NULL;
-      if (!in_ipa_mode
-	  && SSA_VAR_P (gimple_return_retval (return_stmt)))
-	{
-	  /* We handle simple returns by post-processing the solutions.  */
-	  ;
-	}
-      if (!(fi = get_vi_for_tree (fn->decl)))
-	make_escape_constraint (gimple_return_retval (return_stmt));
-      else if (in_ipa_mode)
+      tree retval = gimple_return_retval (return_stmt);
+      if (!in_ipa_mode)
+	make_constraint_to (escaped_return_id, retval);
+      else
 	{
 	  struct constraint_expr lhs ;
 	  struct constraint_expr *rhsp;
 	  unsigned i;
 
+	  fi = lookup_vi_for_tree (fn->decl);
 	  lhs = get_function_part_constraint (fi, fi_result);
-	  get_constraint_for_rhs (gimple_return_retval (return_stmt), &rhsc);
+	  get_constraint_for_rhs (retval, &rhsc);
 	  FOR_EACH_VEC_ELT (rhsc, i, rhsp)
 	    process_constraint (new_constraint (lhs, *rhsp));
 	}
@@ -5275,7 +5277,11 @@ find_func_aliases (struct function *fn, gimple *origt)
 
 	  /* A memory constraint makes the address of the operand escape.  */
 	  if (!allows_reg && allows_mem)
-	    make_escape_constraint (build_fold_addr_expr (op));
+	    {
+	      auto_vec<ce_s> tmpc;
+	      get_constraint_for_address_of (op, &tmpc);
+	      make_constraints_to (escaped_id, tmpc);
+	    }
 
 	  /* The asm may read global memory, so outputs may point to
 	     any global memory.  */
@@ -5304,7 +5310,11 @@ find_func_aliases (struct function *fn, gimple *origt)
 
 	  /* A memory constraint makes the address of the operand escape.  */
 	  if (!allows_reg && allows_mem)
-	    make_escape_constraint (build_fold_addr_expr (op));
+	    {
+	      auto_vec<ce_s> tmpc;
+	      get_constraint_for_address_of (op, &tmpc);
+	      make_constraints_to (escaped_id, tmpc);
+	    }
 	  /* Strictly we'd only need the constraint to ESCAPED if
 	     the asm clobbers memory, otherwise using something
 	     along the lines of per-call clobbers/uses would be enough.  */
@@ -6675,6 +6685,7 @@ set_uids_in_ptset (bitmap into, bitmap from, struct pt_solution *pt,
   unsigned int i;
   bitmap_iterator bi;
   varinfo_t escaped_vi = get_varinfo (find (escaped_id));
+  varinfo_t escaped_return_vi = get_varinfo (find (escaped_return_id));
   bool everything_escaped
     = escaped_vi->solution && bitmap_bit_p (escaped_vi->solution, anything_id);
 
@@ -6692,6 +6703,9 @@ set_uids_in_ptset (bitmap into, bitmap from, struct pt_solution *pt,
 	  pt->vars_contains_escaped = true;
 	  pt->vars_contains_escaped_heap |= vi->is_heap_var;
 	}
+      if (escaped_return_vi->solution
+	  && bitmap_bit_p (escaped_return_vi->solution, i))
+	pt->vars_contains_escaped_heap |= vi->is_heap_var;
 
       if (vi->is_restrict_var)
 	pt->vars_contains_restrict = true;
@@ -6803,8 +6817,7 @@ find_what_var_points_to (tree fndecl, varinfo_t orig_vi)
 	  else if (vi->id == nonlocal_id)
 	    pt->nonlocal = 1;
 	  else if (vi->id == string_id)
-	    /* Nobody cares - STRING_CSTs are read-only entities.  */
-	    ;
+	    pt->const_pool = 1;
 	  else if (vi->id == anything_id
 		   || vi->id == integer_id)
 	    pt->anything = 1;
@@ -6844,7 +6857,7 @@ find_what_p_points_to (tree fndecl, tree p)
   struct ptr_info_def *pi;
   tree lookup_p = p;
   varinfo_t vi;
-  value_range vr;
+  prange vr;
   get_range_query (DECL_STRUCT_FUNCTION (fndecl))->range_of_expr (vr, p);
   bool nonnull = vr.nonzero_p ();
 
@@ -6960,6 +6973,7 @@ pt_solution_ior_into (struct pt_solution *dest, struct pt_solution *src)
   dest->escaped |= src->escaped;
   dest->ipa_escaped |= src->ipa_escaped;
   dest->null |= src->null;
+  dest->const_pool |= src->const_pool ;
   dest->vars_contains_nonlocal |= src->vars_contains_nonlocal;
   dest->vars_contains_escaped |= src->vars_contains_escaped;
   dest->vars_contains_escaped_heap |= src->vars_contains_escaped_heap;
@@ -7084,6 +7098,18 @@ pt_solution_includes (struct pt_solution *pt, const_tree decl)
   return res;
 }
 
+/* Return true if the points-to solution *PT contains a reference to a
+   constant pool entry.  */
+
+bool
+pt_solution_includes_const_pool (struct pt_solution *pt)
+{
+  return (pt->const_pool
+	  || pt->nonlocal
+	  || (pt->escaped && (!cfun || cfun->gimple_df->escaped.const_pool))
+	  || (pt->ipa_escaped && ipa_escaped_pt.const_pool));
+}
+
 /* Return true if both points-to solutions PT1 and PT2 have a non-empty
    intersection.  */
 
@@ -7164,6 +7190,8 @@ dump_sa_stats (FILE *outfile)
   fprintf (outfile, "Number of edges:          %d\n", stats.num_edges);
   fprintf (outfile, "Number of implicit edges: %d\n",
 	   stats.num_implicit_edges);
+  fprintf (outfile, "Number of avoided edges: %d\n",
+	   stats.num_avoided_edges);
 }
 
 /* Dump points-to information to OUTFILE.  */
@@ -7204,6 +7232,7 @@ init_base_vars (void)
   varinfo_t var_string;
   varinfo_t var_escaped;
   varinfo_t var_nonlocal;
+  varinfo_t var_escaped_return;
   varinfo_t var_storedanything;
   varinfo_t var_integer;
 
@@ -7279,6 +7308,16 @@ init_base_vars (void)
   var_nonlocal->fullsize = ~0;
   var_nonlocal->is_special_var = 1;
 
+  /* Create the ESCAPED_RETURN variable, used to represent the set of escaped
+     memory via a regular return stmt.  */
+  var_escaped_return = new_var_info (NULL_TREE, "ESCAPED_RETURN", false);
+  gcc_assert (var_escaped_return->id == escaped_return_id);
+  var_escaped_return->is_artificial_var = 1;
+  var_escaped_return->offset = 0;
+  var_escaped_return->size = ~0;
+  var_escaped_return->fullsize = ~0;
+  var_escaped_return->is_special_var = 0;
+
   /* ESCAPED = *ESCAPED, because escaped is may-deref'd at calls, etc.  */
   lhs.type = SCALAR;
   lhs.var = escaped_id;
@@ -7320,6 +7359,24 @@ init_base_vars (void)
   process_constraint (new_constraint (lhs, rhs));
   rhs.type = ADDRESSOF;
   rhs.var = escaped_id;
+  rhs.offset = 0;
+  process_constraint (new_constraint (lhs, rhs));
+
+  /* Transitively close ESCAPED_RETURN.
+     ESCAPED_RETURN = ESCAPED_RETURN + UNKNOWN_OFFSET
+     ESCAPED_RETURN = *ESCAPED_RETURN.  */
+  lhs.type = SCALAR;
+  lhs.var = escaped_return_id;
+  lhs.offset = 0;
+  rhs.type = SCALAR;
+  rhs.var = escaped_return_id;
+  rhs.offset = UNKNOWN_OFFSET;
+  process_constraint (new_constraint (lhs, rhs));
+  lhs.type = SCALAR;
+  lhs.var = escaped_return_id;
+  lhs.offset = 0;
+  rhs.type = DEREF;
+  rhs.var = escaped_return_id;
   rhs.offset = 0;
   process_constraint (new_constraint (lhs, rhs));
 
@@ -7563,70 +7620,6 @@ compute_points_to_sets (void)
   /* From the constraints compute the points-to sets.  */
   solve_constraints ();
 
-  /* Post-process solutions for escapes through returns.  */
-  edge_iterator ei;
-  edge e;
-  FOR_EACH_EDGE (e, ei, EXIT_BLOCK_PTR_FOR_FN (cfun)->preds)
-    if (greturn *ret = safe_dyn_cast <greturn *> (*gsi_last_bb (e->src)))
-      {
-	tree val = gimple_return_retval (ret);
-	/* ???  Easy to handle simple indirections with some work.
-	   Arbitrary references like foo.bar.baz are more difficult
-	   (but conservatively easy enough with just looking at the base).
-	   Mind to fixup find_func_aliases as well.  */
-	if (!val || !SSA_VAR_P (val))
-	  continue;
-	/* returns happen last in non-IPA so they only influence
-	   the ESCAPED solution and we can filter local variables.  */
-	varinfo_t escaped_vi = get_varinfo (find (escaped_id));
-	varinfo_t vi = lookup_vi_for_tree (val);
-	bitmap delta = BITMAP_ALLOC (&pta_obstack);
-	bitmap_iterator bi;
-	unsigned i;
-	for (; vi; vi = vi_next (vi))
-	  {
-	    varinfo_t part_vi = get_varinfo (find (vi->id));
-	    EXECUTE_IF_AND_COMPL_IN_BITMAP (part_vi->solution,
-					    escaped_vi->solution, 0, i, bi)
-	      {
-		varinfo_t pointed_to_vi = get_varinfo (i);
-		if (pointed_to_vi->is_global_var
-		    /* We delay marking of heap memory as global.  */
-		    || pointed_to_vi->is_heap_var)
-		  bitmap_set_bit (delta, i);
-	      }
-	  }
-
-	/* Now compute the transitive closure.  */
-	bitmap_ior_into (escaped_vi->solution, delta);
-	bitmap new_delta = BITMAP_ALLOC (&pta_obstack);
-	while (!bitmap_empty_p (delta))
-	  {
-	    EXECUTE_IF_SET_IN_BITMAP (delta, 0, i, bi)
-	      {
-		varinfo_t pointed_to_vi = get_varinfo (i);
-		pointed_to_vi = get_varinfo (find (pointed_to_vi->id));
-		unsigned j;
-		bitmap_iterator bi2;
-		EXECUTE_IF_AND_COMPL_IN_BITMAP (pointed_to_vi->solution,
-						escaped_vi->solution,
-						0, j, bi2)
-		  {
-		    varinfo_t pointed_to_vi2 = get_varinfo (j);
-		    if (pointed_to_vi2->is_global_var
-			/* We delay marking of heap memory as global.  */
-			|| pointed_to_vi2->is_heap_var)
-		      bitmap_set_bit (new_delta, j);
-		  }
-	      }
-	    bitmap_ior_into (escaped_vi->solution, new_delta);
-	    bitmap_clear (delta);
-	    std::swap (delta, new_delta);
-	  }
-	BITMAP_FREE (delta);
-	BITMAP_FREE (new_delta);
-      }
-
   if (dump_file && (dump_flags & TDF_STATS))
     dump_sa_stats (dump_file);
 
@@ -7641,6 +7634,12 @@ compute_points_to_sets (void)
      other solutions) does not reference itself.  This simplifies
      points-to solution queries.  */
   cfun->gimple_df->escaped.escaped = 0;
+
+  /* The ESCAPED_RETURN solution is what contains all memory that needs
+     to be considered global.  */
+  cfun->gimple_df->escaped_return
+    = find_what_var_points_to (cfun->decl, get_varinfo (escaped_return_id));
+  cfun->gimple_df->escaped_return.escaped = 1;
 
   /* Compute the points-to sets for pointer SSA_NAMEs.  */
   unsigned i;
@@ -8159,7 +8158,7 @@ make_pass_build_ealias (gcc::context *ctxt)
 
 /* IPA PTA solutions for ESCAPED.  */
 struct pt_solution ipa_escaped_pt
-  = { true, false, false, false, false,
+  = { true, false, false, false, false, false,
       false, false, false, false, false, NULL };
 
 /* Associate node with varinfo DATA. Worker for
@@ -8217,10 +8216,9 @@ dump_varinfo (FILE *file, varinfo_t vi)
     fprintf (file, "%shead:%u", sep, vi->head);
   if (vi->offset)
     fprintf (file, "%soffset:" HOST_WIDE_INT_PRINT_DEC, sep, vi->offset);
-  if (vi->size != ~(unsigned HOST_WIDE_INT)0)
+  if (vi->size != ~HOST_WIDE_INT_0U)
     fprintf (file, "%ssize:" HOST_WIDE_INT_PRINT_DEC, sep, vi->size);
-  if (vi->fullsize != ~(unsigned HOST_WIDE_INT)0
-      && vi->fullsize != vi->size)
+  if (vi->fullsize != ~HOST_WIDE_INT_0U && vi->fullsize != vi->size)
     fprintf (file, "%sfullsize:" HOST_WIDE_INT_PRINT_DEC, sep,
 	     vi->fullsize);
   fprintf (file, "\n");
@@ -8427,7 +8425,7 @@ ipa_pta_execute (void)
 	  || node->clone_of)
 	continue;
 
-      if (dump_file)
+      if (dump_file && (dump_flags & TDF_DETAILS))
 	{
 	  fprintf (dump_file,
 		   "Generating constraints for %s", node->dump_name ());

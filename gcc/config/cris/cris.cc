@@ -1,5 +1,5 @@
 /* Definitions for GCC.  Part of the machine description for CRIS.
-   Copyright (C) 1998-2023 Free Software Foundation, Inc.
+   Copyright (C) 1998-2024 Free Software Foundation, Inc.
    Contributed by Axis Communications.  Written by Hans-Peter Nilsson.
 
 This file is part of GCC.
@@ -152,7 +152,8 @@ static void cris_function_arg_advance (cumulative_args_t,
 				       const function_arg_info &);
 static rtx_insn *cris_md_asm_adjust (vec<rtx> &, vec<rtx> &,
 				     vec<machine_mode> &, vec<const char *> &,
-				     vec<rtx> &, HARD_REG_SET &, location_t);
+				     vec<rtx> &, vec<rtx> &,
+				     HARD_REG_SET &, location_t);
 
 static void cris_option_override (void);
 
@@ -168,6 +169,8 @@ static unsigned int cris_hard_regno_nregs (unsigned int, machine_mode);
 static bool cris_hard_regno_mode_ok (unsigned int, machine_mode);
 static HOST_WIDE_INT cris_static_rtx_alignment (machine_mode);
 static HOST_WIDE_INT cris_constant_alignment (const_tree, HOST_WIDE_INT);
+static bool cris_legitimate_address_p_hook (machine_mode, rtx, bool,
+					    code_helper);
 
 /* This is the parsed result of the "-max-stack-stackframe=" option.  If
    it (still) is zero, then there was no such option given.  */
@@ -217,7 +220,7 @@ int cris_cpu_version = CRIS_DEFAULT_CPU_VERSION;
 #define TARGET_INIT_LIBFUNCS cris_init_libfuncs
 
 #undef TARGET_LEGITIMATE_ADDRESS_P
-#define TARGET_LEGITIMATE_ADDRESS_P cris_legitimate_address_p
+#define TARGET_LEGITIMATE_ADDRESS_P cris_legitimate_address_p_hook
 
 #undef TARGET_PREFERRED_RELOAD_CLASS
 #define TARGET_PREFERRED_RELOAD_CLASS cris_preferred_reload_class
@@ -375,7 +378,6 @@ cris_postdbr_cmpelim ()
   for (insn = get_insns (); insn; insn = next)
     {
       rtx_insn *outer_insn = insn;
-      rtx pat = PATTERN (insn);
 
       next = NEXT_INSN (outer_insn);
 
@@ -389,6 +391,7 @@ cris_postdbr_cmpelim ()
 
       if (!NONDEBUG_INSN_P (insn))
 	continue;
+      rtx pat = PATTERN (insn);
 
       /* Consider filled delay slots; there might be a comparison there.
 	 It's only the second insn in a sequence that is interesting.  */
@@ -1379,6 +1382,22 @@ cris_return_addr_rtx (int count, rtx frameaddr ATTRIBUTE_UNUSED)
     : NULL_RTX;
 }
 
+/* Setting the EH return return address is done by a *store* to a memory
+   address expressed as relative to "*incoming* args".  That store will
+   be optimized away, unless the MEM is marked as volatile.  N.B.: no
+   optimization opportunities are expected to be lost due to this hack;
+   __builtin_eh_return isn't called from elsewhere than the EH machinery
+   in libgcc.  */
+
+rtx
+cris_eh_return_handler_rtx ()
+{
+  rtx ret = cris_return_addr_rtx (0, NULL_RTX);
+  gcc_assert (MEM_P (ret));
+  MEM_VOLATILE_P (ret) = true;
+  return ret;
+}
+
 /* Accessor used in cris.md:return because cfun->machine isn't available
    there.  */
 
@@ -1535,6 +1554,13 @@ cris_biap_index_p (const_rtx x, bool strict)
 }
 
 /* Worker function for TARGET_LEGITIMATE_ADDRESS_P.  */
+
+static bool
+cris_legitimate_address_p_hook (machine_mode mode, rtx x, bool strict,
+				code_helper)
+{
+  return cris_legitimate_address_p (mode, x, strict);
+}
 
 bool
 cris_legitimate_address_p (machine_mode mode, rtx x, bool strict)
@@ -3637,7 +3663,8 @@ cris_function_arg_advance (cumulative_args_t ca_v,
 static rtx_insn *
 cris_md_asm_adjust (vec<rtx> &outputs, vec<rtx> &inputs,
 		    vec<machine_mode> & /*input_modes*/,
-		    vec<const char *> &constraints, vec<rtx> &clobbers,
+		    vec<const char *> &constraints,
+		    vec<rtx> &/*uses*/, vec<rtx> &clobbers,
 		    HARD_REG_SET &clobbered_regs, location_t /*loc*/)
 {
   /* For the time being, all asms clobber condition codes.

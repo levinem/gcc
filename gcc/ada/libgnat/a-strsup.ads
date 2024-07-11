@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2003-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 2003-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -51,9 +51,11 @@ with Ada.Strings.Maps; use type Ada.Strings.Maps.Character_Mapping_Function;
 with Ada.Strings.Search;
 with Ada.Strings.Text_Buffers;
 
-package Ada.Strings.Superbounded with SPARK_Mode is
+package Ada.Strings.Superbounded with
+  SPARK_Mode,
+  Always_Terminates
+is
    pragma Preelaborate;
-   pragma Annotate (GNATprove, Always_Return, Superbounded);
 
    --  Type Bounded_String in Ada.Strings.Bounded.Generic_Bounded_Length is
    --  derived from Super_String, with the constraint of the maximum length.
@@ -69,7 +71,7 @@ package Ada.Strings.Superbounded with SPARK_Mode is
       --  Leaving it out is more efficient.
    end record
    with
-     Predicate =>
+     Ghost_Predicate =>
        Current_Length <= Max_Length
          and then Data (1 .. Current_Length)'Initialized,
      Put_Image => Put_Image;
@@ -687,7 +689,6 @@ package Ada.Strings.Superbounded with SPARK_Mode is
      (Left  : Super_String;
       Right : Super_String) return Boolean
    with
-     Pre    => Left.Max_Length = Right.Max_Length,
      Post   => "="'Result = (Super_To_String (Left) = Super_To_String (Right)),
      Global => null;
 

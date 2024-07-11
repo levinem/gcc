@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -70,6 +70,7 @@ with Stringt;        use Stringt;
 with Strub;          use Strub;
 with SCIL_LL;        use SCIL_LL;
 with Tbuild;         use Tbuild;
+with Ttypes;         use Ttypes;
 
 package body Exp_Disp is
 
@@ -537,7 +538,7 @@ package body Exp_Disp is
             then
                Target_List := Priv_Decls;
 
-            elsif not Present (Vis_Decls) then
+            elsif No (Vis_Decls) then
                Target_List := New_List;
                Set_Private_Declarations (Spec, Target_List);
             else
@@ -1133,18 +1134,36 @@ package body Exp_Disp is
             Set_SCIL_Controlling_Tag (SCIL_Node,
               Parent (Entity (Prefix (Controlling_Tag))));
 
-         --  For a direct reference of the tag of the type the SCIL node
-         --  references the internal object declaration containing the tag
-         --  of the type.
+         --  Depending on whether a dereference is involved, the SCIL node
+         --  references the corresponding object/parameter declaration or
+         --  the internal object declaration containing the tag of the type.
 
          elsif Nkind (Controlling_Tag) = N_Attribute_Reference
             and then Attribute_Name (Controlling_Tag) = Name_Tag
          then
-            Set_SCIL_Controlling_Tag (SCIL_Node,
-              Parent
-                (Node
-                  (First_Elmt
-                    (Access_Disp_Table (Entity (Prefix (Controlling_Tag)))))));
+            declare
+               Prefix_Node : constant Node_Id   := Prefix (Controlling_Tag);
+               Ent         : constant Entity_Id := Entity
+                 (if Nkind (Prefix_Node) = N_Explicit_Dereference then
+                    Prefix (Prefix_Node)
+                  else
+                    Prefix_Node);
+
+            begin
+               if Ekind (Ent) in E_Record_Type
+                               | E_Record_Subtype
+                               | E_Record_Type_With_Private
+               then
+                  Set_SCIL_Controlling_Tag (SCIL_Node,
+                    Parent
+                      (Node
+                        (First_Elmt
+                          (Access_Disp_Table (Ent)))));
+
+               else
+                  Set_SCIL_Controlling_Tag (SCIL_Node, Parent (Ent));
+               end if;
+            end;
 
          --  Interfaces are not supported. For now we leave the SCIL node
          --  decorated with the Controlling_Tag. More work needed here???
@@ -1224,91 +1243,8 @@ package body Exp_Disp is
 
    procedure Expand_Interface_Conversion (N : Node_Id) is
 
-      function Has_Dispatching_Constructor_Call
-        (Expr : Node_Id) return Boolean;
-      --  Determines if the expression has a dispatching constructor call
-
       function Underlying_Record_Type (Typ : Entity_Id) return Entity_Id;
       --  Return the underlying record type of Typ
-
-      --------------------------------------
-      -- Has_Dispatching_Constructor_Call --
-      --------------------------------------
-
-      function Has_Dispatching_Constructor_Call (Expr : Node_Id) return Boolean
-      is
-         function Is_Dispatching_Constructor_Call (N : Node_Id) return Boolean;
-         --  Determines if N is a dispatching constructor call
-
-         function Process (Nod : Node_Id) return Traverse_Result;
-         --  Traverse the expression searching for constructor calls
-
-         -------------------------------------
-         -- Is_Dispatching_Constructor_Call --
-         -------------------------------------
-
-         function Is_Dispatching_Constructor_Call (N : Node_Id) return Boolean
-         is
-            Param       : Node_Id;
-            Param_Type  : Entity_Id;
-            Assoc_Node  : Node_Id;
-            Gen_Func_Id : Entity_Id;
-
-         begin
-            if Nkind (N) = N_Function_Call
-              and then Present (Parameter_Associations (N))
-            then
-               Param := First (Parameter_Associations (N));
-
-               if Nkind (Param) = N_Parameter_Association then
-                  Param := Selector_Name (Param);
-               end if;
-
-               Param_Type := Etype (Param);
-
-               if Is_Itype (Param_Type) then
-                  Assoc_Node := Associated_Node_For_Itype (Param_Type);
-
-                  if Nkind (Assoc_Node) = N_Function_Specification
-                    and then Present (Generic_Parent (Assoc_Node))
-                  then
-                     Gen_Func_Id := Generic_Parent (Assoc_Node);
-
-                     if Is_Intrinsic_Subprogram (Gen_Func_Id)
-                       and then Chars (Gen_Func_Id)
-                                  = Name_Generic_Dispatching_Constructor
-                     then
-                        return True;
-                     end if;
-                  end if;
-               end if;
-            end if;
-
-            return False;
-         end Is_Dispatching_Constructor_Call;
-
-         -------------
-         -- Process --
-         -------------
-
-         function Process (Nod : Node_Id) return Traverse_Result is
-         begin
-            if Nkind (Nod) = N_Function_Call
-              and then Is_Dispatching_Constructor_Call (Nod)
-            then
-               return Abandon;
-            end if;
-
-            return OK;
-         end Process;
-
-         function Traverse_Expression is new Traverse_Func (Process);
-
-      --  Start of processing for Has_Dispatching_Constructor_Call
-
-      begin
-         return Traverse_Expression (Expr) = Abandon;
-      end Has_Dispatching_Constructor_Call;
 
       ----------------------------
       -- Underlying_Record_Type --
@@ -1412,16 +1348,13 @@ package body Exp_Disp is
          --  object to reference the corresponding secondary dispatch table
          --  (cf. Make_DT and Expand_Dispatching_Constructor_Call)).
 
-         --  Under regular runtime this is a minor optimization that improves
-         --  the generated code; under configurable runtime (where generic
-         --  dispatching constructors are not supported) this optimization
-         --  allows supporting this interface conversion, which otherwise
-         --  would require calling the runtime routine to displace the
-         --  pointer to the object.
+         --  Under configurable runtime it is safe to skip generating code to
+         --  displace the pointer to the object, because generic dispatching
+         --  constructors are not supported.
 
          elsif Is_Interface (Iface_Typ)
            and then Is_Ancestor (Iface_Typ, Opnd, Use_Full_View => True)
-           and then not Has_Dispatching_Constructor_Call (Operand)
+           and then not RTE_Available (RE_Displace)
          then
             return;
          end if;
@@ -2737,7 +2670,7 @@ package body Exp_Disp is
       Def_Id : constant Entity_Id  :=
                  Make_Defining_Identifier (Loc,
                    Name_uDisp_Asynchronous_Select);
-      Params : constant List_Id    := New_List;
+      Params : List_Id;
 
    begin
       pragma Assert (not Restriction_Active (No_Dispatching_Calls));
@@ -2752,7 +2685,7 @@ package body Exp_Disp is
 
       Set_Warnings_Off (B_Id);
 
-      Append_List_To (Params, New_List (
+      Params := New_List (
 
         Make_Parameter_Specification (Loc,
           Defining_Identifier => Make_Defining_Identifier (Loc, Name_uT),
@@ -2777,7 +2710,7 @@ package body Exp_Disp is
         Make_Parameter_Specification (Loc,
           Defining_Identifier => Make_Defining_Identifier (Loc, Name_uF),
           Parameter_Type      => New_Occurrence_Of (Standard_Boolean, Loc),
-          Out_Present         => True)));
+          Out_Present         => True));
 
       return
         Make_Procedure_Specification (Loc,
@@ -4666,10 +4599,15 @@ package body Exp_Disp is
       --    (2) External_Tag (combined with Internal_Tag) is used for object
       --        streaming and No_Tagged_Streams inhibits the generation of
       --        streams.
+      --  Instead of No_Tagged_Streams, which applies either to a single
+      --  type or to a declarative region, it is possible to use restriction
+      --  No_Streams, which prevents stream objects from being created in the
+      --  entire partition.
 
       Discard_Names : constant Boolean :=
-                        Present (No_Tagged_Streams_Pragma (Typ))
-                          and then
+        (Present (No_Tagged_Streams_Pragma (Typ))
+           or else Restriction_Active (No_Streams))
+          and then
         (Global_Discard_Names or else Einfo.Entities.Discard_Names (Typ));
 
       --  The following name entries are used by Make_DT to generate a number
@@ -5280,8 +5218,10 @@ package body Exp_Disp is
                             Chars => New_External_Name (Tname, 'A'));
             Full_Name : constant String_Id :=
                             Fully_Qualified_Name_String (First_Subtype (Typ));
-            Str1_Id   : String_Id;
-            Str2_Id   : String_Id;
+
+            Address_Image : RE_Id;
+            Str1_Id       : String_Id;
+            Str2_Id       : String_Id;
 
          begin
             --  Generate:
@@ -5303,7 +5243,17 @@ package body Exp_Disp is
             --    Exname : constant String :=
             --               Str1 & Address_Image (Tag) & Str2;
 
-            if RTE_Available (RE_Address_Image) then
+            --  We use Address_Image64 for Morello because Integer_Address
+            --  is 64-bit large even though Address is 128-bit large.
+
+            case System_Address_Size is
+               when 32     => Address_Image := RE_Address_Image32;
+               when 64     => Address_Image := RE_Address_Image64;
+               when 128    => Address_Image := RE_Address_Image64;
+               when others => raise Program_Error;
+            end case;
+
+            if RTE_Available (Address_Image) then
                Append_To (Result,
                  Make_Object_Declaration (Loc,
                    Defining_Identifier => Exname,
@@ -5319,7 +5269,7 @@ package body Exp_Disp is
                              Make_Function_Call (Loc,
                                Name =>
                                  New_Occurrence_Of
-                                   (RTE (RE_Address_Image), Loc),
+                                   (RTE (Address_Image), Loc),
                                Parameter_Associations => New_List (
                                  Unchecked_Convert_To (RTE (RE_Address),
                                    New_Occurrence_Of (DT_Ptr, Loc)))),
@@ -7628,11 +7578,7 @@ package body Exp_Disp is
             if Chars (Prim) = Name_uSize
               and then RTE_Record_Component_Available (RE_Size_Func)
             then
-               DT_Ptr := Node (First_Elmt (Access_Disp_Table (Tag_Typ)));
-               Append_To (L,
-                 Build_Set_Size_Function (Loc,
-                   Tag_Node  => New_Occurrence_Of (DT_Ptr, Loc),
-                   Size_Func => Prim));
+               Append_To (L, Build_Set_Size_Function (Loc, Tag_Typ, Prim));
             end if;
 
          else
@@ -7931,9 +7877,6 @@ package body Exp_Disp is
       Parent_Typ : constant Entity_Id := Etype (Typ);
       First_Prim : constant Elmt_Id := First_Elmt (Primitive_Operations (Typ));
       The_Tag    : constant Entity_Id := First_Tag_Component (Typ);
-
-      Adjusted  : Boolean := False;
-      Finalized : Boolean := False;
 
       Count_Prim : Nat;
       DT_Length  : Nat;
@@ -8262,14 +8205,6 @@ package body Exp_Disp is
             Validate_Position (Prim);
          end if;
 
-         if Chars (Prim) = Name_Finalize then
-            Finalized := True;
-         end if;
-
-         if Chars (Prim) = Name_Adjust then
-            Adjusted := True;
-         end if;
-
          --  An abstract operation cannot be declared in the private part for a
          --  visible abstract type, because it can't be overridden outside this
          --  package hierarchy. For explicit declarations this is checked at
@@ -8315,19 +8250,6 @@ package body Exp_Disp is
 
          Next_Elmt (Prim_Elmt);
       end loop;
-
-      --  Additional check
-
-      if Is_Controlled (Typ) then
-         if not Finalized then
-            Error_Msg_N
-              ("controlled type has no explicit Finalize method??", Typ);
-
-         elsif not Adjusted then
-            Error_Msg_N
-              ("controlled type has no explicit Adjust method??", Typ);
-         end if;
-      end if;
 
       --  Set the final size of the Dispatch Table
 
@@ -8807,6 +8729,10 @@ package body Exp_Disp is
 
          if Is_Predefined_Dispatching_Operation (Prim) then
             Write_Str ("(predefined) ");
+         end if;
+
+         if Is_Wrapper (Prim) then
+            Write_Str ("(wrapper) ");
          end if;
 
          --  Prefix the name of the primitive with its corresponding tagged

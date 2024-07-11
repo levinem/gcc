@@ -1,6 +1,6 @@
 /* Routines for reading trees from a file stream.
 
-   Copyright (C) 2011-2023 Free Software Foundation, Inc.
+   Copyright (C) 2011-2024 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@google.com>
 
 This file is part of GCC.
@@ -386,8 +386,11 @@ unpack_ts_type_common_value_fields (struct bitpack_d *bp, tree expr)
   if (AGGREGATE_TYPE_P (expr))
     TYPE_TYPELESS_STORAGE (expr) = (unsigned) bp_unpack_value (bp, 1);
   TYPE_EMPTY_P (expr) = (unsigned) bp_unpack_value (bp, 1);
-  TYPE_NO_NAMED_ARGS_STDARG_P (expr) = (unsigned) bp_unpack_value (bp, 1);
-  TYPE_PRECISION (expr) = bp_unpack_var_len_unsigned (bp);
+  if (FUNC_OR_METHOD_TYPE_P (expr))
+    TYPE_NO_NAMED_ARGS_STDARG_P (expr) = (unsigned) bp_unpack_value (bp, 1);
+  if (RECORD_OR_UNION_TYPE_P (expr))
+    TYPE_INCLUDES_FLEXARRAY (expr) = (unsigned) bp_unpack_value (bp, 1);
+  TYPE_PRECISION_RAW (expr) = bp_unpack_var_len_unsigned (bp);
   SET_TYPE_ALIGN (expr, bp_unpack_var_len_unsigned (bp));
 #ifdef ACCEL_COMPILER
   if (TYPE_ALIGN (expr) > targetm.absolute_biggest_alignment)
@@ -482,15 +485,6 @@ streamer_read_tree_bitfields (class lto_input_block *ib,
 
   /* Read the bitpack of non-pointer values from IB.  */
   bp = streamer_read_bitpack (ib);
-
-  /* The first word in BP contains the code of the tree that we
-     are about to read.  */
-  if (streamer_debugging)
-    {
-      code = (enum tree_code) bp_unpack_value (&bp, 16);
-      lto_tag_check (lto_tree_code_to_tag (code),
-		     lto_tree_code_to_tag (TREE_CODE (expr)));
-    }
   code = TREE_CODE (expr);
 
   /* Note that all these functions are highly sensitive to changes in
@@ -1107,17 +1101,8 @@ streamer_get_pickled_tree (class lto_input_block *ib, class data_in *data_in)
 {
   unsigned HOST_WIDE_INT ix;
   tree result;
-  enum LTO_tags expected_tag;
 
   ix = streamer_read_uhwi (ib);
   result = streamer_tree_cache_get_tree (data_in->reader_cache, ix);
-
-  if (streamer_debugging)
-    {
-      expected_tag = streamer_read_enum (ib, LTO_tags, LTO_NUM_TAGS);
-      gcc_assert (result
-		  && TREE_CODE (result) == lto_tag_to_tree_code (expected_tag));
-    }
-
   return result;
 }

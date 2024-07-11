@@ -1,5 +1,5 @@
 /* Simplify intrinsic functions at compile-time.
-   Copyright (C) 2000-2023 Free Software Foundation, Inc.
+   Copyright (C) 2000-2024 Free Software Foundation, Inc.
    Contributed by Andy Vaught & Katherine Holcomb
 
 This file is part of GCC.
@@ -254,12 +254,19 @@ is_constant_array_expr (gfc_expr *e)
 	break;
       }
 
-  /* Check and expand the constructor.  */
-  if (!array_OK && gfc_init_expr_flag && e->rank == 1)
+  /* Check and expand the constructor.  We do this when either
+     gfc_init_expr_flag is set or for not too large array constructors.  */
+  bool expand;
+  expand = (e->rank == 1
+	    && e->shape
+	    && (mpz_cmp_ui (e->shape[0], flag_max_array_constructor) < 0));
+
+  if (!array_OK && (gfc_init_expr_flag || expand) && e->rank == 1)
     {
+      bool saved_init_expr_flag = gfc_init_expr_flag;
       array_OK = gfc_reduce_init_expr (e);
       /* gfc_reduce_init_expr resets the flag.  */
-      gfc_init_expr_flag = true;
+      gfc_init_expr_flag = saved_init_expr_flag;
     }
   else
     return array_OK;
@@ -283,6 +290,13 @@ is_constant_array_expr (gfc_expr *e)
 
   return array_OK;
 }
+
+bool
+gfc_is_constant_array_expr (gfc_expr *e)
+{
+  return is_constant_array_expr (e);
+}
+
 
 /* Test for a size zero array.  */
 bool
@@ -4566,19 +4580,50 @@ gfc_simplify_len (gfc_expr *e, gfc_expr *kind)
       return range_check (result, "LEN");
     }
   else if (e->expr_type == EXPR_VARIABLE && e->ts.type == BT_CHARACTER
-	   && e->symtree->n.sym
-	   && e->symtree->n.sym->ts.type != BT_DERIVED
-	   && e->symtree->n.sym->assoc && e->symtree->n.sym->assoc->target
-	   && e->symtree->n.sym->assoc->target->ts.type == BT_DERIVED
-	   && e->symtree->n.sym->assoc->target->symtree->n.sym
-	   && UNLIMITED_POLY (e->symtree->n.sym->assoc->target->symtree->n.sym))
-
-    /* The expression in assoc->target points to a ref to the _data component
-       of the unlimited polymorphic entity.  To get the _len component the last
-       _data ref needs to be stripped and a ref to the _len component added.  */
-    return gfc_get_len_component (e->symtree->n.sym->assoc->target, k);
-  else
-    return NULL;
+	   && e->symtree->n.sym)
+    {
+      if (e->symtree->n.sym->ts.type != BT_DERIVED
+	  && e->symtree->n.sym->assoc && e->symtree->n.sym->assoc->target
+	  && e->symtree->n.sym->assoc->target->ts.type == BT_DERIVED
+	  && e->symtree->n.sym->assoc->target->symtree->n.sym
+	  && UNLIMITED_POLY (e->symtree->n.sym->assoc->target->symtree->n.sym))
+	/* The expression in assoc->target points to a ref to the _data
+	   component of the unlimited polymorphic entity.  To get the _len
+	   component the last _data ref needs to be stripped and a ref to the
+	   _len component added.  */
+	return gfc_get_len_component (e->symtree->n.sym->assoc->target, k);
+      else if (e->symtree->n.sym->ts.type == BT_DERIVED
+	       && e->ref && e->ref->type == REF_COMPONENT
+	       && e->ref->u.c.component->attr.pdt_string
+	       && e->ref->u.c.component->ts.type == BT_CHARACTER
+	       && e->ref->u.c.component->ts.u.cl->length)
+	{
+	  if (gfc_init_expr_flag)
+	    {
+	      gfc_expr* tmp;
+	      tmp = gfc_pdt_find_component_copy_initializer (e->symtree->n.sym,
+							     e->ref->u.c
+							     .component->ts.u.cl
+							     ->length->symtree
+							     ->name);
+	      if (tmp)
+		return tmp;
+	    }
+	  else
+	    {
+	      gfc_expr *len_expr = gfc_copy_expr (e);
+	      gfc_free_ref_list (len_expr->ref);
+	      len_expr->ref = NULL;
+	      gfc_find_component (len_expr->symtree->n.sym->ts.u.derived, e->ref
+				  ->u.c.component->ts.u.cl->length->symtree
+				  ->name,
+				  false, true, &len_expr->ref);
+	      len_expr->ts = len_expr->ref->u.c.component->ts;
+	      return len_expr;
+	    }
+	}
+    }
+  return NULL;
 }
 
 
@@ -7001,6 +7046,11 @@ gfc_simplify_reshape (gfc_expr *source, gfc_expr *shape_exp,
 	  if (npad <= 0)
 	    {
 	      mpz_clear (index);
+	      if (pad == NULL)
+		gfc_error ("Without padding, there are not enough elements "
+			   "in the intrinsic RESHAPE source at %L to match "
+			   "the shape", &source->where);
+	      gfc_free_expr (result);
 	      return NULL;
 	    }
 	  j = j - nsource;
@@ -7274,6 +7324,28 @@ gfc_simplify_selected_int_kind (gfc_expr *e)
     if (gfc_integer_kinds[i].range >= range
 	&& gfc_integer_kinds[i].kind < kind)
       kind = gfc_integer_kinds[i].kind;
+
+  if (kind == INT_MAX)
+    kind = -1;
+
+  return gfc_get_int_expr (gfc_default_integer_kind, &e->where, kind);
+}
+
+
+gfc_expr *
+gfc_simplify_selected_logical_kind (gfc_expr *e)
+{
+  int i, kind, bits;
+
+  if (e->expr_type != EXPR_CONSTANT || gfc_extract_int (e, &bits))
+    return NULL;
+
+  kind = INT_MAX;
+
+  for (i = 0; gfc_logical_kinds[i].kind != 0; i++)
+    if (gfc_logical_kinds[i].bit_size >= bits
+	&& gfc_logical_kinds[i].kind < kind)
+      kind = gfc_logical_kinds[i].kind;
 
   if (kind == INT_MAX)
     kind = -1;
@@ -7575,7 +7647,17 @@ simplify_size (gfc_expr *array, gfc_expr *dim, int k)
       if (dim->expr_type != EXPR_CONSTANT)
 	return NULL;
 
-      d = mpz_get_ui (dim->value.integer) - 1;
+      if (array->rank == -1)
+	return NULL;
+
+      d = mpz_get_si (dim->value.integer) - 1;
+      if (d < 0 || d > array->rank - 1)
+	{
+	  gfc_error ("DIM argument (%d) to intrinsic SIZE at %L out of range "
+		     "(1:%d)", d+1, &array->where, array->rank);
+	  return &gfc_bad_expr;
+	}
+
       if (!gfc_array_dimen_size (array, d, &size))
 	return NULL;
     }

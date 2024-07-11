@@ -1,6 +1,6 @@
 /* Basic IPA utilities for type inheritance graph construction and
    devirtualization.
-   Copyright (C) 2013-2023 Free Software Foundation, Inc.
+   Copyright (C) 2013-2024 Free Software Foundation, Inc.
    Contributed by Jan Hubicka
 
 This file is part of GCC.
@@ -124,6 +124,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimple-fold.h"
 #include "symbol-summary.h"
 #include "tree-vrp.h"
+#include "sreal.h"
+#include "ipa-cp.h"
 #include "ipa-prop.h"
 #include "ipa-fnsummary.h"
 #include "demangle.h"
@@ -4147,7 +4149,7 @@ ipa_odr_read_section (struct lto_file_decl_data *file_data, const char *data,
   class data_in *data_in;
 
   lto_input_block ib ((const char *) data + main_offset, header->main_size,
-		      file_data->mode_table);
+		      file_data);
 
   data_in
     = lto_data_in_create (file_data, (const char *) data + string_offset,

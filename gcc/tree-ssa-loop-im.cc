@@ -1,5 +1,5 @@
 /* Loop invariant motion.
-   Copyright (C) 2003-2023 Free Software Foundation, Inc.
+   Copyright (C) 2003-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -48,6 +48,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-dfa.h"
 #include "tree-ssa.h"
 #include "dbgcnt.h"
+#include "insn-codes.h"
+#include "optabs-tree.h"
 
 /* TODO:  Support for predicated code motion.  I.e.
 
@@ -400,6 +402,24 @@ movement_possibility_1 (gimple *stmt)
       || gimple_could_trap_p (stmt))
     return MOVE_PRESERVE_EXECUTION;
 
+  if (is_gimple_assign (stmt))
+    {
+      auto code = gimple_assign_rhs_code (stmt);
+      tree type = TREE_TYPE (gimple_assign_rhs1 (stmt));
+      /* For shifts and rotates and possibly out-of-bound shift operands
+	 we currently cannot rewrite them into something unconditionally
+	 well-defined.  */
+      if ((code == LSHIFT_EXPR
+	   || code == RSHIFT_EXPR
+	   || code == LROTATE_EXPR
+	   || code == RROTATE_EXPR)
+	  && (TREE_CODE (gimple_assign_rhs2 (stmt)) != INTEGER_CST
+	      /* We cannot use ranges at 'stmt' here.  */
+	      || wi::ltu_p (wi::to_wide (gimple_assign_rhs2 (stmt)),
+			    element_precision (type))))
+	ret = MOVE_PRESERVE_EXECUTION;
+    }
+
   /* Non local loads in a transaction cannot be hoisted out.  Well,
      unless the load happens on every path out of the loop, but we
      don't take this into account yet.  */
@@ -617,7 +637,8 @@ stmt_cost (gimple *stmt)
   if (gimple_code (stmt) != GIMPLE_ASSIGN)
     return 1;
 
-  switch (gimple_assign_rhs_code (stmt))
+  enum tree_code code = gimple_assign_rhs_code (stmt);
+  switch (code)
     {
     case MULT_EXPR:
     case WIDEN_MULT_EXPR:
@@ -645,6 +666,11 @@ stmt_cost (gimple *stmt)
       /* Shifts and rotates are usually expensive.  */
       return LIM_EXPENSIVE;
 
+    case COND_EXPR:
+    case VEC_COND_EXPR:
+      /* Conditionals are expensive.  */
+      return LIM_EXPENSIVE;
+
     case CONSTRUCTOR:
       /* Make vector construction cost proportional to the number
          of elements.  */
@@ -658,6 +684,9 @@ stmt_cost (gimple *stmt)
       return 0;
 
     default:
+      /* Comparisons are usually expensive.  */
+      if (TREE_CODE_CLASS (code) == tcc_comparison)
+	return LIM_EXPENSIVE;
       return 1;
     }
 }
@@ -824,6 +853,17 @@ determine_max_movement (gimple *stmt, bool must_preserve_exec)
 	     predicate in DOM.  */
 	  if (!extract_true_false_args_from_phi (dom, phi, NULL, NULL))
 	    return false;
+
+	/* Check if one of the depedent statement is a vector compare whether
+	   the target supports it,  otherwise it's invalid to hoist it out of
+	   the gcond it belonged to.  */
+	if (VECTOR_TYPE_P (TREE_TYPE (gimple_cond_lhs (cond))))
+	  {
+	    tree type = TREE_TYPE (gimple_cond_lhs (cond));
+	    auto code = gimple_cond_code (cond);
+	    if (!target_supports_op_p (type, code, optab_vector))
+	      return false;
+	  }
 
 	  /* Fold in dependencies and cost of the condition.  */
 	  FOR_EACH_SSA_TREE_OPERAND (val, cond, iter, SSA_OP_USE)
@@ -1656,11 +1696,21 @@ gather_mem_refs_stmt (class loop *loop, gimple *stmt)
 				     unshare_expr (mem_base));
 		  if (TYPE_ALIGN (ref_type) != ref_align)
 		    ref_type = build_aligned_type (ref_type, ref_align);
-		  (*slot)->mem.ref
+		  tree new_ref
 		    = fold_build2 (MEM_REF, ref_type, tmp,
 				   build_int_cst (ref_alias_type, mem_off));
 		  if ((*slot)->mem.volatile_p)
-		    TREE_THIS_VOLATILE ((*slot)->mem.ref) = 1;
+		    TREE_THIS_VOLATILE (new_ref) = 1;
+		  (*slot)->mem.ref = new_ref;
+		  /* Make sure the recorded base and offset are consistent
+		     with the newly built ref.  */
+		  if (TREE_CODE (TREE_OPERAND (new_ref, 0)) == ADDR_EXPR)
+		    ;
+		  else
+		    {
+		      (*slot)->mem.base = new_ref;
+		      (*slot)->mem.offset = 0;
+		    }
 		  gcc_checking_assert (TREE_CODE ((*slot)->mem.ref) == MEM_REF
 				       && is_gimple_mem_ref_addr
 				            (TREE_OPERAND ((*slot)->mem.ref,
@@ -2050,7 +2100,8 @@ execute_sm_if_changed (edge ex, tree mem, tree tmp_var, tree flag,
        nbbs++;
     }
 
-  profile_probability cap = profile_probability::always ().apply_scale (2, 3);
+  profile_probability cap
+	  = profile_probability::guessed_always ().apply_scale (2, 3);
 
   if (flag_probability.initialized_p ())
     ;
@@ -2094,6 +2145,8 @@ execute_sm_if_changed (edge ex, tree mem, tree tmp_var, tree flag,
 
   old_dest = ex->dest;
   new_bb = split_edge (ex);
+  if (append_cond_position)
+    new_bb->count += last_cond_fallthru->count ();
   then_bb = create_empty_bb (new_bb);
   then_bb->count = new_bb->count.apply_probability (flag_probability);
   if (irr)
@@ -2216,7 +2269,7 @@ struct sm_aux
    temporary variable is put to the preheader of the loop, and assignments
    to the reference from the temporary variable are emitted to exits.  */
 
-static void
+static sm_aux *
 execute_sm (class loop *loop, im_mem_ref *ref,
 	    hash_map<im_mem_ref *, sm_aux *> &aux_map, bool maybe_mt,
 	    bool use_other_flag_var)
@@ -2245,7 +2298,7 @@ execute_sm (class loop *loop, im_mem_ref *ref,
   bool always_stored = ref_always_accessed_p (loop, ref, true);
   if (maybe_mt
       && (bb_in_transaction (loop_preheader_edge (loop)->src)
-	  || (! flag_store_data_races && ! always_stored)))
+	  || (ref_can_have_store_data_races (ref->mem.ref) && ! always_stored)))
     multi_threaded_model_p = true;
 
   if (multi_threaded_model_p && !use_other_flag_var)
@@ -2292,6 +2345,8 @@ execute_sm (class loop *loop, im_mem_ref *ref,
       lim_data->tgt_loop = loop;
       gsi_insert_before (&gsi, load, GSI_SAME_STMT);
     }
+
+  return aux;
 }
 
 /* sm_ord is used for ordinary stores we can retain order with respect
@@ -2302,7 +2357,7 @@ execute_sm (class loop *loop, im_mem_ref *ref,
 enum sm_kind { sm_ord, sm_unord, sm_other };
 struct seq_entry
 {
-  seq_entry () {}
+  seq_entry () = default;
   seq_entry (unsigned f, sm_kind k, tree fr = NULL)
     : first (f), second (k), from (fr) {}
   unsigned first;
@@ -2749,19 +2804,17 @@ hoist_memory_references (class loop *loop, bitmap mem_refs,
       hash_map<im_mem_ref *, sm_aux *> aux_map;
 
       /* Execute SM but delay the store materialization for ordered
-	 sequences on exit.  */
-      bool first_p = true;
+	 sequences on exit.  Remember a created flag var and make
+	 sure to re-use it.  */
+      sm_aux *flag_var_aux = nullptr;
       EXECUTE_IF_SET_IN_BITMAP (mem_refs, 0, i, bi)
 	{
 	  ref = memory_accesses.refs_list[i];
-	  execute_sm (loop, ref, aux_map, true, !first_p);
-	  first_p = false;
+	  sm_aux *aux = execute_sm (loop, ref, aux_map, true,
+				    flag_var_aux != nullptr);
+	  if (aux->store_flag)
+	    flag_var_aux = aux;
 	}
-
-      /* Get at the single flag variable we eventually produced.  */
-      im_mem_ref *ref
-	= memory_accesses.refs_list[bitmap_first_set_bit (mem_refs)];
-      sm_aux *aux = *aux_map.get (ref);
 
       /* Materialize ordered store sequences on exits.  */
       edge e;
@@ -2773,13 +2826,14 @@ hoist_memory_references (class loop *loop, bitmap mem_refs,
 	  /* Construct the single flag variable control flow and insert
 	     the ordered seq of stores in the then block.  With
 	     -fstore-data-races we can do the stores unconditionally.  */
-	  if (aux->store_flag)
+	  if (flag_var_aux)
 	    insert_e
 	      = single_pred_edge
 		  (execute_sm_if_changed (e, NULL_TREE, NULL_TREE,
-					  aux->store_flag,
+					  flag_var_aux->store_flag,
 					  loop_preheader_edge (loop),
-					  &aux->flag_bbs, append_cond_position,
+					  &flag_var_aux->flag_bbs,
+					  append_cond_position,
 					  last_cond_fallthru));
 	  execute_sm_exit (loop, insert_e, seq, aux_map, sm_ord,
 			   append_cond_position, last_cond_fallthru);
@@ -3474,13 +3528,13 @@ tree_ssa_lim_initialize (bool store_motion)
     (mem_ref_alloc (NULL, 0, UNANALYZABLE_MEM_ID));
 
   memory_accesses.refs_loaded_in_loop.create (number_of_loops (cfun));
-  memory_accesses.refs_loaded_in_loop.quick_grow (number_of_loops (cfun));
+  memory_accesses.refs_loaded_in_loop.quick_grow_cleared (number_of_loops (cfun));
   memory_accesses.refs_stored_in_loop.create (number_of_loops (cfun));
-  memory_accesses.refs_stored_in_loop.quick_grow (number_of_loops (cfun));
+  memory_accesses.refs_stored_in_loop.quick_grow_cleared (number_of_loops (cfun));
   if (store_motion)
     {
       memory_accesses.all_refs_stored_in_loop.create (number_of_loops (cfun));
-      memory_accesses.all_refs_stored_in_loop.quick_grow
+      memory_accesses.all_refs_stored_in_loop.quick_grow_cleared
 						      (number_of_loops (cfun));
     }
 
