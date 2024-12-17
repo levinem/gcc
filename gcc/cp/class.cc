@@ -3210,7 +3210,11 @@ check_for_override (tree decl, tree ctype)
 		    "%qD can be marked override", decl);
     }
   else if (DECL_OVERRIDE_P (decl))
-    error ("%q+#D marked %<override%>, but does not override", decl);
+    {
+      debug_tree(decl);
+      debug_tree(ctype);
+      error ("%q+#D marked %<override%>, but does not override", decl);      
+    }
 
   if (DECL_VIRTUAL_P (decl))
     {
