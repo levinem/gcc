@@ -1,5 +1,5 @@
 /* Name mangling for the 3.0 -*- C++ -*- ABI.
-   Copyright (C) 2000-2024 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    Written by Alex Samuel <samuel@codesourcery.com>
 
    This file is part of GCC.
@@ -238,7 +238,6 @@ static void write_local_name (tree, const tree, const tree);
 static void dump_substitution_candidates (void);
 static tree mangle_decl_string (const tree);
 static void maybe_check_abi_tags (tree, tree = NULL_TREE, int = 10);
-static bool equal_abi_tags (tree, tree);
 
 /* Control functions.  */
 
@@ -1673,7 +1672,7 @@ write_source_name (tree identifier)
 
 /* Compare two TREE_STRINGs like strcmp.  */
 
-int
+static int
 tree_string_cmp (const void *p1, const void *p2)
 {
   if (p1 == p2)
@@ -1728,7 +1727,7 @@ write_abi_tags (tree tags)
 
 /* True iff the TREE_LISTS T1 and T2 of ABI tags are equivalent.  */
 
-static bool
+bool
 equal_abi_tags (tree t1, tree t2)
 {
   releasing_vec v1 = sorted_abi_tags (t1);
@@ -1738,7 +1737,8 @@ equal_abi_tags (tree t1, tree t2)
   if (len1 != v2->length())
     return false;
   for (unsigned i = 0; i < len1; ++i)
-    if (tree_string_cmp (v1[i], v2[i]) != 0)
+    if (strcmp (TREE_STRING_POINTER (v1[i]),
+		TREE_STRING_POINTER (v2[i])) != 0)
       return false;
   return true;
 }
@@ -3642,10 +3642,15 @@ write_expression (tree expr)
 
       if (nelts)
 	{
-	  tree domain;
 	  ++processing_template_decl;
-	  domain = compute_array_index_type (NULL_TREE, nelts,
-					     tf_warning_or_error);
+	  /* Avoid compute_array_index_type complaints about
+	     non-constant nelts.  */
+	  tree max = cp_build_binary_op (input_location, MINUS_EXPR,
+					 fold_convert (sizetype, nelts),
+					 size_one_node,
+					 tf_warning_or_error);
+	  max = maybe_constant_value (max);
+	  tree domain = build_index_type (max);
 	  type = build_cplus_array_type (type, domain);
 	  --processing_template_decl;
 	}
@@ -3748,8 +3753,41 @@ write_expression (tree expr)
 		    unsigned reps = 1;
 		    if (ce->index && TREE_CODE (ce->index) == RANGE_EXPR)
 		      reps = range_expr_nelts (ce->index);
-		    for (unsigned j = 0; j < reps; ++j)
-		      write_expression (ce->value);
+		    if (TREE_CODE (ce->value) == RAW_DATA_CST)
+		      {
+			gcc_assert (reps == 1);
+			unsigned int len = RAW_DATA_LENGTH (ce->value);
+			/* If this is the last non-zero element, skip
+			   zeros at the end.  */
+			if (i == last_nonzero)
+			  while (len)
+			    {
+			      if (RAW_DATA_POINTER (ce->value)[len - 1])
+				break;
+			      --len;
+			    }
+			tree valtype = TREE_TYPE (ce->value);
+			for (unsigned int i = 0; i < len; ++i)
+			  {
+			    write_char ('L');
+			    write_type (valtype);
+			    unsigned HOST_WIDE_INT v;
+			    if (!TYPE_UNSIGNED (valtype)
+				&& TYPE_PRECISION (valtype) == BITS_PER_UNIT
+				&& RAW_DATA_SCHAR_ELT (ce->value, i) < 0)
+			      {
+				write_char ('n');
+				v = -RAW_DATA_SCHAR_ELT (ce->value, i);
+			      }
+			    else
+			      v = RAW_DATA_UCHAR_ELT (ce->value, i);
+			    write_unsigned_number (v);
+			    write_char ('E');
+			  }
+		      }
+		    else
+		      for (unsigned j = 0; j < reps; ++j)
+			write_expression (ce->value);
 		  }
 	    }
 	  else
@@ -3766,7 +3804,7 @@ write_expression (tree expr)
 	 equivalent.
 
 	 So just use the closure type mangling.  */
-      write_string ("tl");
+      write_char ('L');
       write_type (LAMBDA_EXPR_CLOSURE (expr));
       write_char ('E');
     }
@@ -4209,6 +4247,8 @@ write_array_type (const tree type)
 	    }
 	  else
 	    {
+	      gcc_checking_assert (TREE_CODE (max) == MINUS_EXPR
+				   && integer_onep (TREE_OPERAND (max, 1)));
 	      max = TREE_OPERAND (max, 0);
 	      write_expression (max);
 	    }

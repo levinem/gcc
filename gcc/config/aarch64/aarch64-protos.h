@@ -1,5 +1,5 @@
 /* Machine description for AArch64 architecture.
-   Copyright (C) 2009-2024 Free Software Foundation, Inc.
+   Copyright (C) 2009-2025 Free Software Foundation, Inc.
    Contributed by ARM Ltd.
 
    This file is part of GCC.
@@ -733,15 +733,17 @@ const unsigned int AARCH64_BUILTIN_CLASS = (1 << AARCH64_BUILTIN_SHIFT) - 1;
 
 /* RAII class for enabling enough features to define built-in types
    and implement the arm_neon.h pragma.  */
-class aarch64_simd_switcher
+class aarch64_target_switcher
 {
 public:
-  aarch64_simd_switcher (aarch64_feature_flags extra_flags = 0);
-  ~aarch64_simd_switcher ();
+  aarch64_target_switcher (aarch64_feature_flags flags = 0);
+  ~aarch64_target_switcher ();
 
 private:
   aarch64_feature_flags m_old_asm_isa_flags;
   bool m_old_general_regs_only;
+  tree m_old_target_pragma;
+  bool m_old_have_regs_of_mode[MAX_MACHINE_MODE];
 };
 
 /* Represents the ISA requirements of an intrinsic function, or of some
@@ -857,6 +859,7 @@ opt_machine_mode aarch64_v64_mode (scalar_mode);
 opt_machine_mode aarch64_v128_mode (scalar_mode);
 opt_machine_mode aarch64_full_sve_mode (scalar_mode);
 bool aarch64_can_const_movi_rtx_p (rtx x, machine_mode mode);
+bool aarch64_valid_fp_move (rtx, rtx, machine_mode);
 bool aarch64_const_vec_all_same_int_p (rtx, HOST_WIDE_INT);
 bool aarch64_const_vec_all_same_in_range_p (rtx, HOST_WIDE_INT,
 					    HOST_WIDE_INT);
@@ -896,6 +899,8 @@ bool aarch64_move_imm (unsigned HOST_WIDE_INT, machine_mode);
 machine_mode aarch64_sve_int_mode (machine_mode);
 opt_machine_mode aarch64_sve_pred_mode (unsigned int);
 machine_mode aarch64_sve_pred_mode (machine_mode);
+opt_machine_mode aarch64_advsimd_vector_array_mode (machine_mode,
+						    unsigned HOST_WIDE_INT);
 opt_machine_mode aarch64_sve_data_mode (scalar_mode, poly_uint64);
 bool aarch64_sve_mode_p (machine_mode);
 HOST_WIDE_INT aarch64_fold_sve_cnt_pat (aarch64_svpattern, unsigned int);
@@ -1028,6 +1033,7 @@ rtx aarch64_replace_reg_mode (rtx, machine_mode);
 void aarch64_split_sve_subreg_move (rtx, rtx, rtx);
 void aarch64_expand_prologue (void);
 void aarch64_expand_vector_init (rtx, rtx);
+void aarch64_sve_expand_vector_init_subvector (rtx, rtx);
 void aarch64_sve_expand_vector_init (rtx, rtx);
 void aarch64_init_cumulative_args (CUMULATIVE_ARGS *, const_tree, rtx,
 				   const_tree, unsigned, bool = false);
@@ -1094,7 +1100,7 @@ void aarch64_finish_ldpstp_peephole (rtx *, bool,
 				     enum rtx_code = (enum rtx_code)0);
 
 void aarch64_expand_sve_vec_cmp_int (rtx, rtx_code, rtx, rtx);
-bool aarch64_expand_sve_vec_cmp_float (rtx, rtx_code, rtx, rtx, bool);
+void aarch64_expand_sve_vec_cmp_float (rtx, rtx_code, rtx, rtx);
 
 bool aarch64_prepare_sve_int_fma (rtx *, rtx_code);
 bool aarch64_prepare_sve_cond_int_fma (rtx *, rtx_code);
@@ -1151,6 +1157,8 @@ namespace aarch64_sve {
 #ifdef GCC_TARGET_H
   bool verify_type_context (location_t, type_context_kind, const_tree, bool);
 #endif
+ void add_sve_type_attribute (tree, unsigned int, unsigned int,
+			      const char *, const char *);
 }
 
 extern void aarch64_split_combinev16qi (rtx operands[3]);
@@ -1184,13 +1192,31 @@ void aarch64_set_asm_isa_flags (aarch64_feature_flags);
 void aarch64_set_asm_isa_flags (gcc_options *, aarch64_feature_flags);
 bool aarch64_handle_option (struct gcc_options *, struct gcc_options *,
 			     const struct cl_decoded_option *, location_t);
-const char *aarch64_rewrite_selected_cpu (const char *name);
+aarch64_feature_flags aarch64_get_required_features (aarch64_feature_flags);
+void aarch64_print_hint_for_extensions (const char *);
+void aarch64_print_hint_for_arch (const char *);
+void aarch64_print_hint_for_core (const char *);
 enum aarch_parse_opt_result aarch64_parse_extension (const char *,
                                                      aarch64_feature_flags *,
                                                      std::string *);
-void aarch64_get_all_extension_candidates (auto_vec<const char *> *candidates);
+enum aarch_parse_opt_result aarch64_parse_arch (const char *,
+						aarch64_arch *,
+						aarch64_feature_flags *,
+						std::string *);
+enum aarch_parse_opt_result aarch64_parse_cpu (const char *,
+					       aarch64_cpu *,
+					       aarch64_feature_flags *,
+					       std::string *);
+enum aarch_parse_opt_result aarch64_parse_tune (const char *, aarch64_cpu *);
+bool aarch64_validate_march (const char *, aarch64_arch *,
+			     aarch64_feature_flags *);
+bool aarch64_validate_mcpu (const char *, aarch64_cpu *,
+			    aarch64_feature_flags *);
+bool aarch64_validate_mtune (const char *, aarch64_cpu *);
 std::string aarch64_get_extension_string_for_isa_flags (aarch64_feature_flags,
 							aarch64_feature_flags);
+std::string aarch64_get_arch_string_for_assembler (aarch64_arch,
+						   aarch64_feature_flags);
 
 rtl_opt_pass *make_pass_aarch64_early_ra (gcc::context *);
 rtl_opt_pass *make_pass_fma_steering (gcc::context *);

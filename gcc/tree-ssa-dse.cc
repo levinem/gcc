@@ -1,5 +1,5 @@
 /* Dead and redundant store elimination
-   Copyright (C) 2004-2024 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -1396,8 +1396,10 @@ dse_optimize_call (gimple_stmt_iterator *gsi, sbitmap live_bytes)
   if (!node)
     return false;
 
-  if (stmt_could_throw_p (cfun, stmt)
-      && !cfun->can_delete_dead_exceptions)
+  if ((stmt_could_throw_p (cfun, stmt)
+       && !cfun->can_delete_dead_exceptions)
+      || ((gimple_call_flags (stmt) & ECF_NORETURN)
+	  && gimple_call_ctrl_altering_p (stmt)))
     return false;
 
   /* If return value is used the call is not dead.  */

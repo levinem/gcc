@@ -1,5 +1,5 @@
 ;; Insn constraint definitions for AVR 8-bit microcontrollers.
-;; Copyright (C) 2006-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2025 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -328,6 +328,15 @@
   (and (match_code "const_int")
        (match_test "avr_split_shift_p (4, ival, ASHIFT)")))
 
+(define_constraint "C4R"
+  "A constant integer shift offset for a 4-byte LSHIFTRT that's a 3-operand insn independent of options."
+  (and (match_code "const_int")
+       (match_test "ival == 15 || IN_RANGE (ival, 25, 31)")))
+
+(define_constraint "C4L"
+  "A constant integer shift offset for a 4-byte ASHIFT that's a 3-operand insn independent of options."
+  (and (match_code "const_int")
+       (match_test "ival == 15 || IN_RANGE (ival, 25, 31)")))
 
 ;; CONST_FIXED is no element of 'n' so cook our own.
 ;; "i" or "s" would match but because the insn uses iterators that cover

@@ -1,4 +1,4 @@
-.. Copyright (C) 2024 Free Software Foundation, Inc.
+.. Copyright (C) 2024-2025 Free Software Foundation, Inc.
    Originally contributed by David Malcolm <dmalcolm@redhat.com>
 
    This is free software: you can redistribute it and/or modify it
@@ -197,6 +197,11 @@ are at the parentheses.
    `loc`` may be NULL.
 
    TODO: example of output
+
+.. function::  diagnostic_file *diagnostic_physical_location_get_file (const diagnostic_physical_location *physical_loc)
+
+   Get the :type:`diagnostic_file` associated with a given physical location.
+
 
 Associating diagnostics with locations
 **************************************

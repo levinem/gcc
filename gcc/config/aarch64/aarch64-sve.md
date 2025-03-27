@@ -1,5 +1,5 @@
 ;; Machine description for AArch64 SVE.
-;; Copyright (C) 2009-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2025 Free Software Foundation, Inc.
 ;; Contributed by ARM Ltd.
 ;;
 ;; This file is part of GCC.
@@ -2839,6 +2839,39 @@
   }
 )
 
+;; Vector constructor combining two half vectors { a, b }
+(define_expand "vec_init<mode><Vhalf>"
+  [(match_operand:SVE_NO2E 0 "register_operand")
+   (match_operand 1 "")]
+  "TARGET_SVE"
+  {
+    aarch64_sve_expand_vector_init_subvector (operands[0], operands[1]);
+    DONE;
+  }
+)
+
+;; Vector constructor combining four quad vectors { a, b, c, d }
+(define_expand "vec_init<mode><Vquad>"
+  [(match_operand:SVE_NO4E 0 "register_operand")
+   (match_operand 1 "")]
+  "TARGET_SVE"
+  {
+    aarch64_sve_expand_vector_init_subvector (operands[0], operands[1]);
+    DONE;
+  }
+)
+
+;; Vector constructor combining eight vectors { a, b, c, d, ... }
+(define_expand "vec_initvnx16qivnx2qi"
+  [(match_operand:VNx16QI 0 "register_operand")
+   (match_operand 1 "")]
+  "TARGET_SVE"
+  {
+    aarch64_sve_expand_vector_init_subvector (operands[0], operands[1]);
+    DONE;
+  }
+)
+
 ;; Shift an SVE vector left and insert a scalar into element 0.
 (define_insn "vec_shl_insert_<mode>"
   [(set (match_operand:SVE_FULL 0 "register_operand")
@@ -3074,12 +3107,12 @@
   [(set (match_operand:<VEL> 0 "register_operand")
 	(unspec:<VEL>
 	  [(match_operand:<VPRED> 1 "register_operand")
-	   (match_operand:SVE_FULL 2 "register_operand")]
+	   (match_operand:SVE_ALL 2 "register_operand")]
 	  LAST))]
   "TARGET_SVE"
   {@ [ cons: =0 , 1   , 2  ]
-     [ ?r       , Upl , w  ] last<ab>\t%<vwcore>0, %1, %2.<Vetype>
-     [ w        , Upl , w  ] last<ab>\t%<Vetype>0, %1, %2.<Vetype>
+     [ ?r       , Upl , w  ] last<ab>\t%<vccore>0, %1, %2.<Vctype>
+     [ w        , Upl , w  ] last<ab>\t%<Vctype>0, %1, %2.<Vctype>
   }
 )
 
@@ -4416,7 +4449,7 @@
 ;; -------------------------------------------------------------------------
 
 ;; Unpredicated saturating signed addition and subtraction.
-(define_insn "@aarch64_sve_<optab><mode>"
+(define_insn "<su_optab>s<addsub><mode>3"
   [(set (match_operand:SVE_FULL_I 0 "register_operand")
 	(SBINQOPS:SVE_FULL_I
 	  (match_operand:SVE_FULL_I 1 "register_operand")
@@ -4432,7 +4465,7 @@
 )
 
 ;; Unpredicated saturating unsigned addition and subtraction.
-(define_insn "@aarch64_sve_<optab><mode>"
+(define_insn "<su_optab>s<addsub><mode>3"
   [(set (match_operand:SVE_FULL_I 0 "register_operand")
 	(UBINQOPS:SVE_FULL_I
 	  (match_operand:SVE_FULL_I 1 "register_operand")
@@ -8462,7 +8495,7 @@
   "TARGET_SVE"
   {
     aarch64_expand_sve_vec_cmp_float (operands[0], GET_CODE (operands[1]),
-				      operands[2], operands[3], false);
+				      operands[2], operands[3]);
     DONE;
   }
 )
@@ -8866,26 +8899,26 @@
 	(unspec:<VEL>
 	  [(match_operand:<VEL> 1 "register_operand")
 	   (match_operand:<VPRED> 2 "register_operand")
-	   (match_operand:SVE_FULL 3 "register_operand")]
+	   (match_operand:SVE_ALL 3 "register_operand")]
 	  CLAST))]
   "TARGET_SVE"
   {@ [ cons: =0 , 1 , 2   , 3  ]
-     [ ?r       , 0 , Upl , w  ] clast<ab>\t%<vwcore>0, %2, %<vwcore>0, %3.<Vetype>
-     [ w        , 0 , Upl , w  ] clast<ab>\t%<Vetype>0, %2, %<Vetype>0, %3.<Vetype>
+     [ ?r       , 0 , Upl , w  ] clast<ab>\t%<vccore>0, %2, %<vccore>0, %3.<Vctype>
+     [ w        , 0 , Upl , w  ] clast<ab>\t%<Vctype>0, %2, %<Vctype>0, %3.<Vctype>
   }
 )
 
 (define_insn "@aarch64_fold_extract_vector_<last_op>_<mode>"
-  [(set (match_operand:SVE_FULL 0 "register_operand")
-	(unspec:SVE_FULL
-	  [(match_operand:SVE_FULL 1 "register_operand")
+  [(set (match_operand:SVE_ALL 0 "register_operand")
+	(unspec:SVE_ALL
+	  [(match_operand:SVE_ALL 1 "register_operand")
 	   (match_operand:<VPRED> 2 "register_operand")
-	   (match_operand:SVE_FULL 3 "register_operand")]
+	   (match_operand:SVE_ALL 3 "register_operand")]
 	  CLAST))]
   "TARGET_SVE"
   {@ [ cons: =0 , 1 , 2   , 3  ]
-     [ w        , 0 , Upl , w  ] clast<ab>\t%0.<Vetype>, %2, %0.<Vetype>, %3.<Vetype>
-     [ ?&w      , w , Upl , w  ] movprfx\t%0, %1\;clast<ab>\t%0.<Vetype>, %2, %0.<Vetype>, %3.<Vetype>
+     [ w        , 0 , Upl , w  ] clast<ab>\t%0.<Vctype>, %2, %0.<Vctype>, %3.<Vctype>
+     [ ?&w      , w , Upl , w  ] movprfx\t%0, %1\;clast<ab>\t%0.<Vctype>, %2, %0.<Vctype>, %3.<Vctype>
   }
 )
 
@@ -9287,6 +9320,19 @@
 	  UNSPEC_PACK))]
   "TARGET_SVE"
   "uzp1\t%0.<Vetype>, %1.<Vetype>, %2.<Vetype>"
+)
+
+;; Integer partial pack packing two partial SVE types into a single full SVE
+;; type of the same element type.  Use UZP1 on the wider type, which discards
+;; the high part of each wide element.  This allows to concat SVE partial types
+;; into a wider vector.
+(define_insn "@aarch64_pack_partial<mode>"
+  [(set (match_operand:SVE_NO2E 0 "register_operand" "=w")
+	(vec_concat:SVE_NO2E
+	  (match_operand:<VHALF> 1 "register_operand" "w")
+	  (match_operand:<VHALF> 2 "register_operand" "w")))]
+  "TARGET_SVE"
+  "uzp1\t%0.<Vctype>, %1.<Vctype>, %2.<Vctype>"
 )
 
 ;; -------------------------------------------------------------------------

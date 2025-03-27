@@ -1,4 +1,4 @@
-@c Copyright (C) 1988-2024 Free Software Foundation, Inc.
+@c Copyright (C) 1988-2025 Free Software Foundation, Inc.
 @c This is part of the GCC manual.
 @c For copying conditions, see the file gcc.texi.
 
@@ -4581,6 +4581,10 @@ These macros are obsolete, new ports should use the target hook
 @end defmac
 
 @hook TARGET_MEMORY_MOVE_COST
+
+@hook TARGET_CALLEE_SAVE_COST
+
+@hook TARGET_FRAME_ALLOCATION_COST
 
 @defmac BRANCH_COST (@var{speed_p}, @var{predictable_p})
 A C expression for the cost of a branch instruction.  A value of 1 is

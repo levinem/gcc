@@ -1,6 +1,6 @@
 /* Declarations for variables relating to reading the source file.
    Used by parsers, lexical analyzers, and error message routines.
-   Copyright (C) 1993-2024 Free Software Foundation, Inc.
+   Copyright (C) 1993-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -161,13 +161,15 @@ class file_cache
 			     const char *buffer,
 			     size_t sz);
 
+  void tune (size_t num_file_slots, size_t lines);
+
  private:
   file_cache_slot *evicted_cache_tab_entry (unsigned *highest_use_count);
   file_cache_slot *add_file (const char *file_path);
   file_cache_slot *lookup_file (const char *file_path);
 
  private:
-  static const size_t num_file_slots = 16;
+  size_t m_num_file_slots;
   file_cache_slot *m_file_slots;
   input_context m_input_context;
 };

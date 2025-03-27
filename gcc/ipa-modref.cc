@@ -1,5 +1,5 @@
 /* Search for references that a functions loads or stores.
-   Copyright (C) 2020-2024 Free Software Foundation, Inc.
+   Copyright (C) 2020-2025 Free Software Foundation, Inc.
    Contributed by David Cepelik and Jan Hubicka
 
 This file is part of GCC.
@@ -1753,8 +1753,7 @@ modref_access_analysis::analyze_store (gimple *stmt, tree, tree op, void *data)
     t->record_access_lto (t->m_summary_lto->stores, &r, a);
   if (t->m_always_executed
       && a.useful_for_kill_p ()
-      && (!cfun->can_throw_non_call_exceptions
-	  || !stmt_could_throw_p (cfun, stmt)))
+      && !stmt_could_throw_p (cfun, stmt))
     {
       if (dump_file)
 	fprintf (dump_file, "   - Recording kill\n");
@@ -3746,7 +3745,7 @@ modref_write ()
     {
       streamer_write_uhwi (ob, 0);
       streamer_write_char_stream (ob->main_stream, 0);
-      produce_asm (ob, NULL);
+      produce_asm (ob);
       destroy_output_block (ob);
       return;
     }
@@ -3821,7 +3820,7 @@ modref_write ()
 	}
     }
   streamer_write_char_stream (ob->main_stream, 0);
-  produce_asm (ob, NULL);
+  produce_asm (ob);
   destroy_output_block (ob);
 }
 

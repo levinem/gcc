@@ -1,5 +1,5 @@
 /* Automatic generation of links into GCC's documentation.
-   Copyright (C) 2023-2024 Free Software Foundation, Inc.
+   Copyright (C) 2023-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -220,15 +220,14 @@ make_gcc_urlifier (unsigned int lang_mask)
 
 /* class auto_override_urlifier.  */
 
-auto_override_urlifier::auto_override_urlifier (urlifier *new_urlifier)
-: m_old_urlifier (global_dc->get_urlifier ())
+auto_override_urlifier::auto_override_urlifier (const urlifier &new_urlifier)
 {
-  global_dc->override_urlifier (new_urlifier);
+  global_dc->push_borrowed_urlifier (new_urlifier);
 }
 
 auto_override_urlifier::~auto_override_urlifier ()
 {
-  global_dc->override_urlifier (m_old_urlifier);
+  global_dc->pop_urlifier ();
 }
 
 #if CHECKING_P

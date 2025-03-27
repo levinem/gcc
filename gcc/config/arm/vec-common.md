@@ -1,5 +1,5 @@
 ;; Machine Description for shared bits common to IWMMXT and Neon.
-;; Copyright (C) 2006-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2025 Free Software Foundation, Inc.
 ;; Written by CodeSourcery.
 ;;
 ;; This file is part of GCC.
@@ -135,6 +135,17 @@
 	(umax:VINTW (match_operand:VINTW 1 "s_register_operand")
 		    (match_operand:VINTW 2 "s_register_operand")))]
    "ARM_HAVE_<MODE>_ARITH"
+)
+
+;; Vector forms for the IEEE-754 fmax()/fmin() functions
+;; Fixme: Should be enabled for MVE as well, but currently that uses an
+;; incompatible expasion.
+(define_expand "<fmaxmin><mode>3"
+  [(set (match_operand:VF 0 "s_register_operand" "")
+	(unspec:VF [(match_operand:VF 1 "s_register_operand")
+		    (match_operand:VF 2 "s_register_operand")]
+		   VMAXMINFNM))]
+  "TARGET_NEON && TARGET_VFP5 && ARM_HAVE_<MODE>_ARITH"
 )
 
 (define_expand "vec_perm<mode>"

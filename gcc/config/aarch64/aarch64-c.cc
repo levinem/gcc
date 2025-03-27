@@ -1,5 +1,5 @@
 /* Target-specific code for C family languages.
-   Copyright (C) 2015-2024 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -267,6 +267,8 @@ aarch64_update_cpp_builtins (cpp_reader *pfile)
 			"__ARM_FEATURE_BF16", pfile);
   aarch64_def_or_undef (TARGET_SVE_BF16,
 			"__ARM_FEATURE_SVE_BF16", pfile);
+
+  aarch64_def_or_undef (TARGET_LUT, "__ARM_FEATURE_LUT", pfile);
 
   aarch64_def_or_undef (TARGET_FP8, "__ARM_FEATURE_FP8", pfile);
 

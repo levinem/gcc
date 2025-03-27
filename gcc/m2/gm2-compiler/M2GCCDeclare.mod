@@ -1,6 +1,6 @@
 (* M2GCCDeclare.mod declares Modula-2 types to GCC.
 
-Copyright (C) 2001-2024 Free Software Foundation, Inc.
+Copyright (C) 2001-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -144,10 +144,10 @@ FROM M2Base IMPORT IsPseudoBaseProcedure, IsPseudoBaseFunction,
                    Boolean, True, False, Nil,
                    IsRealType, IsNeededAtRunTime, IsComplexType ;
 
-FROM M2System IMPORT IsPseudoSystemFunction, IsSystemType,
+FROM M2System IMPORT IsPseudoSystemFunction, IsSystemType, IsRealN,
                      GetSystemTypeMinMax, Address, Word, Byte, Loc,
                      System, IntegerN, CardinalN, WordN, RealN, SetN, ComplexN,
-		     CSizeT, CSSizeT ;
+		     CSizeT, CSSizeT, COffT ;
 
 FROM M2Bitset IMPORT Bitset, Bitnum ;
 FROM SymbolConversion IMPORT AddModGcc, Mod2Gcc, GccKnowsAbout, Poison, RemoveMod2Gcc ;
@@ -185,7 +185,7 @@ FROM m2type IMPORT MarkFunctionReferenced, BuildStartRecord, BuildStartVarient, 
                    GetM2Cardinal16, GetM2Cardinal32, GetM2Cardinal64, GetM2Word16, GetM2Word32,
                    GetM2Word64, GetM2Bitset8, GetM2Bitset16, GetM2Bitset32, GetM2Real32, GetM2Real64,
                    GetM2Real96, GetM2Real128, GetM2Complex32, GetM2Complex64, GetM2Complex96,
-                   GetM2Complex128, GetCSizeTType, GetCSSizeTType,
+                   GetM2Complex128, GetCSizeTType, GetCSSizeTType, GetCOffTType,
 		   GetPackedBooleanType, BuildConstPointerType,
                    BuildPointerType, BuildEnumerator, BuildStartEnumeration, BuildEndEnumeration,
                    SetAlignment, SetTypePacked, SetDeclPacked, BuildSmallestTypeRange,
@@ -1901,6 +1901,33 @@ END TryDeclareConstant ;
 
 
 (*
+   IsAnyType - return TRUE if sym is any Modula-2 type.
+*)
+
+PROCEDURE IsAnyType (sym: CARDINAL) : BOOLEAN ;
+BEGIN
+   RETURN (IsRecord(sym) OR IsType(sym) OR IsRecordField(sym) OR
+           IsPointer(sym) OR IsArray(sym) OR IsSet (sym) OR IsEnumeration (sym) OR
+           IsPointer (sym))
+END IsAnyType ;
+
+
+(*
+   TryDeclareType - try and declare a type.  If sym is a
+                    type try and declare it, if we cannot
+                    then enter it into the to do list.
+*)
+
+PROCEDURE TryDeclareType (type: CARDINAL) ;
+BEGIN
+   IF (type#NulSym) AND IsAnyType (type)
+   THEN
+      TraverseDependants (type)
+   END
+END TryDeclareType ;
+
+
+(*
    DeclareConstant - checks to see whether, sym, is a constant and
                      declares the constant to gcc.
 *)
@@ -1986,7 +2013,7 @@ BEGIN
          ELSIF IsConstructor(sym)
          THEN
             DeclareConstantFromTree(sym, PopConstructorTree(tokenno))
-         ELSIF IsRealType(GetDType(sym))
+         ELSIF IsRealType (GetDType (sym)) OR IsRealN (GetDType (sym))
          THEN
             type := GetDType(sym) ;
             DeclareConstantFromTree(sym, BuildConvert(TokenToLocation(tokenno), Mod2Gcc(type), PopRealTree(), TRUE))
@@ -3229,6 +3256,7 @@ BEGIN
    DeclareDefaultType(ShortComplex, "SHORTCOMPLEX", GetM2ShortComplexType()) ;
    DeclareDefaultType(CSizeT      , "CSIZE_T"     , GetCSizeTType()) ;
    DeclareDefaultType(CSSizeT     , "CSSIZE_T"    , GetCSSizeTType()) ;
+   DeclareDefaultType(COffT       , "COFF_T"      , GetCOffTType()) ;
 
    DeclareBoolean ;
 

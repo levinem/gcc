@@ -1,5 +1,5 @@
 /* Language-independent node constructors for parse phase of GNU compiler.
-   Copyright (C) 1987-2024 Free Software Foundation, Inc.
+   Copyright (C) 1987-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -211,13 +211,70 @@ struct cl_option_hasher : ggc_cache_ptr_hash<tree_node>
 
 static GTY ((cache)) hash_table<cl_option_hasher> *cl_option_hash_table;
 
+struct gt_value_expr_mark_data {
+  hash_set<tree> pset;
+  auto_vec<tree, 16> to_mark;
+};
+
+/* Callback called through walk_tree_1 to discover DECL_HAS_VALUE_EXPR_P
+   VAR_DECLs which weren't marked yet, in that case marks them and
+   walks their DECL_VALUE_EXPR expressions.  */
+
+static tree
+gt_value_expr_mark_2 (tree *tp, int *, void *data)
+{
+  tree t = *tp;
+  if (VAR_P (t) && DECL_HAS_VALUE_EXPR_P (t) && !ggc_marked_p (t))
+    {
+      tree dve = DECL_VALUE_EXPR (t);
+      gt_value_expr_mark_data *d = (gt_value_expr_mark_data *) data;
+      walk_tree_1 (&dve, gt_value_expr_mark_2, data, &d->pset, NULL);
+      d->to_mark.safe_push (t);
+    }
+  return NULL_TREE;
+}
+
+/* Callback called through traverse_noresize on the
+   value_expr_for_decl hash table.  */
+
+int
+gt_value_expr_mark_1 (tree_decl_map **e, gt_value_expr_mark_data *data)
+{
+  if (ggc_marked_p ((*e)->base.from))
+    walk_tree_1 (&(*e)->to, gt_value_expr_mark_2, data, &data->pset, NULL);
+  return 1;
+}
+
+/* The value_expr_for_decl hash table can have mappings for trees
+   which are only referenced from mappings of other trees in the
+   same table, see PR118790.  Without this routine, gt_cleare_cache
+   could clear hash table slot of a tree which isn't marked but
+   will be marked when processing later hash table slot of another
+   tree which is marked.  This function marks with the above
+   helpers marks all the not yet marked DECL_HAS_VALUE_EXPR_P
+   VAR_DECLs mentioned in DECL_VALUE_EXPR expressions of marked
+   trees and in that case also recurses on their DECL_VALUE_EXPR.  */
+
+void
+gt_value_expr_mark (hash_table<tree_decl_map_cache_hasher> *h)
+{
+  if (!h)
+    return;
+
+  gt_value_expr_mark_data data;
+  h->traverse_noresize<gt_value_expr_mark_data *,
+		       gt_value_expr_mark_1> (&data);
+  for (auto v : data.to_mark)
+    gt_ggc_mx (v);
+}
+
 /* General tree->tree mapping  structure for use in hash tables.  */
 
 
 static GTY ((cache))
      hash_table<tree_decl_map_cache_hasher> *debug_expr_for_decl;
 
-static GTY ((cache))
+static GTY ((cache ("gt_value_expr_mark")))
      hash_table<tree_decl_map_cache_hasher> *value_expr_for_decl;
 
 static GTY ((cache))
@@ -3922,6 +3979,7 @@ tree_invariant_p_1 (tree t)
   switch (TREE_CODE (t))
     {
     case SAVE_EXPR:
+    case TARGET_EXPR:
       return true;
 
     case ADDR_EXPR:
@@ -4047,7 +4105,19 @@ skip_simple_arithmetic (tree expr)
 	expr = TREE_OPERAND (expr, 0);
       else if (BINARY_CLASS_P (expr))
 	{
-	  if (tree_invariant_p (TREE_OPERAND (expr, 1)))
+	  /* Before commutative binary operands are canonicalized,
+	     it is quite common to have constants in the first operand.
+	     Check for that common case first so that we don't walk
+	     large expressions with tree_invariant_p unnecessarily.
+	     This can still have terrible compile time complexity,
+	     we should limit the depth of the tree_invariant_p and
+	     skip_simple_arithmetic recursion.  */
+	  if ((TREE_CONSTANT (TREE_OPERAND (expr, 0))
+	       || (TREE_READONLY (TREE_OPERAND (expr, 0))
+		   && !TREE_SIDE_EFFECTS (TREE_OPERAND (expr, 0))))
+	      && tree_invariant_p (TREE_OPERAND (expr, 0)))
+	    expr = TREE_OPERAND (expr, 1);
+	  else if (tree_invariant_p (TREE_OPERAND (expr, 1)))
 	    expr = TREE_OPERAND (expr, 0);
 	  else if (tree_invariant_p (TREE_OPERAND (expr, 0)))
 	    expr = TREE_OPERAND (expr, 1);
@@ -6120,6 +6190,10 @@ type_hash_canon_hash (tree type)
       hstate.add_poly_int (TYPE_VECTOR_SUBPARTS (type));
       break;
 
+    case REFERENCE_TYPE:
+      hstate.add_flag (TYPE_REF_IS_RVALUE (type));
+      break;
+
     default:
       break;
     }
@@ -6162,7 +6236,6 @@ type_cache_hasher::equal (type_hash *a, type_hash *b)
     case OPAQUE_TYPE:
     case COMPLEX_TYPE:
     case POINTER_TYPE:
-    case REFERENCE_TYPE:
     case NULLPTR_TYPE:
       return true;
 
@@ -6251,6 +6324,9 @@ type_cache_hasher::equal (type_hash *a, type_hash *b)
 				  TYPE_ARG_TYPES (b->type))))
 	break;
       return false;
+
+    case REFERENCE_TYPE:
+      return TYPE_REF_IS_RVALUE (a->type) == TYPE_REF_IS_RVALUE (b->type);
 
     default:
       return false;
@@ -13918,6 +13994,7 @@ gimple_canonical_types_compatible_p (const_tree t1, const_tree t2,
      flexible array members, we allow mismatching modes for structures or
      unions.  */
   if (!RECORD_OR_UNION_TYPE_P (t1)
+      && TREE_CODE (t1) != ARRAY_TYPE
       && TYPE_MODE (t1) != TYPE_MODE (t2))
     return false;
 
@@ -14249,6 +14326,7 @@ verify_type (const_tree t)
 	 flexible array members.  */
       && !RECORD_OR_UNION_TYPE_P (t)
       && !RECORD_OR_UNION_TYPE_P (TYPE_CANONICAL (t))
+      && TREE_CODE (t) != ARRAY_TYPE
       && TYPE_MODE (t) != TYPE_MODE (TYPE_CANONICAL (t)))
     {
       error ("%<TYPE_MODE%> of %<TYPE_CANONICAL%> is not compatible");
@@ -15252,15 +15330,17 @@ get_attr_nonstring_decl (tree expr, tree *ref)
      DECL.  */
   if (var)
     decl = var;
-  else if (TREE_CODE (decl) == ARRAY_REF)
-    decl = TREE_OPERAND (decl, 0);
-  else if (TREE_CODE (decl) == COMPONENT_REF)
-    decl = TREE_OPERAND (decl, 1);
-  else if (TREE_CODE (decl) == MEM_REF)
-    return get_attr_nonstring_decl (TREE_OPERAND (decl, 0), ref);
+  else
+    {
+      while (TREE_CODE (decl) == ARRAY_REF)
+	decl = TREE_OPERAND (decl, 0);
+      if (TREE_CODE (decl) == COMPONENT_REF)
+	decl = TREE_OPERAND (decl, 1);
+      else if (TREE_CODE (decl) == MEM_REF)
+	return get_attr_nonstring_decl (TREE_OPERAND (decl, 0), ref);
+    }
 
-  if (DECL_P (decl)
-      && lookup_attribute ("nonstring", DECL_ATTRIBUTES (decl)))
+  if (DECL_P (decl) && lookup_attribute ("nonstring", DECL_ATTRIBUTES (decl)))
     return decl;
 
   return NULL_TREE;

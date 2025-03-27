@@ -1,5 +1,5 @@
 /* Support for GCC plugin mechanism.
-   Copyright (C) 2009-2024 Free Software Foundation, Inc.
+   Copyright (C) 2009-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -21,6 +21,7 @@ along with GCC; see the file COPYING3.  If not see
    APIs described in doc/plugin.texi.  */
 
 #include "config.h"
+#define INCLUDE_DLFCN_H
 #include "system.h"
 #include "coretypes.h"
 #include "options.h"

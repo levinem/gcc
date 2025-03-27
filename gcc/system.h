@@ -1,6 +1,6 @@
 /* Get common system includes and various definitions and declarations based
    on autoconf macros.
-   Copyright (C) 1998-2024 Free Software Foundation, Inc.
+   Copyright (C) 1998-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -694,7 +694,7 @@ extern int vsnprintf (char *, size_t, const char *, va_list);
 # endif
 #endif
 
-#if defined (ENABLE_PLUGIN) && defined (HAVE_DLFCN_H)
+#if defined (INCLUDE_DLFCN_H) && defined (HAVE_DLFCN_H)
 /* If plugin support is enabled, we could use libdl.  */
 #include <dlfcn.h>
 #endif

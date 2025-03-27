@@ -1,5 +1,5 @@
 /* Define builtin-in macros for the C family front ends.
-   Copyright (C) 2002-2024 Free Software Foundation, Inc.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -1093,6 +1093,7 @@ c_cpp_builtins (cpp_reader *pfile)
 	  cpp_define (pfile, "__cpp_deleted_function=202403L");
 	  cpp_define (pfile, "__cpp_variadic_friend=202403L");
 	  cpp_define (pfile, "__cpp_pack_indexing=202311L");
+	  cpp_define (pfile, "__cpp_pp_embed=202502L");
 	}
       if (flag_concepts && cxx_dialect > cxx14)
 	cpp_define (pfile, "__cpp_concepts=202002L");

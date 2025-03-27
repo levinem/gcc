@@ -1,5 +1,5 @@
 /* Process declarations and variables for C compiler.
-   Copyright (C) 1988-2024 Free Software Foundation, Inc.
+   Copyright (C) 1988-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -2788,6 +2788,9 @@ merge_decls (tree newdecl, tree olddecl, tree newtype, tree oldtype)
 		  break;
 		}
 	}
+
+      /* Make sure we refer to the same type as the olddecl.  */
+      DECL_ORIGINAL_TYPE (newdecl) = DECL_ORIGINAL_TYPE (olddecl);
     }
 
   /* Merge the data types specified in the two decls.  */
@@ -5476,12 +5479,8 @@ c_decl_attributes (tree *node, tree attributes, int flags)
 	attributes = tree_cons (get_identifier ("omp declare target implicit"),
 				NULL_TREE, attributes);
       else
-	{
-	  attributes = tree_cons (get_identifier ("omp declare target"),
-				  NULL_TREE, attributes);
-	  attributes = tree_cons (get_identifier ("omp declare target block"),
-				  NULL_TREE, attributes);
-	}
+	attributes = tree_cons (get_identifier ("omp declare target"),
+				NULL_TREE, attributes);
       if (TREE_CODE (*node) == FUNCTION_DECL)
 	{
 	  int device_type
@@ -7062,7 +7061,7 @@ grokdeclarator (const struct c_declarator *declarator,
       && TYPE_QUALS (element_type))
     {
       orig_qual_type = type;
-      type = TYPE_MAIN_VARIANT (type);
+      type = c_build_qualified_type (type, TYPE_UNQUALIFIED);
     }
   type_quals = ((constp ? TYPE_QUAL_CONST : 0)
 		| (restrictp ? TYPE_QUAL_RESTRICT : 0)
@@ -8677,7 +8676,7 @@ get_parm_info (bool ellipsis, tree expr)
 	      if (b->id)
 		{
 		  /* The %s will be one of 'struct', 'union', or 'enum'.  */
-		  if (!flag_isoc23)
+		  if (!flag_isoc23 || !COMPLETE_TYPE_P (decl))
 		    warning_at (b->locus, 0,
 				"%<%s %E%> declared inside parameter list"
 				" will not be visible outside of this definition or"
@@ -9850,7 +9849,7 @@ finish_struct (location_t loc, tree t, tree fieldlist, tree attributes,
 	  && TREE_CODE (vistype) == TREE_CODE (t)
 	  && !C_TYPE_BEING_DEFINED (vistype))
 	{
-	  TYPE_STUB_DECL (vistype) = TYPE_STUB_DECL (t);
+	  TYPE_STUB_DECL (t) = TYPE_STUB_DECL (vistype);
 	  if (c_type_variably_modified_p (t))
 	    {
 	      error ("redefinition of struct or union %qT with variably "
@@ -10325,7 +10324,7 @@ finish_enum (tree enumtype, tree values, tree attributes)
 	  && TREE_CODE (vistype) == TREE_CODE (enumtype)
 	  && !C_TYPE_BEING_DEFINED (vistype))
 	{
-	  TYPE_STUB_DECL (vistype) = TYPE_STUB_DECL (enumtype);
+	  TYPE_STUB_DECL (enumtype) = TYPE_STUB_DECL (vistype);
 	  if (!comptypes_same_p (enumtype, vistype))
 	    error("conflicting redefinition of enum %qT", enumtype);
 	}
@@ -11808,6 +11807,8 @@ names_builtin_p (const char *name)
     case RID_CHOOSE_EXPR:
     case RID_OFFSETOF:
     case RID_TYPES_COMPATIBLE_P:
+    case RID_C23_VA_START:
+    case RID_VA_ARG:
       return 1;
     default:
       break;
@@ -12493,8 +12494,22 @@ declspecs_add_type (location_t loc, struct c_declspecs *specs,
 	     "__auto_type".  */
 	  if (specs->typespec_word != cts_none)
 	    {
-	      error_at (loc,
-			"two or more data types in declaration specifiers");
+	      if (i == RID_BOOL)
+		{
+		  auto_diagnostic_group d;
+		  if (specs->storage_class == csc_typedef)
+		    error_at (loc,
+			      "%qs cannot be defined via %<typedef%>",
+			      IDENTIFIER_POINTER (type));
+		  else
+		    error_at (loc,
+			      "%qs cannot be used here",
+			      IDENTIFIER_POINTER (type));
+		  add_note_about_new_keyword (loc, type);
+		}
+	      else
+		error_at (loc,
+			  "two or more data types in declaration specifiers");
 	      return specs;
 	    }
 	  switch (i)

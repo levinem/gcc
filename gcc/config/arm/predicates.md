@@ -1,5 +1,5 @@
 ;; Predicate definitions for ARM and Thumb
-;; Copyright (C) 2004-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2025 Free Software Foundation, Inc.
 ;; Contributed by ARM Ltd.
 
 ;; This file is part of GCC.
@@ -99,11 +99,21 @@
 })
 
 (define_predicate "vpr_register_operand"
-  (match_code "reg")
+  (match_code "reg,subreg")
 {
-  return REG_P (op)
+  if (SUBREG_P (op))
+    {
+      /* Only allow subregs if they are strictly type punning.	*/
+      if ((GET_MODE_SIZE (GET_MODE (SUBREG_REG (op)))
+	   != GET_MODE_SIZE (GET_MODE (op)))
+	  || SUBREG_BYTE (op) != 0)
+	return false;
+      op = SUBREG_REG (op);
+    }
+
+  return (REG_P (op)
 	  && (REGNO (op) >= FIRST_PSEUDO_REGISTER
-	      || IS_VPR_REGNUM (REGNO (op)));
+	      || IS_VPR_REGNUM (REGNO (op))));
 })
 
 (define_predicate "imm_for_neon_inv_logic_operand"

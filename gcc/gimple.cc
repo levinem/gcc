@@ -1,6 +1,6 @@
 /* Gimple IR support functions.
 
-   Copyright (C) 2007-2024 Free Software Foundation, Inc.
+   Copyright (C) 2007-2025 Free Software Foundation, Inc.
    Contributed by Aldy Hernandez <aldyh@redhat.com>
 
 This file is part of GCC.
@@ -1278,6 +1278,19 @@ gimple_build_omp_dispatch (gimple_seq body, tree clauses)
   return p;
 }
 
+/* Build a GIMPLE_OMP_INTEROP statement.
+
+   CLAUSES are any of the OMP interop construct's clauses.  */
+
+gimple *
+gimple_build_omp_interop (tree clauses)
+{
+  gimple *p = gimple_alloc (GIMPLE_OMP_INTEROP, 0);
+  gimple_omp_interop_set_clauses (p, clauses);
+
+  return p;
+}
+
 /* Build a GIMPLE_OMP_TARGET statement.
 
    BODY is the sequence of statements that will be executed.
@@ -2205,6 +2218,11 @@ gimple_copy (gimple *stmt)
 	  gimple_omp_dispatch_set_clauses (copy, t);
 	  goto copy_omp_body;
 
+	case GIMPLE_OMP_INTEROP:
+	  t = unshare_expr (gimple_omp_interop_clauses (stmt));
+	  gimple_omp_interop_set_clauses (copy, t);
+	  break;
+
 	case GIMPLE_OMP_TARGET:
 	  {
 	    gomp_target *omp_target_stmt = as_a <gomp_target *> (stmt);
@@ -2500,7 +2518,9 @@ get_gimple_rhs_num_ops (enum tree_code code)
       || (SYM) == OBJ_TYPE_REF						    \
       || (SYM) == ADDR_EXPR						    \
       || (SYM) == WITH_SIZE_EXPR					    \
-      || (SYM) == SSA_NAME) ? GIMPLE_SINGLE_RHS				    \
+      || (SYM) == SSA_NAME						    \
+      || (SYM) == OMP_NEXT_VARIANT					    \
+      || (SYM) == OMP_TARGET_DEVICE_MATCHES) ? GIMPLE_SINGLE_RHS	    \
    : GIMPLE_INVALID_RHS),
 #define END_OF_BASE_TREE_CODES (unsigned char) GIMPLE_INVALID_RHS,
 

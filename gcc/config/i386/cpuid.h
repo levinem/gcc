@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2024 Free Software Foundation, Inc.
+ * Copyright (C) 2007-2025 Free Software Foundation, Inc.
  *
  * This file is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -170,11 +170,6 @@
 #define bit_AMX_TF32	(1 << 6)
 #define bit_AMX_AVX512  (1 << 7)
 #define bit_AMX_MOVRS	(1 << 8)
-
-/* AVX10 sub leaf (%eax == 0x24) */
-/* %ebx */
-#define bit_AVX10_256	(1 << 17)
-#define bit_AVX10_512	(1 << 18)
 
 /* Signatures for different CPU implementations as returned in uses
    of cpuid with level 0.  */

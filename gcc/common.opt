@@ -1,6 +1,6 @@
 ; Options for the language- and target-independent parts of the compiler.
 
-; Copyright (C) 2003-2024 Free Software Foundation, Inc.
+; Copyright (C) 2003-2025 Free Software Foundation, Inc.
 ;
 ; This file is part of GCC.
 ;
@@ -885,6 +885,18 @@ Common Var(warn_too_many_conditions) Init(1) Warning
 Warn when a conditional has too many terms and condition coverage profiling
 gives up instrumenting the expression.
 
+fpath-coverage-limit=
+Common RejectNegative Joined UInteger Var(path_coverage_limit) Init(250000)
+-fpath-coverage-limit=<number> Don't instrument functions path count exceeding
+<number>.
+
+Wcoverage-too-many-paths
+Common Var(warn_too_many_paths) Init(1) Warning
+Warn if a function exceeds the number of paths (controlled by
+-fpath-coverage-limit) and path coverage give up instrumenting the function.
+The limit is approximate and conservative and coverage might give up even if
+the actual number is slightly below the limit.
+
 Wmissing-profile
 Common Var(warn_missing_profile) Init(1) Warning
 Warn in case profiles in -fprofile-use do not exist.
@@ -1034,9 +1046,12 @@ Driver Undocumented
 ;     Default in G++ 13.
 ;
 ; 19: Emits ABI tags if needed in structured binding mangled names.
-;     Ignores cv-quals on [[no_unique_object]] members.
+;     Ignores cv-quals on [[no_unique_address]] members.
 ;     Mangles constraints on function templates.
 ;     Default in G++ 14.
+;
+; 20: Fix mangling of lambdas in static data member initializers.
+;     Default in G++ 15.
 ;
 ; Additional positive integers will be assigned as new versions of
 ; the ABI become the default version of the ABI.
@@ -2239,6 +2254,14 @@ flto=
 Common RejectNegative Joined Var(flag_lto)
 Link-time optimization with number of parallel jobs or jobserver.
 
+flto-incremental=
+Common Joined Var(flag_lto_incremental)
+Enable incremental LTO, with its cache in given directory.
+
+flto-incremental-cache-size=
+Common Joined RejectNegative UInteger Var(flag_lto_incremental_cache_size) Init(2048)
+Number of cache entries in incremental LTO after which to prune old entries.
+
 Enum
 Name(lto_partition_model) Type(enum lto_partition_model) UnknownError(unknown LTO partitioning model %qs)
 
@@ -2442,6 +2465,10 @@ Does nothing. Preserved for backward compatibility.
 foptimize-sibling-calls
 Common Var(flag_optimize_sibling_calls) Optimization
 Optimize sibling and tail recursive calls.
+
+fpath-coverage
+Common Var(path_coverage_flag)
+Insert path profiling code.
 
 fpartial-inlining
 Common Var(flag_partial_inlining) Optimization
@@ -3880,6 +3907,10 @@ Driver
 static-libgfortran
 Driver
 ; Documented for Fortran, but always accepted by driver.
+
+static-libgcobol
+Driver
+; Documented for COBOL, but always accepted by driver.
 
 static-libgm2
 Driver

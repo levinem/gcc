@@ -1,6 +1,6 @@
 
 ;; Code and mode itertator and attribute definitions for the ARM backend
-;; Copyright (C) 2010-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2025 Free Software Foundation, Inc.
 ;; Contributed by ARM Ltd.
 ;;
 ;; This file is part of GCC.
@@ -145,6 +145,24 @@
 			       (V2x4SI "TARGET_HAVE_MVE")
 			       (V2x8HF "TARGET_HAVE_MVE_FLOAT")
 			       (V2x4SF "TARGET_HAVE_MVE_FLOAT")
+			       (V4x16QI "TARGET_HAVE_MVE")
+			       (V4x8HI "TARGET_HAVE_MVE")
+			       (V4x4SI "TARGET_HAVE_MVE")
+			       (V4x8HF "TARGET_HAVE_MVE_FLOAT")
+			       (V4x4SF "TARGET_HAVE_MVE_FLOAT")
+			       ])
+
+;; Structure types of the same size as OImode
+(define_mode_iterator VSTRUCT2 [OI
+			       (V2x16QI "TARGET_HAVE_MVE")
+			       (V2x8HI "TARGET_HAVE_MVE")
+			       (V2x4SI "TARGET_HAVE_MVE")
+			       (V2x8HF "TARGET_HAVE_MVE_FLOAT")
+			       (V2x4SF "TARGET_HAVE_MVE_FLOAT")
+			       ])
+
+;; Structure types of the same size as XImode
+(define_mode_iterator VSTRUCT4 [XI
 			       (V4x16QI "TARGET_HAVE_MVE")
 			       (V4x8HI "TARGET_HAVE_MVE")
 			       (V4x4SI "TARGET_HAVE_MVE")

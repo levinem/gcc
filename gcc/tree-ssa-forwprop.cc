@@ -1,5 +1,5 @@
 /* Forward propagation of expressions for single use variables.
-   Copyright (C) 2004-2024 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -205,6 +205,7 @@ struct _vec_perm_simplify_seq
 typedef struct _vec_perm_simplify_seq *vec_perm_simplify_seq;
 
 static bool forward_propagate_addr_expr (tree, tree, bool);
+static void optimize_vector_load (gimple_stmt_iterator *);
 
 /* Set to true if we delete dead edges during the optimization.  */
 static bool cfg_changed;
@@ -2269,7 +2270,7 @@ check_ctz_array (tree ctor, unsigned HOST_WIDE_INT mulc,
 		 HOST_WIDE_INT &zero_val, unsigned shift, unsigned bits)
 {
   tree elt, idx;
-  unsigned HOST_WIDE_INT i, mask;
+  unsigned HOST_WIDE_INT i, mask, raw_idx = 0;
   unsigned matched = 0;
 
   mask = ((HOST_WIDE_INT_1U << (bits - shift)) - 1) << shift;
@@ -2278,13 +2279,34 @@ check_ctz_array (tree ctor, unsigned HOST_WIDE_INT mulc,
 
   FOR_EACH_CONSTRUCTOR_ELT (CONSTRUCTOR_ELTS (ctor), i, idx, elt)
     {
-      if (TREE_CODE (idx) != INTEGER_CST || TREE_CODE (elt) != INTEGER_CST)
+      if (!tree_fits_shwi_p (idx))
 	return false;
-      if (i > bits * 2)
+      if (!tree_fits_shwi_p (elt) && TREE_CODE (elt) != RAW_DATA_CST)
 	return false;
 
       unsigned HOST_WIDE_INT index = tree_to_shwi (idx);
-      HOST_WIDE_INT val = tree_to_shwi (elt);
+      HOST_WIDE_INT val;
+
+      if (TREE_CODE (elt) == INTEGER_CST)
+	val = tree_to_shwi (elt);
+      else
+	{
+	  if (raw_idx == (unsigned) RAW_DATA_LENGTH (elt))
+	    {
+	      raw_idx = 0;
+	      continue;
+	    }
+	  if (TYPE_UNSIGNED (TREE_TYPE (elt)))
+	    val = RAW_DATA_UCHAR_ELT (elt, raw_idx);
+	  else
+	    val = RAW_DATA_SCHAR_ELT (elt, raw_idx);
+	  index += raw_idx;
+	  raw_idx++;
+	  i--;
+	}
+
+      if (index > bits * 2)
+	return false;
 
       if (index == 0)
 	{
@@ -2459,106 +2481,6 @@ simplify_count_trailing_zeroes (gimple_stmt_iterator *gsi)
   return false;
 }
 
-
-/* Combine an element access with a shuffle.  Returns true if there were
-   any changes made, else it returns false.  */
-
-static bool
-simplify_bitfield_ref (gimple_stmt_iterator *gsi)
-{
-  gimple *stmt = gsi_stmt (*gsi);
-  gimple *def_stmt;
-  tree op, op0, op1;
-  tree elem_type, type;
-  tree p, m, tem;
-  unsigned HOST_WIDE_INT nelts, idx;
-  poly_uint64 size, elem_size;
-  enum tree_code code;
-
-  op = gimple_assign_rhs1 (stmt);
-  gcc_checking_assert (TREE_CODE (op) == BIT_FIELD_REF);
-
-  op0 = TREE_OPERAND (op, 0);
-  if (TREE_CODE (op0) != SSA_NAME
-      || TREE_CODE (TREE_TYPE (op0)) != VECTOR_TYPE)
-    return false;
-
-  def_stmt = get_prop_source_stmt (op0, false, NULL);
-  if (!def_stmt || !can_propagate_from (def_stmt))
-    return false;
-
-  op1 = TREE_OPERAND (op, 1);
-  code = gimple_assign_rhs_code (def_stmt);
-  elem_type = TREE_TYPE (TREE_TYPE (op0));
-  type = TREE_TYPE (op);
-  /* Also handle vector type.
-     .i.e.
-     _7 = VEC_PERM_EXPR <_1, _1, { 2, 3, 2, 3 }>;
-     _11 = BIT_FIELD_REF <_7, 64, 0>;
-
-     to
-
-     _11 = BIT_FIELD_REF <_1, 64, 64>.  */
-
-  size = tree_to_poly_uint64 (TYPE_SIZE (type));
-  if (maybe_ne (bit_field_size (op), size))
-    return false;
-
-  elem_size = tree_to_poly_uint64 (TYPE_SIZE (elem_type));
-  if (code != VEC_PERM_EXPR
-      || !constant_multiple_p (bit_field_offset (op), elem_size, &idx))
-    return false;
-
-  m = gimple_assign_rhs3 (def_stmt);
-  if (TREE_CODE (m) != VECTOR_CST
-      || !VECTOR_CST_NELTS (m).is_constant (&nelts))
-    return false;
-
-  /* One element.  */
-  if (known_eq (size, elem_size))
-    idx = TREE_INT_CST_LOW (VECTOR_CST_ELT (m, idx)) % (2 * nelts);
-  else
-    {
-      unsigned HOST_WIDE_INT nelts_op;
-      if (!constant_multiple_p (size, elem_size, &nelts_op)
-	  || !pow2p_hwi (nelts_op))
-	return false;
-      /* Clamp vec_perm_expr index.  */
-      unsigned start = TREE_INT_CST_LOW (vector_cst_elt (m, idx)) % (2 * nelts);
-      unsigned end = TREE_INT_CST_LOW (vector_cst_elt (m, idx + nelts_op - 1))
-		     % (2 * nelts);
-      /* Be in the same vector.  */
-      if ((start < nelts) != (end < nelts))
-	return false;
-      for (unsigned HOST_WIDE_INT i = 1; i != nelts_op; i++)
-	{
-	  /* Continuous area.  */
-	  if (TREE_INT_CST_LOW (vector_cst_elt (m, idx + i)) % (2 * nelts) - 1
-	      != TREE_INT_CST_LOW (vector_cst_elt (m, idx + i - 1))
-		 % (2 * nelts))
-	    return false;
-	}
-      /* Alignment not worse than before.  */
-      if (start % nelts_op)
-       return false;
-      idx = start;
-    }
-
-  if (idx < nelts)
-    p = gimple_assign_rhs1 (def_stmt);
-  else
-    {
-      p = gimple_assign_rhs2 (def_stmt);
-      idx -= nelts;
-    }
-
-  tem = build3 (BIT_FIELD_REF, TREE_TYPE (op),
-		p, op1, bitsize_int (idx * elem_size));
-  gimple_assign_set_rhs1 (stmt, tem);
-  fold_stmt (gsi);
-  update_stmt (gsi_stmt (*gsi));
-  return true;
-}
 
 /* Determine whether applying the 2 permutations (mask1 then mask2)
    gives back one of the input.  */
@@ -3479,41 +3401,6 @@ fwprop_ssa_val (tree name)
   return name;
 }
 
-/* Get an index map from the provided vector permute selector
-   and return the number of unique indices.
-   E.g.: { 1, 3, 1, 3 } -> <0, 1, 0, 1>, 2
-	 { 0, 2, 0, 2 } -> <0, 1, 0, 1>, 2
-	 { 3, 2, 1, 0 } -> <0, 1, 2, 3>, 4.  */
-
-static unsigned int
-get_vect_selector_index_map (tree sel, vec<unsigned int> *index_map)
-{
-  gcc_assert (VECTOR_CST_NELTS (sel).is_constant ());
-  unsigned int nelts = VECTOR_CST_NELTS (sel).to_constant ();
-  unsigned int n = 0;
-
-  for (unsigned int i = 0; i < nelts; i++)
-    {
-      /* Extract the i-th value from the selector.  */
-      tree sel_cst_tree = VECTOR_CST_ELT (sel, i);
-      unsigned int sel_cst = TREE_INT_CST_LOW (sel_cst_tree);
-
-      unsigned int j = 0;
-      for (; j <= i; j++)
-	{
-	  tree prev_sel_cst_tree = VECTOR_CST_ELT (sel, j);
-	  unsigned int prev_sel_cst
-	    = TREE_INT_CST_LOW (prev_sel_cst_tree);
-	  if (prev_sel_cst == sel_cst)
-	    break;
-	}
-      index_map->quick_push (j);
-      n += (i == j) ? 1 : 0;
-    }
-
-  return n;
-}
-
 /* Search for opportunities to free half of the lanes in the following pattern:
 
      v_in = {e0, e1, e2, e3}
@@ -3544,6 +3431,8 @@ get_vect_selector_index_map (tree sel, vec<unsigned int> *index_map)
 static bool
 recognise_vec_perm_simplify_seq (gassign *stmt, vec_perm_simplify_seq *seq)
 {
+  unsigned HOST_WIDE_INT nelts;
+
   gcc_checking_assert (stmt);
   gcc_checking_assert (gimple_assign_rhs_code (stmt) == VEC_PERM_EXPR);
   basic_block bb = gimple_bb (stmt);
@@ -3553,14 +3442,17 @@ recognise_vec_perm_simplify_seq (gassign *stmt, vec_perm_simplify_seq *seq)
   tree v_y = gimple_assign_rhs2 (stmt);
   tree sel = gimple_assign_rhs3 (stmt);
 
-  if (!VECTOR_CST_NELTS (sel).is_constant ()
+  if (TREE_CODE (sel) != VECTOR_CST
+      || !VECTOR_CST_NELTS (sel).is_constant (&nelts)
       || TREE_CODE (v_x) != SSA_NAME
       || TREE_CODE (v_y) != SSA_NAME
       || !has_single_use (v_x)
       || !has_single_use (v_y))
     return false;
 
-  unsigned int nelts = VECTOR_CST_NELTS (sel).to_constant ();
+  /* Don't analyse sequences with many lanes.  */
+  if (nelts > 4)
+    return false;
 
   /* Lookup the definition of v_x and v_y.  */
   gassign *v_x_stmt = dyn_cast<gassign *> (SSA_NAME_DEF_STMT (v_x));
@@ -3624,50 +3516,57 @@ recognise_vec_perm_simplify_seq (gassign *stmt, vec_perm_simplify_seq *seq)
       || v_in != gimple_assign_rhs2 (v_2_stmt))
     return false;
 
-  if (!VECTOR_CST_NELTS (v_1_sel).is_constant ()
-      || !VECTOR_CST_NELTS (v_2_sel).is_constant ())
+  unsigned HOST_WIDE_INT v_1_nelts, v_2_nelts;
+  if (TREE_CODE (v_1_sel) != VECTOR_CST
+      || !VECTOR_CST_NELTS (v_1_sel).is_constant (&v_1_nelts)
+      || TREE_CODE (v_2_sel) != VECTOR_CST
+      || !VECTOR_CST_NELTS (v_2_sel).is_constant (&v_2_nelts))
     return false;
 
-  if (nelts != VECTOR_CST_NELTS (v_1_sel).to_constant ()
-      || nelts != VECTOR_CST_NELTS (v_2_sel).to_constant ())
-    return false;
-
-  /* Now check permutation selection operands.  */
-  auto_vec<unsigned int> v_1_lane_map, v_2_lane_map;
-  v_1_lane_map.reserve (nelts);
-  v_2_lane_map.reserve (nelts);
-  unsigned int v_1_lanes, v_2_lanes;
-  v_1_lanes = get_vect_selector_index_map (v_1_sel, &v_1_lane_map);
-  v_2_lanes = get_vect_selector_index_map (v_2_sel, &v_2_lane_map);
-
-  /* Check if we could free up half of the lanes.  */
-  if (v_1_lanes != v_2_lanes || v_1_lanes > (nelts / 2))
+  if (nelts != v_1_nelts || nelts != v_2_nelts)
     return false;
 
   /* Create the new selector.  */
   vec_perm_builder new_sel_perm (nelts, nelts, 1);
+  auto_vec<unsigned int> lanes (nelts);
+  lanes.quick_grow_cleared (nelts);
   for (unsigned int i = 0; i < nelts; i++)
     {
       /* Extract the i-th value from the selector.  */
-      tree sel_cst_tree = VECTOR_CST_ELT (sel, i);
-      unsigned int sel_cst = TREE_INT_CST_LOW (sel_cst_tree);
+      unsigned int sel_cst = TREE_INT_CST_LOW (VECTOR_CST_ELT (sel, i));
+      unsigned int lane = sel_cst % nelts;
+      unsigned int offs = sel_cst / nelts;
 
-      unsigned int j;
-      if (sel_cst < nelts)
-	j = v_1_lane_map[sel_cst];
-      else
-	j = v_2_lane_map[sel_cst - nelts] + nelts;
+      /* Check what's in the lane.  */
+      unsigned int e_1 = TREE_INT_CST_LOW (VECTOR_CST_ELT (v_1_sel, lane));
+      unsigned int e_2 = TREE_INT_CST_LOW (VECTOR_CST_ELT (v_2_sel, lane));
 
-      new_sel_perm.quick_push (j);
-
-      if (dump_file && (dump_flags & TDF_DETAILS))
+      /* Reuse previous lane (if any).  */
+      unsigned int l = 0;
+      for (; l < lane; l++)
 	{
-	  fprintf (dump_file, "%u", j);
-	  if (i != (nelts -1))
-	    fprintf (dump_file, ", ");
+	  if ((TREE_INT_CST_LOW (VECTOR_CST_ELT (v_1_sel, l)) == e_1)
+	      && (TREE_INT_CST_LOW (VECTOR_CST_ELT (v_2_sel, l)) == e_2))
+	    break;
 	}
+
+      /* Add to narrowed selector.  */
+      new_sel_perm.quick_push (l + offs * nelts);
+
+      /* Mark lane as used.  */
+      lanes[l] = 1;
     }
 
+  /* Count how many lanes are need.  */
+  unsigned int cnt = 0;
+  for (unsigned int i = 0; i < nelts; i++)
+    cnt += lanes[i];
+
+  /* If more than (nelts/2) lanes are needed, skip the sequence.  */
+  if (cnt > nelts / 2)
+    return false;
+
+  /* Check if the resulting permuation is cheap.  */
   vec_perm_indices new_indices (new_sel_perm, 2, nelts);
   tree vectype = TREE_TYPE (gimple_assign_lhs (stmt));
   machine_mode vmode = TYPE_MODE (vectype);
@@ -3685,8 +3584,15 @@ recognise_vec_perm_simplify_seq (gassign *stmt, vec_perm_simplify_seq *seq)
 
   if (dump_file)
     {
-      fprintf (dump_file, "Found vec perm simplify sequence ending with: ");
+      fprintf (dump_file, "Found vec perm simplify sequence ending with:\n\t");
       print_gimple_stmt (dump_file, stmt, 0);
+
+      if (dump_flags & TDF_DETAILS)
+	{
+	  fprintf (dump_file, "\tNarrowed vec_perm selector: ");
+	  print_generic_expr (dump_file, (*seq)->new_sel);
+	  fprintf (dump_file, "\n");
+	}
     }
 
   return true;
@@ -3805,29 +3711,66 @@ calc_perm_vec_perm_simplify_seqs (vec_perm_simplify_seq seq1,
   unsigned int i;
   unsigned int nelts = seq1->nelts;
   auto_vec<int> lane_assignment;
-  lane_assignment.create (2 * nelts);
+  lane_assignment.create (nelts);
 
   /* Mark all lanes as free.  */
-  lane_assignment.quick_grow_cleared (2 * nelts);
+  lane_assignment.quick_grow_cleared (nelts);
 
-  /* Reserve lanes for seq1.  */
+  /* Allocate lanes for seq1.  */
   for (i = 0; i < nelts; i++)
     {
       unsigned int l = TREE_INT_CST_LOW (VECTOR_CST_ELT (seq1->new_sel, i));
+      l %= nelts;
       lane_assignment[l] = 1;
-    }
+}
 
-  /* Reserve lanes for seq2 and calculate selector for seq2->stmt.  */
+  /* Allocate lanes for seq2 and calculate selector for seq2->stmt.  */
   vec_perm_builder seq2_stmt_sel_perm (nelts, nelts, 1);
   for (i = 0; i < nelts; i++)
     {
-      unsigned int l = TREE_INT_CST_LOW (VECTOR_CST_ELT (seq2->new_sel, i));
-      while (lane_assignment[l] != 0)
-	l++;
-      lane_assignment[l] = 2;
-      seq2_stmt_sel_perm.quick_push (l);
+      unsigned int sel = TREE_INT_CST_LOW (VECTOR_CST_ELT (seq2->new_sel, i));
+      unsigned int lane = sel % nelts;
+      unsigned int offs = sel / nelts;
+      unsigned int new_sel;
+
+      /* Check if we already allocated the lane for seq2.  */
+      unsigned int j = 0;
+      for (; j < i; j++)
+	{
+	  unsigned int sel_old;
+	  sel_old = TREE_INT_CST_LOW (VECTOR_CST_ELT (seq2->new_sel, j));
+	  unsigned int lane_old = sel_old % nelts;
+	  if (lane == lane_old)
+	    {
+	      new_sel = seq2_stmt_sel_perm[j].to_constant ();
+	      new_sel = (new_sel % nelts) + offs * nelts;
+	      break;
+	    }
+	}
+
+      /* If the lane is not allocated, we need to do that now.  */
+      if (j == i)
+	{
+	  unsigned int l_orig = lane;
+	  while (lane_assignment[lane] != 0)
+	    {
+	      lane = (lane + 1) % nelts;
+
+	      /* This should not happen if both sequences utilize no more than
+		 half of the lanes.  Test anyway to guarantee termination.  */
+	      if (lane == l_orig)
+		return false;
+	    }
+
+	  /* Allocate lane.  */
+	  lane_assignment[lane] = 2;
+	  new_sel = lane + offs * nelts;
+	}
+
+      seq2_stmt_sel_perm.quick_push (new_sel);
     }
 
+  /* Check if the resulting permuation is cheap.  */
   seq2_stmt_indices->new_vector (seq2_stmt_sel_perm, 2, nelts);
   tree vectype = TREE_TYPE (gimple_assign_lhs (seq2->stmt));
   machine_mode vmode = TYPE_MODE (vectype);
@@ -3839,13 +3782,40 @@ calc_perm_vec_perm_simplify_seqs (vec_perm_simplify_seq seq1,
   vec_perm_builder seq1_v_2_stmt_sel_perm (nelts, nelts, 1);
   for (i = 0; i < nelts; i++)
     {
-      bool use_seq1 = lane_assignment[i] == 1;
-      tree s1 = gimple_assign_rhs3 (use_seq1 ? seq1->v_1_stmt
-					     : seq2->v_1_stmt);
-      tree s2 = gimple_assign_rhs3 (use_seq1 ? seq1->v_2_stmt
-					     : seq2->v_2_stmt);
-      unsigned int l1 = TREE_INT_CST_LOW (VECTOR_CST_ELT (s1, i)) % nelts;
-      unsigned int l2 = TREE_INT_CST_LOW (VECTOR_CST_ELT (s2, i)) % nelts;
+      bool use_seq1 = lane_assignment[i] != 2;
+      unsigned int l1, l2;
+
+      if (use_seq1)
+	{
+	  /* Just reuse the selector indices.  */
+	  tree s1 = gimple_assign_rhs3 (seq1->v_1_stmt);
+	  tree s2 = gimple_assign_rhs3 (seq1->v_2_stmt);
+	  l1 = TREE_INT_CST_LOW (VECTOR_CST_ELT (s1, i));
+	  l2 = TREE_INT_CST_LOW (VECTOR_CST_ELT (s2, i));
+	}
+      else
+	{
+	  /* We moved the lanes for seq2, so we need to adjust for that.  */
+	  tree s1 = gimple_assign_rhs3 (seq2->v_1_stmt);
+	  tree s2 = gimple_assign_rhs3 (seq2->v_2_stmt);
+
+	  unsigned int j = 0;
+	  for (; j < i; j++)
+	    {
+	      unsigned int sel_new;
+	      sel_new = seq2_stmt_sel_perm[j].to_constant ();
+	      sel_new %= nelts;
+	      if (sel_new == i)
+		break;
+	    }
+
+	  /* This should not happen.  Test anyway to guarantee correctness.  */
+	  if (j == i)
+	    return false;
+
+	  l1 = TREE_INT_CST_LOW (VECTOR_CST_ELT (s1, j));
+	  l2 = TREE_INT_CST_LOW (VECTOR_CST_ELT (s2, j));
+	}
 
       seq1_v_1_stmt_sel_perm.quick_push (l1 + (use_seq1 ? 0 : nelts));
       seq1_v_2_stmt_sel_perm.quick_push (l2 + (use_seq1 ? 0 : nelts));
@@ -3960,7 +3930,7 @@ process_vec_perm_simplify_seq_list (vec<vec_perm_simplify_seq> *l)
     return;
 
   if (dump_file && (dump_flags & TDF_DETAILS))
-    fprintf (dump_file, "Processing %u vec perm simplify sequences.\n",
+    fprintf (dump_file, "\nProcessing %u vec perm simplify sequences.\n",
 	     l->length ());
 
   FOR_EACH_VEC_ELT (*l, i, seq1)
@@ -4041,14 +4011,22 @@ class pass_forwprop : public gimple_opt_pass
 {
 public:
   pass_forwprop (gcc::context *ctxt)
-    : gimple_opt_pass (pass_data_forwprop, ctxt)
+    : gimple_opt_pass (pass_data_forwprop, ctxt), last_p (false)
   {}
 
   /* opt_pass methods: */
   opt_pass * clone () final override { return new pass_forwprop (m_ctxt); }
+  void set_pass_param (unsigned int n, bool param) final override
+    {
+      gcc_assert (n == 0);
+      last_p = param;
+    }
   bool gate (function *) final override { return flag_tree_forwprop; }
   unsigned int execute (function *) final override;
 
+ private:
+  /* Determines whether the pass instance should set PROP_last_full_fold.  */
+  bool last_p;
 }; // class pass_forwprop
 
 unsigned int
@@ -4057,6 +4035,8 @@ pass_forwprop::execute (function *fun)
   unsigned int todoflags = 0;
 
   cfg_changed = false;
+  if (last_p)
+    fun->curr_properties |= PROP_last_full_fold;
 
   calculate_dominance_info (CDI_DOMINATORS);
 
@@ -4598,8 +4578,6 @@ pass_forwprop::execute (function *fun)
 			  cfg_changed = true;
 			changed = did_something != 0;
 		      }
-		    else if (code == BIT_FIELD_REF)
-		      changed = simplify_bitfield_ref (&gsi);
 		    else if (code == CONSTRUCTOR
 			     && TREE_CODE (TREE_TYPE (rhs1)) == VECTOR_TYPE)
 		      changed = simplify_vector_constructor (&gsi);

@@ -1,5 +1,5 @@
 ;; Constraint definitions for RISC-V target.
-;; Copyright (C) 2011-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2025 Free Software Foundation, Inc.
 ;; Contributed by Andrew Waterman (andrew@sifive.com).
 ;; Based on MIPS target for GNU compiler.
 ;;
@@ -208,6 +208,12 @@
   "A vector 5-bit unsigned immediate."
   (and (match_code "const_vector")
        (match_test "riscv_vector::const_vec_all_same_in_range_p (op, 0, 31)")))
+
+(define_constraint "vl"
+  "A uimm5 for Vector or zero for XTheadVector."
+  (and (match_code "const_int")
+       (ior (match_test "!TARGET_XTHEADVECTOR && satisfies_constraint_K (op)")
+	    (match_test "TARGET_XTHEADVECTOR && satisfies_constraint_J (op)"))))
 
 (define_constraint "Wc0"
   "@internal

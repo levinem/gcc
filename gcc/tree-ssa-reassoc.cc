@@ -1,5 +1,5 @@
 /* Reassociation for trees.
-   Copyright (C) 2005-2024 Free Software Foundation, Inc.
+   Copyright (C) 2005-2025 Free Software Foundation, Inc.
    Contributed by Daniel Berlin <dan@dberlin.org>
 
 This file is part of GCC.
@@ -3362,7 +3362,7 @@ optimize_range_tests_to_bit_test (enum tree_code opcode, int first, int length,
 	    continue;
 	  highj = ranges[j].high;
 	  if (highj == NULL_TREE)
-	    highj = TYPE_MAX_VALUE (type);
+	    highj = TYPE_MAX_VALUE (TREE_TYPE (lowj));
 	  wide_int mask2;
 	  exp2 = extract_bit_test_mask (ranges[j].exp, prec, lowi, lowj,
 					highj, &mask2, NULL);

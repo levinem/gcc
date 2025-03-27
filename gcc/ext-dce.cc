@@ -1,5 +1,5 @@
 /* RTL dead zero/sign extension (code) elimination.
-   Copyright (C) 2000-2022 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -34,6 +34,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "df.h"
 #include "print-rtl.h"
 #include "dbgcnt.h"
+#include "diagnostic-core.h"
 
 /* These should probably move into a C++ class.  */
 static vec<bitmap_head> livein;
@@ -205,8 +206,8 @@ ext_dce_process_sets (rtx_insn *insn, rtx obj, bitmap live_tmp)
 
 	  /* We don't support vector destinations or destinations
 	     wider than DImode.  */
-	  scalar_int_mode outer_mode;
-	  if (!is_a <scalar_int_mode> (GET_MODE (x), &outer_mode)
+	  scalar_mode outer_mode;
+	  if (!is_a <scalar_mode> (GET_MODE (x), &outer_mode)
 	      || GET_MODE_BITSIZE (outer_mode) > HOST_BITS_PER_WIDE_INT)
 	    {
 	      /* Skip the subrtxs of this destination.  There is
@@ -238,7 +239,7 @@ ext_dce_process_sets (rtx_insn *insn, rtx obj, bitmap live_tmp)
 	      /* The inner mode might be larger, just punt for
 		 that case.  Remember, we can not just continue to process
 		 the inner RTXs due to the STRICT_LOW_PART.  */
-	      if (!is_a <scalar_int_mode> (GET_MODE (SUBREG_REG (x)), &outer_mode)
+	      if (!is_a <scalar_mode> (GET_MODE (SUBREG_REG (x)), &outer_mode)
 		  || GET_MODE_BITSIZE (outer_mode) > HOST_BITS_PER_WIDE_INT)
 		{
 		  /* Skip the subrtxs of the STRICT_LOW_PART.  We can't
@@ -292,7 +293,7 @@ ext_dce_process_sets (rtx_insn *insn, rtx obj, bitmap live_tmp)
 		 subreg and restart within the SET processing rather than
 		 the top of the loop which just complicates the flow even
 		 more.  */
-	      if (!is_a <scalar_int_mode> (GET_MODE (SUBREG_REG (x)), &outer_mode)
+	      if (!is_a <scalar_mode> (GET_MODE (SUBREG_REG (x)), &outer_mode)
 		  || GET_MODE_BITSIZE (outer_mode) > HOST_BITS_PER_WIDE_INT)
 		{
 		  skipped_dest = true;
@@ -1088,16 +1089,9 @@ ext_dce_rd_transfer_n (int bb_index)
 
   ext_dce_process_bb (bb);
 
-  /* We may have narrowed the set of live objects at the start
-     of this block.  If so, update the bitmaps and indicate to
-     the generic dataflow code that something changed.  */
-  if (!bitmap_equal_p (&livein[bb_index], livenow))
-    {
-      bitmap_copy (&livein[bb_index], livenow);
-      return true;
-    }
-
-  return false;
+  /* We only allow widening the set of objects live at the start
+     of a block.  Otherwise we run the risk of not converging.  */
+  return bitmap_ior_into (&livein[bb_index], livenow);
 }
 
 /* Dummy function for the df_simple_dataflow API.  */
@@ -1110,6 +1104,21 @@ static bool ext_dce_rd_confluence_n (edge) { return true; }
 void
 ext_dce_execute (void)
 {
+  /* Limit the amount of memory we use for livein, with 4 bits per
+     reg per basic-block including overhead that maps to one byte
+     per reg per basic-block.  */
+  uint64_t memory_request
+    = (uint64_t)n_basic_blocks_for_fn (cfun) * max_reg_num ();
+  if (memory_request / 1024 > (uint64_t)param_max_gcse_memory)
+    {
+      warning (OPT_Wdisabled_optimization,
+	       "ext-dce disabled: %d basic blocks and %d registers; "
+	       "increase %<--param max-gcse-memory%> above %wu",
+	       n_basic_blocks_for_fn (cfun), max_reg_num (),
+	       memory_request / 1024);
+      return;
+    }
+
   /* Some settings of SUBREG_PROMOTED_VAR_P are actively harmful
      to this pass.  Clear it for those cases.  */
   maybe_clear_subreg_promoted_p ();

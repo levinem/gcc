@@ -1,5 +1,5 @@
 /* Routines for manipulation of expression nodes.
-   Copyright (C) 2000-2024 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    Contributed by Andy Vaught
 
 This file is part of GCC.
@@ -466,6 +466,7 @@ free_expr0 (gfc_expr *e)
       switch (e->ts.type)
 	{
 	case BT_INTEGER:
+	case BT_UNSIGNED:
 	  mpz_clear (e->value.integer);
 	  break;
 
@@ -628,6 +629,8 @@ gfc_free_ref_list (gfc_ref *p)
 	      gfc_free_expr (p->u.ar.stride[i]);
 	    }
 
+	  gfc_free_expr (p->u.ar.stat);
+	  gfc_free_expr (p->u.ar.team);
 	  break;
 
 	case REF_SUBSTRING:
@@ -976,6 +979,14 @@ gfc_type_convert_binary (gfc_expr *e, int wconversion)
       if (op1->ts.kind == op2->ts.kind)
 	{
 	  /* No type conversions.  */
+	  e->ts = op1->ts;
+	  goto done;
+	}
+
+      /* Unsigned exponentiation is special, we need the type of the first
+	 argument here because of modulo arithmetic.  */
+      if (op1->ts.type == BT_UNSIGNED && e->value.op.op == INTRINSIC_POWER)
+	{
 	  e->ts = op1->ts;
 	  goto done;
 	}
@@ -4364,16 +4375,24 @@ gfc_check_pointer_assign (gfc_expr *lvalue, gfc_expr *rvalue,
 
       /* If this can be determined, check that the target must be at least as
 	 large as the pointer assigned to it is.  */
-      if (gfc_array_size (lvalue, &lsize)
-	  && gfc_array_size (rvalue, &rsize)
-	  && mpz_cmp (rsize, lsize) < 0)
+      bool got_lsize = gfc_array_size (lvalue, &lsize);
+      bool got_rsize = got_lsize && gfc_array_size (rvalue, &rsize);
+      bool too_small = got_rsize && mpz_cmp (rsize, lsize) < 0;
+
+      if (too_small)
 	{
 	  gfc_error ("Rank remapping target is smaller than size of the"
 		     " pointer (%ld < %ld) at %L",
 		     mpz_get_si (rsize), mpz_get_si (lsize),
 		     &lvalue->where);
+	  mpz_clear (lsize);
+	  mpz_clear (rsize);
 	  return false;
 	}
+      if (got_lsize)
+	mpz_clear (lsize);
+      if (got_rsize)
+	mpz_clear (rsize);
 
       /* An assumed rank target is an experimental F202y feature.  */
       if (rvalue->rank == -1 && !(gfc_option.allow_std & GFC_STD_F202Y))
@@ -5009,28 +5028,44 @@ is_non_empty_structure_constructor (gfc_expr * e)
 bool
 gfc_has_default_initializer (gfc_symbol *der)
 {
+  static hash_set<gfc_symbol *> seen_derived_types;
   gfc_component *c;
+  /* The rewrite to a result variable and breaks is only needed, because
+     there is no scope_guard in C++ yet.  */
+  bool result = false;
 
   gcc_assert (gfc_fl_struct (der->attr.flavor));
+  seen_derived_types.add (der);
   for (c = der->components; c; c = c->next)
-    if (gfc_bt_struct (c->ts.type))
+    if (gfc_bt_struct (c->ts.type)
+	&& !seen_derived_types.contains (c->ts.u.derived))
       {
-        if (!c->attr.pointer && !c->attr.proc_pointer
-	     && !(c->attr.allocatable && der == c->ts.u.derived)
-	     && ((c->initializer
-		  && is_non_empty_structure_constructor (c->initializer))
-		 || gfc_has_default_initializer (c->ts.u.derived)))
-	  return true;
+	if (!c->attr.pointer && !c->attr.proc_pointer
+	    && !(c->attr.allocatable && der == c->ts.u.derived)
+	    && ((c->initializer
+		 && is_non_empty_structure_constructor (c->initializer))
+		|| gfc_has_default_initializer (c->ts.u.derived)))
+	  {
+	    result = true;
+	    break;
+	  }
 	if (c->attr.pointer && c->initializer)
-	  return true;
+	  {
+	    result = true;
+	    break;
+	  }
       }
     else
       {
-        if (c->initializer)
-	  return true;
+	if (c->initializer)
+	  {
+	    result = true;
+	    break;
+	  }
       }
 
-  return false;
+  seen_derived_types.remove (der);
+  return result;
 }
 
 
@@ -5453,11 +5488,14 @@ gfc_traverse_expr (gfc_expr *expr, gfc_symbol *sym,
   if ((*func) (expr, sym, &f))
     return true;
 
-  if (expr->ts.type == BT_CHARACTER
-	&& expr->ts.u.cl
-	&& expr->ts.u.cl->length
-	&& expr->ts.u.cl->length->expr_type != EXPR_CONSTANT
-	&& gfc_traverse_expr (expr->ts.u.cl->length, sym, func, f))
+  /* Descend into length type parameter of character expressions only for
+     non-negative f.  */
+  if (f >= 0
+      && expr->ts.type == BT_CHARACTER
+      && expr->ts.u.cl
+      && expr->ts.u.cl->length
+      && expr->ts.u.cl->length->expr_type != EXPR_CONSTANT
+      && gfc_traverse_expr (expr->ts.u.cl->length, sym, func, f))
     return true;
 
   switch (expr->expr_type)
@@ -5537,13 +5575,14 @@ gfc_traverse_expr (gfc_expr *expr, gfc_symbol *sym,
 	  break;
 
 	case REF_COMPONENT:
-	  if (ref->u.c.component->ts.type == BT_CHARACTER
-		&& ref->u.c.component->ts.u.cl
-		&& ref->u.c.component->ts.u.cl->length
-		&& ref->u.c.component->ts.u.cl->length->expr_type
-		     != EXPR_CONSTANT
-		&& gfc_traverse_expr (ref->u.c.component->ts.u.cl->length,
-				      sym, func, f))
+	  if (f >= 0
+	      && ref->u.c.component->ts.type == BT_CHARACTER
+	      && ref->u.c.component->ts.u.cl
+	      && ref->u.c.component->ts.u.cl->length
+	      && ref->u.c.component->ts.u.cl->length->expr_type
+	      != EXPR_CONSTANT
+	      && gfc_traverse_expr (ref->u.c.component->ts.u.cl->length,
+				    sym, func, f))
 	    return true;
 
 	  if (ref->u.c.component->as)
@@ -5807,18 +5846,20 @@ gfc_ref_this_image (gfc_ref *ref)
 }
 
 gfc_expr *
-gfc_find_team_co (gfc_expr *e)
+gfc_find_team_co (gfc_expr *e, enum gfc_array_ref_team_type req_team_type)
 {
   gfc_ref *ref;
 
   for (ref = e->ref; ref; ref = ref->next)
-    if (ref->type == REF_ARRAY && ref->u.ar.codimen > 0)
+    if (ref->type == REF_ARRAY && ref->u.ar.codimen > 0
+	&& ref->u.ar.team_type == req_team_type)
       return ref->u.ar.team;
 
-  if (e->value.function.actual->expr)
+  if (e->expr_type == EXPR_FUNCTION && e->value.function.actual->expr)
     for (ref = e->value.function.actual->expr->ref; ref;
 	 ref = ref->next)
-      if (ref->type == REF_ARRAY && ref->u.ar.codimen > 0)
+      if (ref->type == REF_ARRAY && ref->u.ar.codimen > 0
+	  && ref->u.ar.team_type == req_team_type)
 	return ref->u.ar.team;
 
   return NULL;

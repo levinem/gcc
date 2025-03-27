@@ -1,5 +1,5 @@
 /* ACLE support for AArch64 SVE
-   Copyright (C) 2018-2024 Free Software Foundation, Inc.
+   Copyright (C) 2018-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -649,6 +649,8 @@ public:
   gcall *redirect_call (const function_instance &);
   gimple *redirect_pred_x ();
   gimple *fold_pfalse ();
+  gimple *convert_and_fold (tree, gimple *(*) (gimple_folder &,
+					       tree, vec<tree> &));
 
   gimple *fold_to_cstu (poly_uint64);
   gimple *fold_to_pfalse ();
@@ -820,24 +822,17 @@ public:
   virtual bool check (function_checker &) const { return true; }
 };
 
-/* RAII class for enabling enough SVE features to define the built-in
-   types and implement the arm_sve.h pragma.  */
-class sve_switcher : public aarch64_simd_switcher
+/* RAII class for temporarily disabling the effect of any -fpack-struct option.
+   This is used to ensure that sve vector tuple types are defined with the
+   correct alignment.  */
+class sve_alignment_switcher
 {
 public:
-  sve_switcher (aarch64_feature_flags = 0);
-  ~sve_switcher ();
+  sve_alignment_switcher ();
+  ~sve_alignment_switcher ();
 
 private:
   unsigned int m_old_maximum_field_alignment;
-  bool m_old_have_regs_of_mode[MAX_MACHINE_MODE];
-};
-
-/* Extends sve_switch enough for defining arm_sme.h.  */
-class sme_switcher : public sve_switcher
-{
-public:
-  sme_switcher () : sve_switcher (AARCH64_FL_SME) {}
 };
 
 extern const type_suffix_info type_suffixes[NUM_TYPE_SUFFIXES + 1];
@@ -892,6 +887,14 @@ tuple_type_field (tree type)
     if (TREE_CODE (field) == FIELD_DECL)
       return field;
   gcc_unreachable ();
+}
+
+/* Return the vector type associated with TYPE.  */
+inline tree
+get_vector_type (sve_type type)
+{
+  auto vector_type = type_suffixes[type.type].vector_type;
+  return acle_vector_types[type.num_vectors - 1][vector_type];
 }
 
 inline function_instance::

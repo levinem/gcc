@@ -1,5 +1,5 @@
 /* Basic IPA optimizations based on profile.
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -881,13 +881,6 @@ ipa_profile (void)
 			    fprintf (dump_file,
 				     "Not speculating: "
 				     "probability is too low.\n");
-			}
-		      else if (!e->maybe_hot_p ())
-			{
-			  nuseless++;
-			  if (dump_file)
-			    fprintf (dump_file,
-				     "Not speculating: call is cold.\n");
 			}
 		      else if (n2->get_availability () <= AVAIL_INTERPOSABLE
 			       && n2->can_be_discarded_p ())

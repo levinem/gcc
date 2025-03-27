@@ -1,5 +1,5 @@
 /* SSA Dominator optimizations for trees
-   Copyright (C) 2001-2024 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@redhat.com>
 
 This file is part of GCC.
@@ -2454,7 +2454,9 @@ dom_opt_dom_walker::optimize_stmt (basic_block bb, gimple_stmt_iterator *si,
 
       /* Perform simple redundant store elimination.  */
       if (gimple_assign_single_p (stmt)
-	  && TREE_CODE (gimple_assign_lhs (stmt)) != SSA_NAME)
+	  && TREE_CODE (gimple_assign_lhs (stmt)) != SSA_NAME
+	  && (TREE_CODE (gimple_assign_lhs (stmt)) != VAR_DECL
+	      || !DECL_HARD_REGISTER (gimple_assign_lhs (stmt))))
 	{
 	  tree lhs = gimple_assign_lhs (stmt);
 	  tree rhs = gimple_assign_rhs1 (stmt);

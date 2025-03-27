@@ -1,5 +1,5 @@
 /* Build expressions with type checking for C compiler.
-   Copyright (C) 1987-2024 Free Software Foundation, Inc.
+   Copyright (C) 1987-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -116,8 +116,8 @@ static void push_member_name (tree);
 static int spelling_length (void);
 static char *print_spelling (char *);
 static void warning_init (location_t, int, const char *);
-static tree digest_init (location_t, tree, tree, tree, bool, bool, bool, bool,
-			 bool, bool);
+static tree digest_init (location_t, tree, tree, tree, tree, bool, bool, bool,
+			 bool, bool, bool);
 static void output_init_element (location_t, tree, tree, bool, tree, tree, bool,
 				 bool, struct obstack *);
 static void output_pending_init_elements (int, struct obstack *);
@@ -1812,6 +1812,10 @@ tagged_types_tu_compatible_p (const_tree t1, const_tree t2,
      to go look at the original type.  */
   t1 = c_type_original (t1);
   t2 = c_type_original (t2);
+  gcc_checking_assert (!TYPE_NAME (t1)
+		       || TREE_CODE (TYPE_NAME (t1)) == IDENTIFIER_NODE);
+  gcc_checking_assert (!TYPE_NAME (t2)
+		       || TREE_CODE (TYPE_NAME (t2)) == IDENTIFIER_NODE);
 
   if (TYPE_NAME (t1) != TYPE_NAME (t2))
     return false;
@@ -1932,6 +1936,9 @@ tagged_types_tu_compatible_p (const_tree t1, const_tree t2,
 		ft1 = DECL_BIT_FIELD_TYPE (s1);
 		ft2 = DECL_BIT_FIELD_TYPE (s2);
 	      }
+
+	    if (TREE_CODE (ft1) == ERROR_MARK || TREE_CODE (ft2) == ERROR_MARK)
+	      return false;
 
 	    data->anon_field = !DECL_NAME (s1);
 	    data->pointedto = false;
@@ -3737,14 +3744,30 @@ build_function_call (location_t loc, tree function, tree params)
   return ret;
 }
 
-/* Give a note about the location of the declaration of DECL.  */
+/* Give a note about the location of the declaration of DECL,
+   or, failing that, a pertinent declaration for FUNCTION_EXPR.  */
 
 static void
-inform_declaration (tree decl)
+inform_declaration (tree decl, tree function_expr)
 {
   if (decl && (TREE_CODE (decl) != FUNCTION_DECL
 	       || !DECL_IS_UNDECLARED_BUILTIN (decl)))
     inform (DECL_SOURCE_LOCATION (decl), "declared here");
+  else if (function_expr)
+    switch (TREE_CODE (function_expr))
+      {
+      default:
+	break;
+      case COMPONENT_REF:
+	/* Show the decl of the pertinent field (e.g. for callback
+	   fields in a struct.  */
+	{
+	  tree field_decl = TREE_OPERAND (function_expr, 1);
+	  if (location_t loc = DECL_SOURCE_LOCATION (field_decl))
+	    inform (loc, "declared here");
+	}
+	break;
+      }
 }
 
 /* C implementation of callback for use when checking param types.  */
@@ -3819,10 +3842,11 @@ build_function_call_vec (location_t loc, vec<location_t> arg_loc,
 		  function);
       else if (DECL_P (function))
 	{
+	  auto_diagnostic_group d;
 	  error_at (loc,
 		    "called object %qD is not a function or function pointer",
 		    function);
-	  inform_declaration (function);
+	  inform_declaration (function, NULL_TREE);
 	}
       else
 	error_at (loc,
@@ -4276,25 +4300,37 @@ convert_arguments (location_t loc, vec<location_t> arg_loc, tree fntype,
 
       if (type == void_type_node)
 	{
+	  auto_diagnostic_group d;
+	  int num_expected = parmnum;
+	  int num_actual = values->length ();
+	  gcc_rich_location rich_loc (loc);
+	  if (ploc != input_location)
+	    rich_loc.add_range (ploc);
 	  if (selector)
-	    error_at (loc, "too many arguments to method %qE", selector);
+	    error_at (&rich_loc,
+		      "too many arguments to method %qE; expected %i, have %i",
+		      selector, num_expected, num_actual);
 	  else
-	    error_at (loc, "too many arguments to function %qE", function);
-	  inform_declaration (fundecl);
+	    error_at (&rich_loc,
+		      "too many arguments to function %qE; expected %i, have %i",
+		      function, num_expected, num_actual);
+	  inform_declaration (fundecl, function);
 	  return error_args ? -1 : (int) parmnum;
 	}
 
       if (builtin_type == void_type_node)
 	{
+	  auto_diagnostic_group d;
 	  if (warning_at (loc, OPT_Wbuiltin_declaration_mismatch,
 			  "too many arguments to built-in function %qE "
 			  "expecting %d", function, parmnum))
-	    inform_declaration (fundecl);
+	    inform_declaration (fundecl, function);
 	  builtin_typetail = NULL_TREE;
 	}
 
       if (!typetail && parmnum == 0 && !TYPE_NO_NAMED_ARGS_STDARG_P (fntype))
 	{
+	  auto_diagnostic_group d;
 	  bool warned;
 	  if (selector)
 	    warned = warning_at (loc, OPT_Wdeprecated_non_prototype,
@@ -4307,7 +4343,7 @@ convert_arguments (location_t loc, vec<location_t> arg_loc, tree fntype,
 				 " for function %qE declared without parameters",
 				 function);
 	  if (warned)
-	    inform_declaration (fundecl);
+	    inform_declaration (fundecl, function);
 	}
 
       if (selector && argnum > 2)
@@ -4437,8 +4473,33 @@ convert_arguments (location_t loc, vec<location_t> arg_loc, tree fntype,
 
   if (typetail != NULL_TREE && TREE_VALUE (typetail) != void_type_node)
     {
-      error_at (loc, "too few arguments to function %qE", function);
-      inform_declaration (fundecl);
+      /* Not enough args.
+	 Determine minimum number of arguments required.  */
+      int min_expected_num = 0;
+      bool at_least_p = false;
+      tree iter = typelist;
+      while (true)
+	{
+	  if (!iter)
+	    {
+	      /* Variadic arguments; stop iterating.  */
+	      at_least_p = true;
+	      break;
+	    }
+	  if (iter == void_list_node)
+	    /* End of arguments; stop iterating.  */
+	    break;
+	  ++min_expected_num;
+	  iter = TREE_CHAIN (iter);
+	}
+      auto_diagnostic_group d;
+      int actual_num = vec_safe_length (values);
+      error_at (loc,
+		at_least_p
+		? G_("too few arguments to function %qE; expected at least %i, have %i")
+		: G_("too few arguments to function %qE; expected %i, have %i"),
+		function, min_expected_num, actual_num);
+      inform_declaration (fundecl, function);
       return -1;
     }
 
@@ -4448,10 +4509,11 @@ convert_arguments (location_t loc, vec<location_t> arg_loc, tree fntype,
       for (tree t = builtin_typetail; t; t = TREE_CHAIN (t))
 	++nargs;
 
+      auto_diagnostic_group d;
       if (warning_at (loc, OPT_Wbuiltin_declaration_mismatch,
 		      "too few arguments to built-in function %qE "
 		      "expecting %u", function, nargs - 1))
-	inform_declaration (fundecl);
+	inform_declaration (fundecl, function);
     }
 
   return error_args ? -1 : (int) parmnum;
@@ -6789,7 +6851,7 @@ build_c_cast (location_t loc, tree type, tree expr)
 	  t = build_constructor_single (type, field, t);
 	  if (!maybe_const)
 	    t = c_wrap_maybe_const (t, true);
-	  t = digest_init (loc, type, t,
+	  t = digest_init (loc, field, type, t,
 			   NULL_TREE, false, false, false, true, false, false);
 	  TREE_CONSTANT (t) = TREE_CONSTANT (value);
 	  return t;
@@ -7422,7 +7484,7 @@ error_init (location_t loc, const char *gmsgid, ...)
 
 /* Used to implement pedwarn_init and permerror_init.  */
 
-static void ATTRIBUTE_GCC_DIAG (3,0)
+static bool ATTRIBUTE_GCC_DIAG (3,0)
 pedwarn_permerror_init (location_t loc, int opt, const char *gmsgid,
 			va_list *ap, diagnostic_t kind)
 {
@@ -7432,9 +7494,13 @@ pedwarn_permerror_init (location_t loc, int opt, const char *gmsgid,
   location_t exploc = expansion_point_location_if_in_system_header (loc);
   auto_diagnostic_group d;
   bool warned = emit_diagnostic_valist (kind, exploc, opt, gmsgid, ap);
-  char *ofwhat = print_spelling ((char *) alloca (spelling_length () + 1));
-  if (*ofwhat && warned)
-    inform (exploc, "(near initialization for %qs)", ofwhat);
+  if (warned)
+    {
+      char *ofwhat = print_spelling ((char *) alloca (spelling_length () + 1));
+      if (*ofwhat)
+	inform (exploc, "(near initialization for %qs)", ofwhat);
+    }
+  return warned;
 }
 
 /* Issue a pedantic warning for a bad initializer component.  OPT is
@@ -7442,24 +7508,26 @@ pedwarn_permerror_init (location_t loc, int opt, const char *gmsgid,
    it is unconditionally given.  GMSGID identifies the message.  The
    component name is taken from the spelling stack.  */
 
-static void ATTRIBUTE_GCC_DIAG (3,0)
+static bool ATTRIBUTE_GCC_DIAG (3,0)
 pedwarn_init (location_t loc, int opt, const char *gmsgid, ...)
 {
   va_list ap;
   va_start (ap, gmsgid);
-  pedwarn_permerror_init (loc, opt, gmsgid, &ap, DK_PEDWARN);
+  bool warned = pedwarn_permerror_init (loc, opt, gmsgid, &ap, DK_PEDWARN);
   va_end (ap);
+  return warned;
 }
 
 /* Like pedwarn_init, but issue a permerror.  */
 
-static void ATTRIBUTE_GCC_DIAG (3,0)
+static bool ATTRIBUTE_GCC_DIAG (3,0)
 permerror_init (location_t loc, int opt, const char *gmsgid, ...)
 {
   va_list ap;
   va_start (ap, gmsgid);
-  pedwarn_permerror_init (loc, opt, gmsgid, &ap, DK_PERMERROR);
+  bool warned = pedwarn_permerror_init (loc, opt, gmsgid, &ap, DK_PERMERROR);
   va_end (ap);
+  return warned;
 }
 
 /* Issue a warning for a bad initializer component.
@@ -7483,9 +7551,12 @@ warning_init (location_t loc, int opt, const char *gmsgid)
 
   /* The gmsgid may be a format string with %< and %>. */
   warned = warning_at (exploc, opt, gmsgid);
-  ofwhat = print_spelling ((char *) alloca (spelling_length () + 1));
-  if (*ofwhat && warned)
-    inform (exploc, "(near initialization for %qs)", ofwhat);
+  if (warned)
+    {
+      ofwhat = print_spelling ((char *) alloca (spelling_length () + 1));
+      if (*ofwhat)
+	inform (exploc, "(near initialization for %qs)", ofwhat);
+    }
 }
 
 /* If TYPE is an array type and EXPR is a parenthesized string
@@ -7594,6 +7665,62 @@ maybe_warn_builtin_no_proto_arg (location_t loc, tree fundecl, int parmnum,
     inform (DECL_SOURCE_LOCATION (fundecl),
 	    "built-in %qD declared here",
 	    fundecl);
+}
+
+/* Print a declaration in quotes, with the given highlight_color.
+   Analogous to handler for %qD, but with a specific highlight color.  */
+
+class pp_element_quoted_decl : public pp_element
+{
+public:
+  pp_element_quoted_decl (tree decl, const char *highlight_color)
+  : m_decl (decl),
+    m_highlight_color (highlight_color)
+  {
+  }
+
+  void add_to_phase_2 (pp_markup::context &ctxt) override
+  {
+    ctxt.begin_quote ();
+    ctxt.begin_highlight_color (m_highlight_color);
+
+    print_decl (ctxt);
+
+    ctxt.end_highlight_color ();
+    ctxt.end_quote ();
+  }
+
+  void print_decl (pp_markup::context &ctxt)
+  {
+    pretty_printer *const pp = &ctxt.m_pp;
+    pp->set_padding (pp_none);
+    if (DECL_NAME (m_decl))
+      pp_identifier (pp, lang_hooks.decl_printable_name (m_decl, 2));
+    else
+      pp_string (pp, _("({anonymous})"));
+  }
+
+private:
+  tree m_decl;
+  const char *m_highlight_color;
+};
+
+/* If TYPE is from a typedef, issue a note showing the location
+   to the user.
+   Use HIGHLIGHT_COLOR as the highlight color.  */
+
+static void
+maybe_inform_typedef_location (tree type, const char *highlight_color)
+{
+  if (!typedef_variant_p (type))
+    return;
+
+  tree typedef_decl = TYPE_NAME (type);
+  gcc_assert (TREE_CODE (typedef_decl) == TYPE_DECL);
+  gcc_rich_location richloc (DECL_SOURCE_LOCATION (typedef_decl),
+			     nullptr, highlight_color);
+  pp_element_quoted_decl e_typedef_decl (typedef_decl, highlight_color);
+  inform (&richloc, "%e declared here", &e_typedef_decl);
 }
 
 /* Convert value RHS to type TYPE as preparation for an assignment to
@@ -7831,6 +7958,9 @@ convert_for_assignment (location_t location, location_t expr_loc, tree type,
   if (TYPE_MAIN_VARIANT (type) == TYPE_MAIN_VARIANT (rhstype))
     {
       warn_for_address_of_packed_member (type, orig_rhs);
+      if (type != rhstype)
+	/* Convert RHS to TYPE in order to not lose TYPE in diagnostics.  */
+	rhs = convert (type, rhs);
       return rhs;
     }
 
@@ -8416,58 +8546,96 @@ convert_for_assignment (location_t location, location_t expr_loc, tree type,
       /* Avoid warning about the volatile ObjC EH puts on decls.  */
       else if (!objc_ok)
 	{
+	  auto_diagnostic_group d;
+	  bool warned = false;
+	  pp_markup::element_expected_type e_type (type);
+	  pp_markup::element_actual_type e_rhstype (rhstype);
 	  switch (errtype)
 	    {
 	    case ic_argpass:
 	      {
-		auto_diagnostic_group d;
 		range_label_for_type_mismatch rhs_label (rhstype, type);
 		gcc_rich_location richloc (expr_loc, &rhs_label,
 					   highlight_colors::actual);
-		if (permerror_opt (&richloc, OPT_Wincompatible_pointer_types,
+		warned
+		  = permerror_opt (&richloc, OPT_Wincompatible_pointer_types,
 				   "passing argument %d of %qE from "
 				   "incompatible pointer type",
-				   parmnum, rname))
+				   parmnum, rname);
+		if (warned)
 		  inform_for_arg (fundecl, expr_loc, parmnum, type, rhstype);
 	      }
 	      break;
 	    case ic_assign:
 	      if (bltin)
-		permerror_opt (location, OPT_Wincompatible_pointer_types,
-			       "assignment to %qT from pointer to "
-			       "%qD with incompatible type %qT",
-			       type, bltin, rhstype);
+		warned
+		  = permerror_opt (location, OPT_Wincompatible_pointer_types,
+				   "assignment to %e from pointer to "
+				   "%qD with incompatible type %e",
+				   &e_type, bltin, &e_rhstype);
 	      else
-		permerror_opt (location, OPT_Wincompatible_pointer_types,
-			       "assignment to %qT from incompatible pointer "
-			       "type %qT", type, rhstype);
+		warned
+		  = permerror_opt (location, OPT_Wincompatible_pointer_types,
+				   "assignment to %e from incompatible "
+				   "pointer type %e",
+				   &e_type, &e_rhstype);
 	      break;
 	    case ic_init:
 	    case ic_init_const:
 	      if (bltin)
-		permerror_init (location, OPT_Wincompatible_pointer_types,
-				"initialization of %qT from pointer to "
-				"%qD with incompatible type %qT",
-				type, bltin, rhstype);
+		warned
+		  = permerror_init (location, OPT_Wincompatible_pointer_types,
+				    "initialization of %e from pointer to "
+				    "%qD with incompatible type %e",
+				    &e_type, bltin, &e_rhstype);
 	      else
-		permerror_init (location, OPT_Wincompatible_pointer_types,
-				"initialization of %qT from incompatible "
-				"pointer type %qT",
-				type, rhstype);
+		warned
+		  = permerror_init (location, OPT_Wincompatible_pointer_types,
+				    "initialization of %e from incompatible "
+				    "pointer type %e",
+				    &e_type, &e_rhstype);
 	      break;
 	    case ic_return:
 	      if (bltin)
-		permerror_opt (location, OPT_Wincompatible_pointer_types,
-			       "returning pointer to %qD of type %qT from "
-			       "a function with incompatible type %qT",
-			       bltin, rhstype, type);
+		warned
+		  = permerror_opt (location, OPT_Wincompatible_pointer_types,
+				   "returning pointer to %qD of type %e from "
+				   "a function with incompatible type %e",
+				   bltin, &e_rhstype, &e_type);
 	      else
-		permerror_opt (location, OPT_Wincompatible_pointer_types,
-			       "returning %qT from a function with "
-			       "incompatible return type %qT", rhstype, type);
+		warned
+		  = permerror_opt (location, OPT_Wincompatible_pointer_types,
+				   "returning %e from a function with "
+				   "incompatible return type %e",
+				   &e_rhstype, &e_type);
 	      break;
 	    default:
 	      gcc_unreachable ();
+	    }
+	  if (warned)
+	    {
+	      /* If the mismatching function type is a pointer to a function,
+		 try to show the decl of the function.  */
+	      if (TREE_CODE (rhs) == ADDR_EXPR
+		  && TREE_CODE (TREE_OPERAND (rhs, 0)) == FUNCTION_DECL)
+		{
+		  tree rhs_fndecl = TREE_OPERAND (rhs, 0);
+		  if (!DECL_IS_UNDECLARED_BUILTIN (rhs_fndecl))
+		    {
+		      gcc_rich_location richloc
+			(DECL_SOURCE_LOCATION (rhs_fndecl), nullptr,
+			 highlight_colors::actual);
+		      pp_element_quoted_decl e_rhs_fndecl
+			(rhs_fndecl, highlight_colors::actual);
+		      inform (&richloc,
+			      "%e declared here", &e_rhs_fndecl);
+		    }
+		}
+	      /* If either/both of the types are typedefs, show the decl.  */
+	      maybe_inform_typedef_location (type,
+					     highlight_colors::expected);
+	      maybe_inform_typedef_location (rhstype,
+					     highlight_colors::actual);
 	    }
 	}
 
@@ -8713,8 +8881,8 @@ store_init_value (location_t init_loc, tree decl, tree init, tree origtype)
     }
   bool constexpr_p = (VAR_P (decl)
 		      && C_DECL_DECLARED_CONSTEXPR (decl));
-  value = digest_init (init_loc, type, init, origtype, npc, int_const_expr,
-		       arith_const_expr, true,
+  value = digest_init (init_loc, decl, type, init, origtype, npc,
+		       int_const_expr, arith_const_expr, true,
 		       TREE_STATIC (decl) || constexpr_p, constexpr_p);
 
   /* Store the expression if valid; else report error.  */
@@ -9040,7 +9208,8 @@ check_constexpr_init (location_t loc, tree type, tree init,
 	      "type of object");
 }
 
-/* Digest the parser output INIT as an initializer for type TYPE.
+/* Digest the parser output INIT as an initializer for type TYPE
+   initializing DECL.
    Return a C expression of type TYPE to represent the initial value.
 
    If ORIGTYPE is not NULL_TREE, it is the original type of INIT.
@@ -9063,8 +9232,8 @@ check_constexpr_init (location_t loc, tree type, tree init,
    on initializers for 'constexpr' objects apply.  */
 
 static tree
-digest_init (location_t init_loc, tree type, tree init, tree origtype,
-    	     bool null_pointer_constant, bool int_const_expr,
+digest_init (location_t init_loc, tree decl, tree type, tree init,
+	     tree origtype, bool null_pointer_constant, bool int_const_expr,
 	     bool arith_const_expr, bool strict_string,
 	     bool require_constant, bool require_constexpr)
 {
@@ -9199,27 +9368,38 @@ digest_init (location_t init_loc, tree type, tree init, tree origtype,
 	      && TREE_CODE (TYPE_SIZE (type)) == INTEGER_CST)
 	    {
 	      unsigned HOST_WIDE_INT len = TREE_STRING_LENGTH (inside_init);
-	      unsigned unit = TYPE_PRECISION (typ1) / BITS_PER_UNIT;
 
-	      /* Subtract the size of a single (possibly wide) character
-		 because it's ok to ignore the terminating null char
-		 that is counted in the length of the constant.  */
-	      if (compare_tree_int (TYPE_SIZE_UNIT (type), len - unit) < 0)
-		pedwarn_init (init_loc, 0,
-			      ("initializer-string for array of %qT "
-			       "is too long"), typ1);
-	      else if (warn_unterminated_string_initialization
-		       && compare_tree_int (TYPE_SIZE_UNIT (type), len) < 0)
-		warning_at (init_loc, OPT_Wunterminated_string_initialization,
-			    ("initializer-string for array of %qT "
-			     "is too long"), typ1);
 	      if (compare_tree_int (TYPE_SIZE_UNIT (type), len) < 0)
 		{
-		  unsigned HOST_WIDE_INT size
+		  unsigned HOST_WIDE_INT avail
 		    = tree_to_uhwi (TYPE_SIZE_UNIT (type));
+		  unsigned unit = TYPE_PRECISION (typ1) / BITS_PER_UNIT;
 		  const char *p = TREE_STRING_POINTER (inside_init);
 
-		  inside_init = build_string (size, p);
+		  /* Construct truncated string.  */
+		  inside_init = build_string (avail, p);
+
+		  /* Subtract the size of a single (possibly wide) character
+		     because it may be ok to ignore the terminating NUL char
+		     that is counted in the length of the constant.  */
+		  if (len - unit > avail)
+		    pedwarn_init (init_loc, 0,
+				  "initializer-string for array of %qT "
+				  "is too long (%wu chars into %wu "
+				  "available)", typ1, len, avail);
+		  else if (warn_cxx_compat)
+		    warning_at (init_loc, OPT_Wc___compat,
+				"initializer-string for array of %qT "
+				"is too long for C++ (%wu chars into %wu "
+				"available)", typ1, len, avail);
+		  else if (warn_unterminated_string_initialization
+			   && get_attr_nonstring_decl (decl) == NULL_TREE)
+		    warning_at (init_loc,
+				OPT_Wunterminated_string_initialization,
+				"initializer-string for array of %qT "
+				"truncates NUL terminator but destination "
+				"lacks %qs attribute (%wu chars into %wu "
+				"available)", typ1, "nonstring", len, avail);
 		}
 	    }
 
@@ -10101,23 +10281,30 @@ pop_init_level (location_t loc, int implicit,
       && !TYPE_MAX_VALUE (TYPE_DOMAIN (constructor_type)))
     {
       /* Silently discard empty initializations.  The parser will
-	 already have pedwarned for empty brackets.  */
+	 already have pedwarned for empty brackets for C17 and earlier.  */
       if (integer_zerop (constructor_unfilled_index))
 	constructor_type = NULL_TREE;
-      else
+      if (constructor_type || flag_isoc23)
 	{
-	  gcc_assert (!TYPE_SIZE (constructor_type));
+	  gcc_assert (!constructor_type || !TYPE_SIZE (constructor_type));
 
-	  if (constructor_depth > 2)
-	    error_init (loc, "initialization of flexible array member in a nested context");
-	  else
+	  if (constructor_depth <= 2)
 	    pedwarn_init (loc, OPT_Wpedantic,
 			  "initialization of a flexible array member");
+	  else if (constructor_type)
+	    error_init (loc, "initialization of flexible array member "
+			     "in a nested context");
+	  else
+	    pedwarn_init (loc, OPT_Wpedantic,
+			  "initialization of flexible array member "
+			  "in a nested context");
 
 	  /* We have already issued an error message for the existence
 	     of a flexible array member not at the end of the structure.
 	     Discard the initializer so that we do not die later.  */
-	  if (DECL_CHAIN (constructor_fields) != NULL_TREE)
+	  if (constructor_type
+	      && DECL_CHAIN (constructor_fields) != NULL_TREE
+	      && (!p->type || TREE_CODE (p->type) != UNION_TYPE))
 	    constructor_type = NULL_TREE;
 	}
     }
@@ -11244,7 +11431,11 @@ output_init_element (location_t loc, tree value, tree origtype,
   if (!require_constexpr_value
       || !npc
       || TREE_CODE (constructor_type) != POINTER_TYPE)
-    new_value = digest_init (loc, type, new_value, origtype, npc,
+    new_value = digest_init (loc,
+			     RECORD_OR_UNION_TYPE_P (constructor_type)
+			     ? field : constructor_fields
+			     ? constructor_fields : constructor_decl,
+			     type, new_value, origtype, npc,
 			     int_const_expr, arith_const_expr, strict_string,
 			     require_constant_value, require_constexpr_value);
   if (new_value == error_mark_node)
@@ -11963,6 +12154,42 @@ retry:
 	    warning (OPT_Wtraditional, "traditional C rejects initialization "
 		     "of unions");
 
+	  /* Error for non-static initialization of a flexible array member.  */
+	  if (fieldcode == ARRAY_TYPE
+	      && !require_constant_value
+	      && TYPE_SIZE (fieldtype) == NULL_TREE)
+	    {
+	      error_init (loc, "non-static initialization of a flexible "
+			  "array member");
+	      break;
+	    }
+
+	  /* Error for initialization of a flexible array member with
+	     a string constant if the structure is in an array.  E.g.:
+	     union U { int x; char y[]; };
+	     union U s[] = { { 1, "foo" } };
+	     is invalid.  */
+	  if (string_flag
+	      && fieldcode == ARRAY_TYPE
+	      && constructor_depth > 1
+	      && TYPE_SIZE (fieldtype) == NULL_TREE)
+	    {
+	      bool in_array_p = false;
+	      for (struct constructor_stack *p = constructor_stack;
+		   p && p->type; p = p->next)
+		if (TREE_CODE (p->type) == ARRAY_TYPE)
+		  {
+		    in_array_p = true;
+		    break;
+		  }
+	      if (in_array_p)
+		{
+		  error_init (loc, "initialization of flexible array "
+			      "member in a nested context");
+		  break;
+		}
+	    }
+
 	  /* Accept a string constant to initialize a subarray.  */
 	  if (value.value != NULL_TREE
 	      && fieldcode == ARRAY_TYPE
@@ -12332,6 +12559,11 @@ build_asm_expr (location_t loc, tree string, tree outputs, tree inputs,
 		}
 	    }
 	}
+      else if (output != error_mark_node && strstr (constraint, "-"))
+	{
+	  error_at (loc, "%<-%> modifier used inside of a function");
+	  output = error_mark_node;
+	}
 
       TREE_VALUE (tail) = output;
     }
@@ -12378,6 +12610,20 @@ build_asm_expr (location_t loc, tree string, tree outputs, tree inputs,
 			     "a function");
 	      input = error_mark_node;
 	    }
+	  if (constraint[0] == ':' && input != error_mark_node)
+	    {
+	      tree t = input;
+	      STRIP_NOPS (t);
+	      if (TREE_CODE (t) != ADDR_EXPR
+		  || !(TREE_CODE (TREE_OPERAND (t, 0)) == FUNCTION_DECL
+		       || (VAR_P (TREE_OPERAND (t, 0))
+			   && is_global_var (TREE_OPERAND (t, 0)))))
+		{
+		  error_at (loc, "%<:%> constraint operand is not address "
+				 "of a function or non-automatic variable");
+		  input = error_mark_node;
+		}
+	    }
 	}
       else
 	input = error_mark_node;
@@ -12402,6 +12648,11 @@ build_asm_expr (location_t loc, tree string, tree outputs, tree inputs,
 		  input = error_mark_node;
 		}
 	    }
+	}
+      else if (input != error_mark_node && strstr (constraint, "-"))
+	{
+	  error_at (loc, "%<-%> modifier used inside of a function");
+	  input = error_mark_node;
 	}
 
       TREE_VALUE (tail) = input;
@@ -12542,7 +12793,12 @@ c_finish_return (location_t loc, tree retval, tree origtype, bool musttail_p)
 
       current_function_returns_value = 1;
       if (t == error_mark_node)
-	return NULL_TREE;
+	{
+	  /* Suppress -Wreturn-type for this function.  */
+	  if (warn_return_type)
+	    suppress_warning (current_function_decl, OPT_Wreturn_type);
+	  return NULL_TREE;
+	}
 
       save = in_late_binary_op;
       if (C_BOOLEAN_TYPE_P (TREE_TYPE (res))

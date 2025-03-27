@@ -1,4 +1,4 @@
-@c Copyright (C) 2000-2024 Free Software Foundation, Inc.
+@c Copyright (C) 2000-2025 Free Software Foundation, Inc.
 @c This is part of the GCC manual.
 @c For copying conditions, see the file gcc.texi.
 
@@ -335,6 +335,13 @@ The authoritative manual on Objective-C 2.0 is available from Apple:
 
 For more information concerning the history of Objective-C that is
 available online, see @uref{https://gcc.gnu.org/readings.html}
+
+@cindex COBOL
+@section COBOL Language
+
+As of the GCC 15 release, GCC supports the ISO COBOL language standard
+(ISO/IEC 1989:2023). It includes some support for compatibility with
+other COBOL compilers via the @option{-dialect} option.
 
 @section Go Language
 

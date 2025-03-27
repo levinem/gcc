@@ -1,5 +1,5 @@
 /* Check functions
-   Copyright (C) 2002-2024 Free Software Foundation, Inc.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
    Contributed by Andy Vaught & Katherine Holcomb
 
 This file is part of GCC.
@@ -1829,6 +1829,42 @@ gfc_check_image_status (gfc_expr *image, gfc_expr *team)
 }
 
 
+/* Check the arguments for f_c_string.  */
+
+bool
+gfc_check_f_c_string (gfc_expr *string, gfc_expr *asis)
+{
+
+  if (gfc_invalid_null_arg (string))
+    return false;
+
+  if (!scalar_check (string, 0))
+    return false;
+
+  if (string->ts.type != BT_CHARACTER
+      || (string->ts.type == BT_CHARACTER
+	  && (string->ts.kind != gfc_default_character_kind)))
+    {
+      gfc_error ("%qs argument of %qs intrinsic at %L shall have "
+		 "a type of CHARACTER(KIND=C_CHAR)",
+		 gfc_current_intrinsic_arg[0]->name, gfc_current_intrinsic,
+		 &string->where);
+      return false;
+    }
+
+  if (asis)
+    {
+      if (!type_check (asis, 1, BT_LOGICAL))
+	return false;
+
+      if (!scalar_check (asis, 1))
+	return false;
+    }
+
+  return true;
+}
+
+
 bool
 gfc_check_failed_or_stopped_images (gfc_expr *team, gfc_expr *kind)
 {
@@ -2406,30 +2442,23 @@ gfc_check_co_broadcast (gfc_expr *a, gfc_expr *source_image, gfc_expr *stat,
 }
 
 
-bool
-gfc_check_co_reduce (gfc_expr *a, gfc_expr *op, gfc_expr *result_image,
-		     gfc_expr *stat, gfc_expr *errmsg)
+/* Helper function for character arguments in gfc_check_[co_]reduce.  */
+
+static unsigned long
+get_ul_from_cst_cl (const gfc_charlen *cl)
+{
+  return cl && cl->length && cl->length->expr_type == EXPR_CONSTANT
+	 ? mpz_get_ui (cl->length->value.integer) : 0;
+};
+
+
+/* Checks shared between co_reduce and reduce.  */
+static bool
+check_operation (gfc_expr *op, gfc_expr *a, bool is_co_reduce)
 {
   symbol_attribute attr;
   gfc_formal_arglist *formal;
   gfc_symbol *sym;
-
-  if (a->ts.type == BT_CLASS)
-    {
-      gfc_error ("The A argument at %L of CO_REDUCE shall not be polymorphic",
-		 &a->where);
-      return false;
-    }
-
-  if (gfc_expr_attr (a).alloc_comp)
-    {
-      gfc_error ("Support for the A argument at %L with allocatable components"
-                 " is not yet implemented", &a->where);
-      return false;
-    }
-
-  if (!check_co_collective (a, result_image, stat, errmsg, true))
-    return false;
 
   if (!gfc_resolve_expr (op))
     return false;
@@ -2447,8 +2476,9 @@ gfc_check_co_reduce (gfc_expr *a, gfc_expr *op, gfc_expr *result_image,
       /* None of the intrinsics fulfills the criteria of taking two arguments,
 	 returning the same type and kind as the arguments and being permitted
 	 as actual argument.  */
-      gfc_error ("Intrinsic function %s at %L is not permitted for CO_REDUCE",
-		 op->symtree->n.sym->name, &op->where);
+      gfc_error ("Intrinsic function %s at %L is not permitted for %s",
+		 op->symtree->n.sym->name, &op->where,
+		 is_co_reduce ? "CO_REDUCE" : "REDUCE");
       return false;
     }
 
@@ -2474,12 +2504,14 @@ gfc_check_co_reduce (gfc_expr *a, gfc_expr *op, gfc_expr *result_image,
 
   if (!gfc_compare_types (&a->ts, &sym->result->ts))
     {
-      gfc_error ("The A argument at %L has type %s but the function passed as "
-		 "OPERATION at %L returns %s",
+      gfc_error ("The %s argument at %L has type %s but the function passed "
+		 "as OPERATION at %L returns %s",
+		 is_co_reduce ? "A" : "ARRAY",
 		 &a->where, gfc_typename (a), &op->where,
 		 gfc_typename (&sym->result->ts));
       return false;
     }
+
   if (!gfc_compare_types (&a->ts, &formal->sym->ts)
       || !gfc_compare_types (&a->ts, &formal->next->sym->ts))
     {
@@ -2531,42 +2563,59 @@ gfc_check_co_reduce (gfc_expr *a, gfc_expr *op, gfc_expr *result_image,
 
   if (a->ts.type == BT_CHARACTER)
     {
-      gfc_charlen *cl;
       unsigned long actual_size, formal_size1, formal_size2, result_size;
 
-      cl = a->ts.u.cl;
-      actual_size = cl && cl->length && cl->length->expr_type == EXPR_CONSTANT
-		     ? mpz_get_ui (cl->length->value.integer) : 0;
-
-      cl = formal->sym->ts.u.cl;
-      formal_size1 = cl && cl->length && cl->length->expr_type == EXPR_CONSTANT
-		     ? mpz_get_ui (cl->length->value.integer) : 0;
-
-      cl = formal->next->sym->ts.u.cl;
-      formal_size2 = cl && cl->length && cl->length->expr_type == EXPR_CONSTANT
-		     ? mpz_get_ui (cl->length->value.integer) : 0;
-
-      cl = sym->ts.u.cl;
-      result_size = cl && cl->length && cl->length->expr_type == EXPR_CONSTANT
-		    ? mpz_get_ui (cl->length->value.integer) : 0;
+      actual_size = get_ul_from_cst_cl (a->ts.u.cl);
+      formal_size1 = get_ul_from_cst_cl (formal->sym->ts.u.cl);
+      formal_size2 = get_ul_from_cst_cl (formal->next->sym->ts.u.cl);
+      result_size = get_ul_from_cst_cl (sym->ts.u.cl);
 
       if (actual_size
 	  && ((formal_size1 && actual_size != formal_size1)
 	       || (formal_size2 && actual_size != formal_size2)))
 	{
-	  gfc_error ("The character length of the A argument at %L and of the "
-		     "arguments of the OPERATION at %L shall be the same",
-		     &a->where, &op->where);
+	  gfc_error ("The character length of the %s argument at %L and of "
+		     "the arguments of the OPERATION at %L shall be the same",
+		     is_co_reduce ? "A" : "ARRAY", &a->where, &op->where);
 	  return false;
 	}
+
       if (actual_size && result_size && actual_size != result_size)
 	{
-	  gfc_error ("The character length of the A argument at %L and of the "
-		     "function result of the OPERATION at %L shall be the same",
+	  gfc_error ("The character length of the %s argument at %L and of "
+		     "the function result of the OPERATION at %L shall be the "
+		     "same", is_co_reduce ? "A" : "ARRAY",
 		     &a->where, &op->where);
 	  return false;
 	}
     }
+  return true;
+}
+
+
+bool
+gfc_check_co_reduce (gfc_expr *a, gfc_expr *op, gfc_expr *result_image,
+		     gfc_expr *stat, gfc_expr *errmsg)
+{
+  if (a->ts.type == BT_CLASS)
+    {
+      gfc_error ("The A argument at %L of CO_REDUCE shall not be polymorphic",
+		 &a->where);
+      return false;
+    }
+
+  if (gfc_expr_attr (a).alloc_comp)
+    {
+      gfc_error ("Support for the A argument at %L with allocatable components"
+		 " is not yet implemented", &a->where);
+      return false;
+    }
+
+  if (!check_co_collective (a, result_image, stat, errmsg, true))
+    return false;
+
+  if (!check_operation (op, a, true))
+    return false;
 
   return true;
 }
@@ -4829,6 +4878,48 @@ gfc_check_null (gfc_expr *mold)
 
 
 bool
+gfc_check_out_of_range (gfc_expr *x, gfc_expr *mold, gfc_expr *round)
+{
+  if (!int_or_real_or_unsigned_check (x, 0))
+    return false;
+
+  if (mold == NULL)
+    return false;
+
+  if (!int_or_real_or_unsigned_check (mold, 1))
+    return false;
+
+  if (!scalar_check (mold, 1))
+    return false;
+
+  if (round)
+    {
+      if (!type_check (round, 2, BT_LOGICAL))
+	return false;
+
+      if (!scalar_check (round, 2))
+	return false;
+
+      if (x->ts.type != BT_REAL
+	  || (mold->ts.type != BT_INTEGER && mold->ts.type != BT_UNSIGNED))
+	{
+	  gfc_error ("%qs argument of %qs intrinsic at %L shall appear "
+		     "only if %qs is of type REAL and %qs is of type "
+		     "INTEGER or UNSIGNED",
+		     gfc_current_intrinsic_arg[2]->name,
+		     gfc_current_intrinsic, &round->where,
+		     gfc_current_intrinsic_arg[0]->name,
+		     gfc_current_intrinsic_arg[1]->name);
+
+	  return false;
+	}
+    }
+
+  return true;
+}
+
+
+bool
 gfc_check_pack (gfc_expr *array, gfc_expr *mask, gfc_expr *vector)
 {
   if (!array_check (array, 0))
@@ -5052,6 +5143,62 @@ gfc_check_real (gfc_expr *a, gfc_expr *kind)
 
   if (!numeric_check (a, 0))
     return false;
+
+  return true;
+}
+
+
+bool
+gfc_check_reduce (gfc_expr *array, gfc_expr *operation, gfc_expr *dim,
+		  gfc_expr *mask, gfc_expr *identity, gfc_expr *ordered)
+{
+  if (array->ts.type == BT_CLASS)
+    {
+      gfc_error ("The ARRAY argument at %L of REDUCE shall not be polymorphic",
+		 &array->where);
+      return false;
+    }
+
+  if (!check_operation (operation, array, false))
+    return false;
+
+  if (dim && (dim->rank || dim->ts.type != BT_INTEGER))
+    {
+      gfc_error ("The DIM argument at %L, if present, must be an integer "
+		 "scalar", &dim->where);
+      return false;
+    }
+
+  if (mask && (array->rank != mask->rank || mask->ts.type != BT_LOGICAL))
+    {
+      gfc_error ("The MASK argument at %L, if present, must be a logical "
+		 "array with the same rank as ARRAY", &mask->where);
+      return false;
+    }
+
+  if (mask
+      && !gfc_check_conformance (array, mask,
+				 _("arguments '%s' and '%s' for intrinsic %s"),
+				 "ARRAY", "MASK", "REDUCE"))
+    return false;
+
+  if (mask && !identity)
+    gfc_warning (0, "MASK present at %L without IDENTITY", &mask->where);
+
+  if (ordered && (ordered->rank || ordered->ts.type != BT_LOGICAL))
+    {
+      gfc_error ("The ORDERED argument at %L, if present, must be a logical "
+		 "scalar", &ordered->where);
+      return false;
+    }
+
+  if (identity && (identity->rank
+		   || !gfc_compare_types (&array->ts, &identity->ts)))
+    {
+      gfc_error ("The IDENTITY argument at %L, if present, must be a scalar "
+		 "with the same type as ARRAY", &identity->where);
+      return false;
+    }
 
   return true;
 }
@@ -7155,12 +7302,16 @@ gfc_check_random_seed (gfc_expr *size, gfc_expr *put, gfc_expr *get)
       if (!kind_value_check (put, 1, gfc_default_integer_kind))
 	return false;
 
-      if (gfc_array_size (put, &put_size)
-	  && mpz_get_ui (put_size) < seed_size)
-	gfc_error ("Size of %qs argument of %qs intrinsic at %L "
-		   "too small (%i/%i)",
-		   gfc_current_intrinsic_arg[1]->name, gfc_current_intrinsic,
-		   &put->where, (int) mpz_get_ui (put_size), seed_size);
+      if (gfc_array_size (put, &put_size))
+	{
+	  if (mpz_get_ui (put_size) < seed_size)
+	    gfc_error ("Size of %qs argument of %qs intrinsic at %L "
+		       "too small (%i/%i)",
+		       gfc_current_intrinsic_arg[1]->name,
+		       gfc_current_intrinsic,
+		       &put->where, (int) mpz_get_ui (put_size), seed_size);
+	  mpz_clear (put_size);
+	}
     }
 
   if (get != NULL)
@@ -7187,12 +7338,16 @@ gfc_check_random_seed (gfc_expr *size, gfc_expr *put, gfc_expr *get)
       if (!kind_value_check (get, 2, gfc_default_integer_kind))
 	return false;
 
-       if (gfc_array_size (get, &get_size)
-	   && mpz_get_ui (get_size) < seed_size)
-	gfc_error ("Size of %qs argument of %qs intrinsic at %L "
-		   "too small (%i/%i)",
-		   gfc_current_intrinsic_arg[2]->name, gfc_current_intrinsic,
-		   &get->where, (int) mpz_get_ui (get_size), seed_size);
+       if (gfc_array_size (get, &get_size))
+	 {
+	   if (mpz_get_ui (get_size) < seed_size)
+	     gfc_error ("Size of %qs argument of %qs intrinsic at %L "
+			"too small (%i/%i)",
+			gfc_current_intrinsic_arg[2]->name,
+			gfc_current_intrinsic,
+			&get->where, (int) mpz_get_ui (get_size), seed_size);
+	   mpz_clear (get_size);
+	 }
     }
 
   /* RANDOM_SEED may not have more than one non-optional argument.  */

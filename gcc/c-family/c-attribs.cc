@@ -1,5 +1,5 @@
 /* C-family attributes handling.
-   Copyright (C) 1992-2024 Free Software Foundation, Inc.
+   Copyright (C) 1992-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -101,7 +101,6 @@ static tree handle_destructor_attribute (tree *, tree, tree, int, bool *);
 static tree handle_mode_attribute (tree *, tree, tree, int, bool *);
 static tree handle_section_attribute (tree *, tree, tree, int, bool *);
 static tree handle_special_var_sec_attribute (tree *, tree, tree, int, bool *);
-static tree handle_aligned_attribute (tree *, tree, tree, int, bool *);
 static tree handle_warn_if_not_aligned_attribute (tree *, tree, tree,
 						  int, bool *);
 static tree handle_strict_flex_array_attribute (tree *, tree, tree,
@@ -195,7 +194,7 @@ static tree handle_null_terminated_string_arg_attribute (tree *, tree, tree, int
   { name, function, type, variable }
 
 /* Define attributes that are mutually exclusive with one another.  */
-static const struct attribute_spec::exclusions attr_aligned_exclusions[] =
+extern const struct attribute_spec::exclusions attr_aligned_exclusions[] =
 {
   /* Attribute name     exclusion applies to:
 	                function, type, variable */
@@ -576,7 +575,7 @@ const struct attribute_spec c_common_gnu_attributes[] =
 			      handle_omp_declare_variant_attribute, NULL },
   { "omp declare variant variant", 0, -1, true,  false, false, false,
 			      handle_omp_declare_variant_attribute, NULL },
-  { "omp declare variant adjust_args need_device_ptr", 0, -1, true,  false,
+  { "omp declare variant variant args", 0, -1, true,  false,
 			      false, false,
 			      handle_omp_declare_variant_attribute, NULL },
   { "simd",		      0, 1, true,  false, false, false,
@@ -592,8 +591,6 @@ const struct attribute_spec c_common_gnu_attributes[] =
   { "omp declare target host", 0, 0, true, false, false, false,
 			      handle_omp_declare_target_attribute, NULL },
   { "omp declare target nohost", 0, 0, true, false, false, false,
-			      handle_omp_declare_target_attribute, NULL },
-  { "omp declare target block", 0, 0, true, false, false, false,
 			      handle_omp_declare_target_attribute, NULL },
   { "non overlapping",	      0, 0, true, false, false, false,
 			      handle_non_overlapping_attribute, NULL },
@@ -654,7 +651,9 @@ const struct scoped_attribute_specs c_common_gnu_attribute_table =
 /* Attributes also recognized in the clang:: namespace.  */
 const struct attribute_spec c_common_clang_attributes[] = {
   { "flag_enum",	      0, 0, false, true, false, false,
-			      handle_flag_enum_attribute, NULL }
+			      handle_flag_enum_attribute, NULL },
+  { "musttail",		      0, 0, false, false, false,
+			      false, handle_musttail_attribute, NULL }
 };
 
 const struct scoped_attribute_specs c_common_clang_attribute_table =
@@ -2816,7 +2815,7 @@ common_handle_aligned_attribute (tree *node, tree name, tree args, int flags,
 /* Handle a "aligned" attribute; arguments as in
    struct attribute_spec.handler.  */
 
-static tree
+tree
 handle_aligned_attribute (tree *node, tree name, tree args,
 			  int flags, bool *no_add_attrs)
 {
@@ -5120,8 +5119,9 @@ handle_nonstring_attribute (tree *node, tree name, tree ARG_UNUSED (args),
       if (POINTER_TYPE_P (type) || TREE_CODE (type) == ARRAY_TYPE)
 	{
 	  /* Accept the attribute on arrays and pointers to all three
-	     narrow character types.  */
-	  tree eltype = TREE_TYPE (type);
+	     narrow character types, including multi-dimensional arrays
+	     or pointers to them.  */
+	  tree eltype = strip_array_types (TREE_TYPE (type));
 	  eltype = TYPE_MAIN_VARIANT (eltype);
 	  if (eltype == char_type_node
 	      || eltype == signed_char_type_node

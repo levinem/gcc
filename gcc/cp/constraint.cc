@@ -1,5 +1,5 @@
 /* Processing rules for constraints.
-   Copyright (C) 2013-2024 Free Software Foundation, Inc.
+   Copyright (C) 2013-2025 Free Software Foundation, Inc.
    Contributed by Andrew Sutton (andrew.n.sutton@gmail.com)
 
 This file is part of GCC.
@@ -512,6 +512,27 @@ normalize_concept_check (tree check, tree args, norm_info info)
   return norm;
 }
 
+/* A structural hasher for ATOMIC_CONSTRs.  */
+
+struct atom_hasher : default_hash_traits<tree>
+{
+  static hashval_t hash (tree t)
+  {
+    ++comparing_specializations;
+    hashval_t val = hash_atomic_constraint (t);
+    --comparing_specializations;
+    return val;
+  }
+
+  static bool equal (tree t1, tree t2)
+  {
+    ++comparing_specializations;
+    bool eq = atomic_constraints_identical_p (t1, t2);
+    --comparing_specializations;
+    return eq;
+  }
+};
+
 /* Used by normalize_atom to cache ATOMIC_CONSTRs.  */
 
 static GTY((deletable)) hash_table<atom_hasher> *atom_cache;
@@ -680,11 +701,19 @@ get_normalized_constraints_from_decl (tree d, bool diag = false)
      accepting the latter causes the template parameter level of U
      to be reduced in a way that makes it overly difficult substitute
      concrete arguments (i.e., eventually {int, int} during satisfaction.  */
-  if (tmpl)
-  {
-    if (DECL_LANG_SPECIFIC (tmpl) && !DECL_TEMPLATE_SPECIALIZATION (tmpl))
-      tmpl = most_general_template (tmpl);
-  }
+  if (tmpl && DECL_LANG_SPECIFIC (tmpl)
+      && (!DECL_TEMPLATE_SPECIALIZATION (tmpl)
+	  /* DECL_TEMPLATE_SPECIALIZATION means TMPL is either a partial
+	     specialization, or an explicit specialization of a member
+	     template.  In the former case all is well: TMPL's constraints
+	     are in terms of its parameters.  But in the latter case TMPL's
+	     parameters are partially instantiated whereas its constraints
+	     aren't, so we need to instead use (the parameters of) the most
+	     general template.  The following test distinguishes between a
+	     partial specialization and such an explicit specialization.  */
+	  || (TMPL_PARMS_DEPTH (DECL_TEMPLATE_PARMS (tmpl))
+	      < TMPL_ARGS_DEPTH (DECL_TI_ARGS (tmpl)))))
+    tmpl = most_general_template (tmpl);
 
   d = tmpl ? tmpl : decl;
 
@@ -1315,7 +1344,9 @@ tsubst_valid_expression_requirement (tree t, tree args, sat_info info)
 {
   tsubst_flags_t quiet = info.complain & ~tf_warning_or_error;
   tree r = tsubst_expr (t, args, quiet, info.in_decl);
-  if (convert_to_void (r, ICV_STATEMENT, quiet) != error_mark_node)
+  if (r != error_mark_node
+      && (processing_template_decl
+	  || convert_to_void (r, ICV_STATEMENT, quiet) != error_mark_node))
     return r;
 
   if (info.diagnose_unsatisfaction_p ())

@@ -1,5 +1,5 @@
 /* Implementation of selftests.
-   Copyright (C) 2015-2024 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -109,6 +109,7 @@ selftest::run_tests ()
   lazy_diagnostic_path_cc_tests ();
   attribs_cc_tests ();
   opts_diagnostic_cc_tests ();
+  path_coverage_cc_tests ();
 
   /* This one relies on most of the above.  */
   function_tests_cc_tests ();

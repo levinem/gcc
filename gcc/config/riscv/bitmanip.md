@@ -1,5 +1,5 @@
 ;; Machine description for RISC-V Bit Manipulation operations.
-;; Copyright (C) 2021-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GCC.
 
@@ -790,18 +790,6 @@
   "<bit_optab>i\t%0,%1,%S2"
   [(set_attr "type" "bitmanip")])
 
-;; As long as the SImode operand is not a partial subreg, we can use a
-;; bseti without postprocessing, as the middle end is smart enough to
-;; stay away from the signbit.
-(define_insn "*<bit_optab>idisi"
-  [(set (match_operand:DI 0 "register_operand" "=r")
-	(any_or:DI (sign_extend:DI (match_operand:SI 1 "register_operand" "r"))
-		   (match_operand 2 "single_bit_mask_operand" "i")))]
-  "TARGET_ZBS && TARGET_64BIT
-   && !partial_subreg_p (operands[1])"
-  "<bit_optab>i\t%0,%1,%S2"
-  [(set_attr "type" "bitmanip")])
-
 ;; We can easily handle zero extensions
 (define_split
   [(set (match_operand:DI 0 "register_operand")
@@ -1029,17 +1017,17 @@
   [(set (match_operand:X 0 "register_operand" "=r")
 	(any_or:X (match_operand:X 1 "register_operand" "r")
 	          (match_operand:X 2 "uimm_extra_bit_or_twobits" "i")))]
-  "TARGET_ZBS"
+  "TARGET_ZBS && !single_bit_mask_operand (operands[2], VOIDmode)"
   "#"
   "&& reload_completed"
   [(set (match_dup 0) (<or_optab>:X (match_dup 1) (match_dup 3)))
    (set (match_dup 0) (<or_optab>:X (match_dup 0) (match_dup 4)))]
 {
-	unsigned HOST_WIDE_INT bits = UINTVAL (operands[2]);
-	unsigned HOST_WIDE_INT topbit = HOST_WIDE_INT_1U << floor_log2 (bits);
+  unsigned HOST_WIDE_INT bits = UINTVAL (operands[2]);
+  unsigned HOST_WIDE_INT topbit = HOST_WIDE_INT_1U << floor_log2 (bits);
 
-	operands[3] = GEN_INT (bits &~ topbit);
-	operands[4] = GEN_INT (topbit);
+  operands[3] = GEN_INT (bits &~ topbit);
+  operands[4] = GEN_INT (topbit);
 }
 [(set_attr "type" "bitmanip")])
 
@@ -1048,17 +1036,17 @@
   [(set (match_operand:X 0 "register_operand" "=r")
 	(and:X (match_operand:X 1 "register_operand" "r")
 	       (match_operand:X 2 "not_uimm_extra_bit_or_nottwobits" "i")))]
-  "TARGET_ZBS"
+  "TARGET_ZBS && !not_single_bit_mask_operand (operands[2], VOIDmode)"
   "#"
   "&& reload_completed"
   [(set (match_dup 0) (and:X (match_dup 1) (match_dup 3)))
    (set (match_dup 0) (and:X (match_dup 0) (match_dup 4)))]
 {
-	unsigned HOST_WIDE_INT bits = UINTVAL (operands[2]);
-	unsigned HOST_WIDE_INT topbit = HOST_WIDE_INT_1U << floor_log2 (~bits);
+  unsigned HOST_WIDE_INT bits = UINTVAL (operands[2]);
+  unsigned HOST_WIDE_INT topbit = HOST_WIDE_INT_1U << floor_log2 (~bits);
 
-	operands[3] = GEN_INT (bits | topbit);
-	operands[4] = GEN_INT (~topbit);
+  operands[3] = GEN_INT (bits | topbit);
+  operands[4] = GEN_INT (~topbit);
 }
 [(set_attr "type" "bitmanip")])
 

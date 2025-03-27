@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -246,6 +246,9 @@ Token::as_string () const
 		 + "\"";
 	case BYTE_STRING_LITERAL:
 	  return "b\"" + escape_special_chars (get_str (), Context::String)
+		 + "\"";
+	case RAW_STRING_LITERAL:
+	  return "r\"" + escape_special_chars (get_str (), Context::String)
 		 + "\"";
 	case CHAR_LITERAL:
 	  return "'" + escape_special_chars (get_str (), Context::Char) + "'";

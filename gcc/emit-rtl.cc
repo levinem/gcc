@@ -1,5 +1,5 @@
 /* Emit RTL for the GCC expander.
-   Copyright (C) 1987-2024 Free Software Foundation, Inc.
+   Copyright (C) 1987-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -4369,9 +4369,11 @@ add_insn_before (rtx_insn *insn, rtx_insn *before, basic_block bb)
 {
   add_insn_before_nobb (insn, before);
 
+  if (BARRIER_P (insn))
+    return;
+
   if (!bb
-      && !BARRIER_P (before)
-      && !BARRIER_P (insn))
+      && !BARRIER_P (before))
     bb = BLOCK_FOR_INSN (before);
 
   if (bb)

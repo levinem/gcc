@@ -17,9 +17,7 @@ struct s2 {
 static const char le = __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ ? 1 : 0;
 
 struct s1 p = { { -!le , -le }, 42 };
-struct s2 q = { (le
-		 ? -2 << (__CHAR_BIT__ - 1)
-		 : -1 & ((1 << (__CHAR_BIT__ - 1) << 1) - 1)), 42 };
+struct s2 q = { -2 << (__CHAR_BIT__ - 1), 42 };
 
 void f (void) {
   if (0
@@ -31,8 +29,10 @@ void f (void) {
 }
 
 int main () {
+  if (sizeof (short) != 2)
+    return 0;
   f ();
   return 0;
 }
 
-/* { dg-final { scan-tree-dump-times "optimizing two comparisons" 2 "ifcombine" } } */
+/* { dg-final { scan-tree-dump-times "optimizing two comparisons" 2 "ifcombine" { target { ! { avr-*-* pru-*-* } } } } } */

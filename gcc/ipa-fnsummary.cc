@@ -1,5 +1,5 @@
 /* Function summary pass.
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
    Contributed by Jan Hubicka
 
 This file is part of GCC.
@@ -254,6 +254,9 @@ redirect_to_unreachable (struct cgraph_edge *e)
   struct cgraph_node *callee = !e->inline_failed ? e->callee : NULL;
   struct cgraph_node *target
     = cgraph_node::get_create (builtin_decl_unreachable ());
+
+  gcc_checking_assert (lookup_attribute ("cold",
+					 DECL_ATTRIBUTES (target->decl)));
 
   if (e->speculative)
     e = cgraph_edge::resolve_speculation (e, target->decl);
@@ -5091,7 +5094,7 @@ ipa_fn_summary_write (void)
 	}
     }
   streamer_write_char_stream (ob->main_stream, 0);
-  produce_asm (ob, NULL);
+  produce_asm (ob);
   destroy_output_block (ob);
 
   ipa_prop_write_jump_functions ();

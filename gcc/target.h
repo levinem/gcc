@@ -1,5 +1,5 @@
 /* Data structure definitions for a generic GCC target.
-   Copyright (C) 2001-2024 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify it
    under the terms of the GNU General Public License as published by the
@@ -282,6 +282,18 @@ enum poly_value_estimate_kind
   POLY_VALUE_MIN,
   POLY_VALUE_MAX,
   POLY_VALUE_LIKELY
+};
+
+enum class spill_cost_type
+{
+  SAVE,
+  RESTORE
+};
+
+enum class frame_cost_type
+{
+  ALLOCATION,
+  DEALLOCATION
 };
 
 typedef void (*emit_support_tinfos_callback) (tree);

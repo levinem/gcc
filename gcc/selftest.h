@@ -1,5 +1,5 @@
 /* A self-testing framework, for use by -fself-test.
-   Copyright (C) 2015-2024 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -246,6 +246,7 @@ extern void optinfo_emit_json_cc_tests ();
 extern void opts_cc_tests ();
 extern void opts_diagnostic_cc_tests ();
 extern void ordered_hash_map_tests_cc_tests ();
+extern void path_coverage_cc_tests ();
 extern void predict_cc_tests ();
 extern void pretty_print_cc_tests ();
 extern void range_tests ();

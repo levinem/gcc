@@ -1,5 +1,5 @@
 ;; Machine description for AArch64 architecture.
-;; Copyright (C) 2009-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2025 Free Software Foundation, Inc.
 ;; Contributed by ARM Ltd.
 ;;
 ;; This file is part of GCC.
@@ -95,6 +95,10 @@
 ;; integer modes; 64-bit scalar integer mode.
 (define_mode_iterator VSDQ_I_DI [V8QI V16QI V4HI V8HI V2SI V4SI V2DI DI])
 
+;; Advanced SIMD and scalar, 64 & 128-bit container; 8 and 16-bit scalar
+;; integer modes.
+(define_mode_iterator VSDQ_I_QI_HI [VDQ_I HI QI])
+
 ;; Double vector modes.
 (define_mode_iterator VD [V8QI V4HI V4HF V2SI V2SF V4BF])
 
@@ -139,6 +143,13 @@
 
 ;; VQ without 2 element modes.
 (define_mode_iterator VQ_NO2E [V16QI V8HI V4SI V8HF V4SF V8BF])
+
+;; SVE modes without 2 and 4 element modes.
+(define_mode_iterator SVE_NO4E [VNx16QI VNx8QI VNx8HI VNx8HF VNx8BF])
+
+;; SVE modes without 2 element modes.
+(define_mode_iterator SVE_NO2E [SVE_NO4E VNx4QI VNx4HI VNx4HF VNx4BF VNx4SI
+				VNx4SF])
 
 ;; 2 element quad vector modes.
 (define_mode_iterator VQ_2E [V2DI V2DF])
@@ -545,6 +556,12 @@
 ;; Fully-packed SVE vector modes that have 32-bit or smaller elements.
 (define_mode_iterator SVE_FULL_BHS [VNx16QI VNx8HI VNx4SI
 				    VNx8BF VNx8HF VNx4SF])
+
+;; Fully-packed SVE vector byte modes that have 16-bit or smaller elements.
+(define_mode_iterator SVE_FULL_BH [VNx16QI VNx8HI VNx8HF VNx8BF])
+
+;; Pairs of fully-packed SVE vector modes (half word only)
+(define_mode_iterator SVE_FULL_Hx2 [VNx16HI VNx16HF VNx16BF])
 
 ;; Fully-packed SVE vector modes that have 32-bit elements.
 (define_mode_iterator SVE_FULL_S [VNx4SI VNx4SF])
@@ -1091,6 +1108,7 @@
     UNSPEC_SUBHNB	; Used in aarch64-sve2.md.
     UNSPEC_SUBHNT	; Used in aarch64-sve2.md.
     UNSPEC_TBL2		; Used in aarch64-sve2.md.
+    UNSPEC_TRN		; Used in aarch64-builtins.cc
     UNSPEC_UABDLB	; Used in aarch64-sve2.md.
     UNSPEC_UABDLT	; Used in aarch64-sve2.md.
     UNSPEC_UADDLB	; Used in aarch64-sve2.md.
@@ -1178,6 +1196,7 @@
     UNSPEC_UZPQ2
     UNSPEC_ZIPQ1
     UNSPEC_ZIPQ2
+    UNSPEC_SVE_LUTI
 
     ;; All used in aarch64-sme.md
     UNSPEC_SME_ADD
@@ -1737,7 +1756,13 @@
 			 (V2DI "DI")    (V2SF  "SF")
 			 (V4SF "V2SF")  (V4HF "V2HF")
 			 (V8HF "V4HF")  (V2DF  "DF")
-			 (V8BF "V4BF")])
+			 (V8BF "V4BF")
+			 (VNx16QI "VNx8QI") (VNx8QI "VNx4QI")
+			 (VNx4QI "VNx2QI")
+			 (VNx8HI "VNx4HI")  (VNx4HI "VNx2HI")
+			 (VNx8HF "VNx4HF")  (VNx4HF "VNx2HF")
+			 (VNx8BF "VNx4BF")  (VNx4BF "VNx2BF")
+			 (VNx4SI "VNx2SI")  (VNx4SF "VNx2SF")])
 
 ;; Half modes of all vector modes, in lower-case.
 (define_mode_attr Vhalf [(V8QI "v4qi")  (V16QI "v8qi")
@@ -1745,7 +1770,18 @@
 			 (V8HF  "v4hf") (V8BF  "v4bf")
 			 (V2SI "si")    (V4SI  "v2si")
 			 (V2DI "di")    (V2SF  "sf")
-			 (V4SF "v2sf")  (V2DF  "df")])
+			 (V4SF "v2sf")  (V2DF  "df")
+			 (VNx16QI "vnx8qi") (VNx8QI "vnx4qi")
+			 (VNx4QI "vnx2qi")
+			 (VNx8HI "vnx4hi")  (VNx4HI "vnx2hi")
+			 (VNx8HF "vnx4hf")  (VNx4HF "vnx2hf")
+			 (VNx8BF "vnx4bf")  (VNx4BF "vnx2bf")
+			 (VNx4SI "vnx2si")  (VNx4SF "vnx2sf")])
+
+;; Quad modes of all vector modes, in lower-case.
+(define_mode_attr Vquad [(VNx16QI "vnx4qi") (VNx8QI "vnx2qi")
+			 (VNx8HI "vnx2hi")  (VNx8HF "vnx2hf")
+			 (VNx8BF "vnx2bf")])
 
 ;; Single-element half modes of quad vector modes.
 (define_mode_attr V1HALF [(V2DI "V1DI")  (V2DF  "V1DF")])
@@ -1989,8 +2025,12 @@
 ;; Like vwcore, but for the container mode rather than the element mode.
 (define_mode_attr vccore [(VNx16QI "w") (VNx8QI "w") (VNx4QI "w") (VNx2QI "x")
 			  (VNx8HI "w") (VNx4HI "w") (VNx2HI "x")
+			  (VNx8HF "w") (VNx4HF "w") (VNx2HF "x")
+			  (VNx8BF "w") (VNx4BF "w") (VNx2BF "x")
 			  (VNx4SI "w") (VNx2SI "x")
-			  (VNx2DI "x")])
+			  (VNx4SF "w") (VNx2SF "x")
+			  (VNx2DI "x")
+			  (VNx2DF "x")])
 
 ;; Double vector types for ALLX.
 (define_mode_attr Vallxd [(QI "8b") (HI "4h") (SI "2s")])
@@ -2620,6 +2660,10 @@
 
 ;; Code iterator for logical operations
 (define_code_iterator LOGICAL [and ior xor])
+
+;; Code iterator for operations that are equivalent when the
+;; two input operands are known have disjoint bits set.
+(define_code_iterator any_or_plus [plus ior xor])
 
 ;; LOGICAL with plus, for when | gets converted to +.
 (define_code_iterator LOGICAL_OR_PLUS [and ior xor plus])
@@ -3304,8 +3348,8 @@
 
 (define_int_iterator SVE_COND_FP_BINARY
   [UNSPEC_COND_FADD
-   (UNSPEC_COND_FAMAX "TARGET_SVE_FAMINMAX")
-   (UNSPEC_COND_FAMIN "TARGET_SVE_FAMINMAX")
+   (UNSPEC_COND_FAMAX "TARGET_FAMINMAX && TARGET_SVE2_OR_SME2")
+   (UNSPEC_COND_FAMIN "TARGET_FAMINMAX && TARGET_SVE2_OR_SME2")
    UNSPEC_COND_FDIV
    UNSPEC_COND_FMAX
    UNSPEC_COND_FMAXNM
@@ -3345,8 +3389,8 @@
 					    UNSPEC_COND_SMIN])
 
 (define_int_iterator SVE_COND_FP_BINARY_REG
-  [(UNSPEC_COND_FAMAX "TARGET_SVE_FAMINMAX")
-   (UNSPEC_COND_FAMIN "TARGET_SVE_FAMINMAX")
+  [(UNSPEC_COND_FAMAX "TARGET_FAMINMAX && TARGET_SVE2_OR_SME2")
+   (UNSPEC_COND_FAMIN "TARGET_FAMINMAX && TARGET_SVE2_OR_SME2")
    UNSPEC_COND_FDIV
    UNSPEC_COND_FMULX])
 

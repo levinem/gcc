@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2008-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -145,8 +145,6 @@
 #include <keylockerintrin.h>
 
 #include <amxfp16intrin.h>
-
-#include <avx10_2roundingintrin.h>
 
 #include <avx10_2mediaintrin.h>
 

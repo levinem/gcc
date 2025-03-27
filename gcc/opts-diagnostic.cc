@@ -1,5 +1,5 @@
 /* Support for -fdiagnostics-add-output= and -fdiagnostics-set-output=.
-   Copyright (C) 2024 Free Software Foundation, Inc.
+   Copyright (C) 2024-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -434,12 +434,17 @@ sarif_scheme_handler::make_sink (const context &ctxt,
 				 const char *unparsed_arg,
 				 const scheme_name_and_params &parsed_arg) const
 {
-  enum sarif_version version = sarif_version::v2_1_0;
   label_text filename;
+  enum sarif_version version = sarif_version::v2_1_0;
   for (auto& iter : parsed_arg.m_kvs)
     {
       const std::string &key = iter.first;
       const std::string &value = iter.second;
+      if (key == "file")
+	{
+	  filename = label_text::take (xstrdup (value.c_str ()));
+	  continue;
+	}
       if (key == "version")
 	{
 	  static const std::array<std::pair<const char *, enum sarif_version>,
@@ -452,11 +457,6 @@ sarif_scheme_handler::make_sink (const context &ctxt,
 						       value_names,
 						       version))
 	    return nullptr;
-	  continue;
-	}
-      if (key == "file")
-	{
-	  filename = label_text::take (xstrdup (value.c_str ()));
 	  continue;
 	}
 

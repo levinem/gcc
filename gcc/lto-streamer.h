@@ -1,7 +1,7 @@
 /* Data structures and declarations used for reading and writing
    GIMPLE to a file stream.
 
-   Copyright (C) 2009-2024 Free Software Foundation, Inc.
+   Copyright (C) 2009-2025 Free Software Foundation, Inc.
    Contributed by Doug Kwan <dougkwan@google.com>
 
 This file is part of GCC.
@@ -443,8 +443,7 @@ struct lto_stats_d
 /* Entry of LTO symtab encoder.  */
 struct lto_encoder_entry
 {
-  /* Constructors.  */
-  lto_encoder_entry () {}
+  /* Constructor.  */
   lto_encoder_entry (symtab_node* n)
     : node (n), in_partition (false), body (false), only_for_inlining (true),
       initializer (false)
@@ -470,6 +469,9 @@ struct lto_symtab_encoder_d
 {
   vec<lto_encoder_entry> nodes;
   hash_map<symtab_node *, size_t> *map;
+
+  /* Mapping of input order of nodes onto output order.  */
+  hash_map<int_hash<int, -1, -2>, int> *order_remap;
 };
 
 typedef struct lto_symtab_encoder_d *lto_symtab_encoder_t;
@@ -896,7 +898,7 @@ extern void lto_output_fn_decl_ref (struct lto_out_decl_state *,
 extern tree lto_input_var_decl_ref (lto_input_block *, lto_file_decl_data *);
 extern tree lto_input_fn_decl_ref (lto_input_block *, lto_file_decl_data *);
 extern void lto_output_toplevel_asms (void);
-extern void produce_asm (struct output_block *ob, tree fn);
+extern void produce_asm (struct output_block *ob);
 extern void lto_output ();
 extern void produce_asm_for_decls ();
 void lto_output_decl_state_streams (struct output_block *,
@@ -943,12 +945,6 @@ bool reachable_from_this_partition_p (struct cgraph_node *,
 				      lto_symtab_encoder_t);
 lto_symtab_encoder_t compute_ltrans_boundary (lto_symtab_encoder_t encoder);
 void select_what_to_stream (void);
-
-/* In omp-general.cc.  */
-void omp_lto_output_declare_variant_alt (lto_simple_output_block *,
-					 cgraph_node *, lto_symtab_encoder_t);
-void omp_lto_input_declare_variant_alt (lto_input_block *, cgraph_node *,
-					vec<symtab_node *>);
 
 /* In options-save.cc.  */
 void cl_target_option_stream_out (struct output_block *, struct bitpack_d *,

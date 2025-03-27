@@ -1,5 +1,5 @@
 /* Process source files and output type information.
-   Copyright (C) 2002-2024 Free Software Foundation, Inc.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -1605,7 +1605,7 @@ static outf_p
 create_file (const char *name, const char *oname)
 {
   static const char *const hdr[] = {
-    "   Copyright (C) 2004-2024 Free Software Foundation, Inc.\n",
+    "   Copyright (C) 2004-2025 Free Software Foundation, Inc.\n",
     "\n",
     "This file is part of GCC.\n",
     "\n",
@@ -4656,13 +4656,12 @@ write_roots (pair_p variables, bool emit_pch)
       outf_p f = get_output_file_with_visibility (CONST_CAST (input_file*,
 							      v->line.file));
       struct flist *fli;
-      bool cache = false;
       options_p o;
 
       for (o = v->opt; o; o = o->next)
 	if (strcmp (o->name, "cache") == 0)
-	  cache = true;
-       if (!cache)
+	  break;
+       if (!o)
 	continue;
 
       for (fli = flp; fli; fli = fli->next)
@@ -4677,6 +4676,8 @@ write_roots (pair_p variables, bool emit_pch)
 	  oprintf (f, " ()\n{\n");
 	}
 
+      if (o->kind == OPTION_STRING && o->info.string && o->info.string[0])
+	oprintf (f, "  %s (%s);\n", o->info.string, v->name);
       oprintf (f, "  gt_cleare_cache (%s);\n", v->name);
     }
 
