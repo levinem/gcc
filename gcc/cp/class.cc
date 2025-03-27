@@ -3211,6 +3211,16 @@ check_for_override (tree decl, tree ctype)
     }
   else if (DECL_OVERRIDE_P (decl))
     {
+      // logic from complain_about_unrecognized_member from typeck.cc
+      /* Attempt to provide a hint about misspelled names.  */
+      tree guessed_id = lookup_member_fuzzy (DECLE_SOURCE_LOCATION (decl), DECL_NAME (decl),
+					     /*want_type=*/false);
+
+      if (guessed_id == NULL_TREE)
+	{
+	  /* No hint.  */
+	  error ("%q+#D marked %<override%>, but does not override", decl);
+	}
       debug_tree(decl);
       debug_tree(ctype);
       error ("%q+#D marked %<override%>, but does not override", decl);      
