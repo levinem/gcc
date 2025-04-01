@@ -3213,13 +3213,65 @@ check_for_override (tree decl, tree ctype)
     {
       // logic from complain_about_unrecognized_member from typeck.cc
       /* Attempt to provide a hint about misspelled names.  */
-      tree guessed_id = lookup_member_fuzzy (DECLE_SOURCE_LOCATION (decl), DECL_NAME (decl),
+      tree access_path = DECL_SOURCE_LOCATION (decl);
+      tree guessed_id = lookup_member_fuzzy (access_path, DECL_NAME (decl),
 					     /*want_type=*/false);
 
       if (guessed_id == NULL_TREE)
 	{
 	  /* No hint.  */
 	  error ("%q+#D marked %<override%>, but does not override", decl);
+	}
+
+      location_t bogus_component_loc = input_location;
+      gcc_rich_location rich_loc (bogus_component_loc);
+
+      /* Check that the guessed name is accessible along access_path.  */
+      access_failure_info afi;
+      lookup_member (access_path, guessed_id, /*protect=*/1,
+		     /*want_type=*/false, /*complain=*/false,
+		     &afi);
+      if (afi.was_inaccessible_p ())
+	{
+	  tree accessor = afi.get_any_accessor (TYPE_READONLY (decl));
+	  if (accessor)
+	    {
+	      /* The guessed name isn't directly accessible, but can be accessed
+		 via an accessor member function.  */
+	      afi.add_fixit_hint (&rich_loc, accessor);
+	      error_at (&rich_loc,
+			"%q#T has no member named %qE;"
+			" did you mean %q#D? (accessible via %q#D)",
+			TREE_CODE (access_path) == TREE_BINFO
+			? TREE_TYPE (access_path) : object_type,
+			name, afi.get_diag_decl (), accessor);
+	    }
+	  else
+	    {
+	      /* The guessed name isn't directly accessible, and no accessor
+		 member function could be found.  */
+	      auto_diagnostic_group d;
+	      error_at (&rich_loc,
+			"%q#T has no member named %qE;"
+			" did you mean %q#D? (not accessible from this context)",
+			TREE_CODE (access_path) == TREE_BINFO
+			? TREE_TYPE (access_path) : object_type,
+			name, afi.get_diag_decl ());
+	      complain_about_access (afi.get_decl (), afi.get_diag_decl (),
+				     afi.get_diag_decl (), false, ak_none);
+	    }
+	}
+      else
+	{
+	  /* The guessed name is directly accessible; suggest it.  */
+	  rich_loc.add_fixit_misspelled_id (bogus_component_loc,
+					    guessed_id);
+	  error_at (&rich_loc,
+		    "%q#T has no member named %qE;"
+		    " did you mean %qE?",
+		    TREE_CODE (access_path) == TREE_BINFO
+		    ? TREE_TYPE (access_path) : object_type,
+		    name, guessed_id);
 	}
       debug_tree(decl);
       debug_tree(ctype);
