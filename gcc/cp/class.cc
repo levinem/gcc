@@ -3214,7 +3214,9 @@ check_for_override (tree decl, tree ctype)
       // logic from complain_about_unrecognized_member from typeck.cc
       /* Attempt to provide a hint about misspelled names.  */
       tree access_path = DECL_SOURCE_LOCATION (decl);
-      tree guessed_id = lookup_member_fuzzy (access_path, DECL_NAME (decl),
+      tree object_type = TREE_TYPE (decl);
+      tree name =  DECL_NAME (decl);
+      tree guessed_id = lookup_member_fuzzy (access_path, name,
 					     /*want_type=*/false);
 
       if (guessed_id == NULL_TREE)
@@ -3233,7 +3235,7 @@ check_for_override (tree decl, tree ctype)
 		     &afi);
       if (afi.was_inaccessible_p ())
 	{
-	  tree accessor = afi.get_any_accessor (TYPE_READONLY (decl));
+	  tree accessor = afi.get_any_accessor (TYPE_READONLY (object_type));
 	  if (accessor)
 	    {
 	      /* The guessed name isn't directly accessible, but can be accessed
@@ -3273,8 +3275,6 @@ check_for_override (tree decl, tree ctype)
 		    ? TREE_TYPE (access_path) : object_type,
 		    name, guessed_id);
 	}
-      debug_tree(decl);
-      debug_tree(ctype);
       error ("%q+#D marked %<override%>, but does not override", decl);      
     }
 
