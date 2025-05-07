@@ -37,6 +37,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimplify.h"
 #include "intl.h"
 #include "asan.h"
+#include "gcc-rich-location.h"
 
 /* Id for dumping the class hierarchy.  */
 int class_dump_id;
@@ -3213,7 +3214,8 @@ check_for_override (tree decl, tree ctype)
     {
       // logic from complain_about_unrecognized_member from typeck.cc
       /* Attempt to provide a hint about misspelled names.  */
-      tree access_path = DECL_SOURCE_LOCATION (decl);
+      // tree access_path = DECL_SOURCE_LOCATION (decl);
+      tree access_path = DECL_CONTEXT (decl);
       tree object_type = TREE_TYPE (decl);
       tree name =  DECL_NAME (decl);
       tree guessed_id = lookup_member_fuzzy (access_path, name,
@@ -3265,7 +3267,7 @@ check_for_override (tree decl, tree ctype)
 	}
       else
 	{
-	  /* The guessed name is directly accessible; suggest it.  */
+	  // The guessed name is directly accessible; suggest it.
 	  rich_loc.add_fixit_misspelled_id (bogus_component_loc,
 					    guessed_id);
 	  error_at (&rich_loc,
@@ -3274,8 +3276,13 @@ check_for_override (tree decl, tree ctype)
 		    TREE_CODE (access_path) == TREE_BINFO
 		    ? TREE_TYPE (access_path) : object_type,
 		    name, guessed_id);
-	}
-      error ("%q+#D marked %<override%>, but does not override", decl);      
+	  
+	  }
+
+      //error ("%q+#D marked %<override%>, but does not override;"
+      //	    " did you mean %qE?",
+      //	    decl, guessed_id);	  
+	 error ("%q+#D marked %<override%>, but does not override", decl);      
     }
 
   if (DECL_VIRTUAL_P (decl))
