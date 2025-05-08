@@ -368,6 +368,13 @@ CompileExpr::visit (HIR::InlineAsm &expr)
 }
 
 void
+CompileExpr::visit (HIR::LlvmInlineAsm &expr)
+{
+  CompileLlvmAsm asm_codegen (ctx);
+  ctx->add_statement (asm_codegen.tree_codegen_asm (expr));
+}
+
+void
 CompileExpr::visit (HIR::IfExprConseqElse &expr)
 {
   TyTy::BaseType *if_type = nullptr;
@@ -905,7 +912,8 @@ CompileExpr::visit (HIR::BorrowExpr &expr)
 				       &tyty))
     return;
 
-  translated = address_expression (main_expr, expr.get_locus ());
+  tree expected_type = TyTyResolveCompile::compile (ctx, tyty);
+  translated = address_expression (main_expr, expr.get_locus (), expected_type);
 }
 
 void
@@ -1902,6 +1910,14 @@ CompileExpr::array_value_expr (location_t expr_locus,
   for (auto &elem : elems.get_values ())
     {
       tree translated_expr = CompileExpr::Compile (*elem, ctx);
+      if (translated_expr == error_mark_node)
+	{
+	  rich_location r (line_table, expr_locus);
+	  r.add_fixit_replace (elem->get_locus (), "not a value");
+	  rust_error_at (r, ErrorCode::E0423, "expected value");
+	  return error_mark_node;
+	}
+
       constructor.push_back (translated_expr);
       indexes.push_back (i++);
     }
@@ -1956,8 +1972,12 @@ CompileExpr::array_copied_expr (location_t expr_locus,
   if (ctx->const_context_p ())
     {
       size_t idx = 0;
+
       std::vector<unsigned long> indexes;
       std::vector<tree> constructor;
+
+      indexes.reserve (len);
+      constructor.reserve (len);
       for (unsigned HOST_WIDE_INT i = 0; i < len; i++)
 	{
 	  constructor.push_back (translated_expr);
@@ -2003,6 +2023,9 @@ HIRCompileBase::resolve_adjustements (
   tree e = expression;
   for (auto &adjustment : adjustments)
     {
+      if (e == error_mark_node)
+	return error_mark_node;
+
       switch (adjustment.get_type ())
 	{
 	case Resolver::Adjustment::AdjustmentType::ERROR:

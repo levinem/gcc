@@ -3102,7 +3102,7 @@ Parser<ManagedTokenSource>::parse_generic_param (EndTokenPred is_end_token)
     {
       case LIFETIME: {
 	auto lifetime = parse_lifetime (false);
-	if (lifetime.is_error ())
+	if (!lifetime)
 	  {
 	    rust_error_at (
 	      token->get_locus (),
@@ -3122,7 +3122,7 @@ Parser<ManagedTokenSource>::parse_generic_param (EndTokenPred is_end_token)
 	  }
 
 	param = std::unique_ptr<AST::LifetimeParam> (new AST::LifetimeParam (
-	  std::move (lifetime), std::move (lifetime_bounds),
+	  std::move (lifetime.value ()), std::move (lifetime_bounds),
 	  std::move (outer_attrs), token->get_locus ()));
 	break;
       }
@@ -3174,24 +3174,28 @@ Parser<ManagedTokenSource>::parse_generic_param (EndTokenPred is_end_token)
 	  return nullptr;
 
 	// optional default value
-	auto default_expr = AST::GenericArg::create_error ();
+	tl::optional<AST::GenericArg> default_expr = tl::nullopt;
 	if (lexer.peek_token ()->get_id () == EQUAL)
 	  {
 	    lexer.skip_token ();
 	    auto tok = lexer.peek_token ();
 	    default_expr = parse_generic_arg ();
 
-	    if (default_expr.is_error ())
-	      rust_error_at (tok->get_locus (),
-			     "invalid token for start of default value for "
-			     "const generic parameter: expected %<block%>, "
-			     "%<identifier%> or %<literal%>, got %qs",
-			     token_id_to_str (tok->get_id ()));
+	    if (!default_expr)
+	      {
+		rust_error_at (tok->get_locus (),
+			       "invalid token for start of default value for "
+			       "const generic parameter: expected %<block%>, "
+			       "%<identifier%> or %<literal%>, got %qs",
+			       token_id_to_str (tok->get_id ()));
+		return nullptr;
+	      }
 
 	    // At this point, we *know* that we are parsing a const
 	    // expression
-	    if (default_expr.get_kind () == AST::GenericArg::Kind::Either)
-	      default_expr = default_expr.disambiguate_to_const ();
+	    if (default_expr.value ().get_kind ()
+		== AST::GenericArg::Kind::Either)
+	      default_expr = default_expr.value ().disambiguate_to_const ();
 	  }
 
 	param = std::unique_ptr<AST::ConstGenericParam> (
@@ -3276,16 +3280,16 @@ Parser<ManagedTokenSource>::parse_lifetime_params ()
 
   while (lexer.peek_token ()->get_id () != END_OF_FILE)
     {
-      AST::LifetimeParam lifetime_param = parse_lifetime_param ();
+      auto lifetime_param = parse_lifetime_param ();
 
-      if (lifetime_param.is_error ())
+      if (!lifetime_param)
 	{
 	  // can't treat as error as only way to get out with trailing comma
 	  break;
 	}
 
       lifetime_params.push_back (std::unique_ptr<AST::LifetimeParam> (
-	new AST::LifetimeParam (std::move (lifetime_param))));
+	new AST::LifetimeParam (std::move (lifetime_param.value ()))));
 
       if (lexer.peek_token ()->get_id () != COMMA)
 	break;
@@ -3311,9 +3315,9 @@ Parser<ManagedTokenSource>::parse_lifetime_params (EndTokenPred is_end_token)
   // if end_token is not specified, it defaults to EOF, so should work fine
   while (!is_end_token (lexer.peek_token ()->get_id ()))
     {
-      AST::LifetimeParam lifetime_param = parse_lifetime_param ();
+      auto lifetime_param = parse_lifetime_param ();
 
-      if (lifetime_param.is_error ())
+      if (!lifetime_param)
 	{
 	  /* TODO: is it worth throwing away all lifetime params just because
 	   * one failed? */
@@ -3351,9 +3355,9 @@ Parser<ManagedTokenSource>::parse_lifetime_params_objs ()
   // bad control structure as end token cannot be guaranteed
   while (true)
     {
-      AST::LifetimeParam lifetime_param = parse_lifetime_param ();
+      auto lifetime_param = parse_lifetime_param ();
 
-      if (lifetime_param.is_error ())
+      if (!lifetime_param)
 	{
 	  // not an error as only way to exit if trailing comma
 	  break;
@@ -3386,9 +3390,9 @@ Parser<ManagedTokenSource>::parse_lifetime_params_objs (
 
   while (!is_end_token (lexer.peek_token ()->get_id ()))
     {
-      AST::LifetimeParam lifetime_param = parse_lifetime_param ();
+      auto lifetime_param = parse_lifetime_param ();
 
-      if (lifetime_param.is_error ())
+      if (!lifetime_param)
 	{
 	  /* TODO: is it worth throwing away all lifetime params just because
 	   * one failed? */
@@ -3399,7 +3403,7 @@ Parser<ManagedTokenSource>::parse_lifetime_params_objs (
 	  return {};
 	}
 
-      lifetime_params.push_back (std::move (lifetime_param));
+      lifetime_params.push_back (std::move (lifetime_param.value ()));
 
       if (lexer.peek_token ()->get_id () != COMMA)
 	break;
@@ -3458,7 +3462,7 @@ Parser<ManagedTokenSource>::parse_non_ptr_sequence (
 
 /* Parses a single lifetime generic parameter (not including comma). */
 template <typename ManagedTokenSource>
-AST::LifetimeParam
+tl::expected<AST::LifetimeParam, ParseLifetimeParamError>
 Parser<ManagedTokenSource>::parse_lifetime_param ()
 {
   // parse outer attributes, which are optional and may not exist
@@ -3468,8 +3472,8 @@ Parser<ManagedTokenSource>::parse_lifetime_param ()
   const_TokenPtr lifetime_tok = lexer.peek_token ();
   if (lifetime_tok->get_id () != LIFETIME)
     {
-      // if lifetime is missing, must not be a lifetime param, so return null
-      return AST::LifetimeParam::create_error ();
+      // if lifetime is missing, must not be a lifetime param, so return error
+      return tl::make_unexpected<ParseLifetimeParamError> ({});
     }
   lexer.skip_token ();
   AST::Lifetime lifetime (AST::Lifetime::NAMED, lifetime_tok->get_str (),
@@ -3815,12 +3819,13 @@ template <typename ManagedTokenSource>
 std::unique_ptr<AST::LifetimeWhereClauseItem>
 Parser<ManagedTokenSource>::parse_lifetime_where_clause_item ()
 {
-  AST::Lifetime lifetime = parse_lifetime (false);
-  if (lifetime.is_error ())
+  auto parsed_lifetime = parse_lifetime (false);
+  if (!parsed_lifetime)
     {
       // TODO: error here?
       return nullptr;
     }
+  auto lifetime = parsed_lifetime.value ();
 
   if (!skip_token (COLON))
     {
@@ -4013,7 +4018,7 @@ Parser<ManagedTokenSource>::parse_type_param_bound ()
     {
     case LIFETIME:
       return std::unique_ptr<AST::Lifetime> (
-	new AST::Lifetime (parse_lifetime (false)));
+	new AST::Lifetime (parse_lifetime (false).value ()));
     case LEFT_PAREN:
     case QUESTION_MARK:
     case FOR:
@@ -4086,13 +4091,13 @@ Parser<ManagedTokenSource>::parse_lifetime_bounds ()
 
   while (true)
     {
-      AST::Lifetime lifetime = parse_lifetime (false);
+      auto lifetime = parse_lifetime (false);
 
       // quick exit for parsing failure
-      if (lifetime.is_error ())
+      if (!lifetime)
 	break;
 
-      lifetime_bounds.push_back (std::move (lifetime));
+      lifetime_bounds.push_back (std::move (lifetime.value ()));
 
       /* plus is maybe not allowed at end - spec defines it weirdly, so
        * assuming allowed at end */
@@ -4116,9 +4121,9 @@ Parser<ManagedTokenSource>::parse_lifetime_bounds (EndTokenPred is_end_token)
 
   while (!is_end_token (lexer.peek_token ()->get_id ()))
     {
-      AST::Lifetime lifetime = parse_lifetime (false);
+      auto lifetime = parse_lifetime (false);
 
-      if (lifetime.is_error ())
+      if (!lifetime)
 	{
 	  /* TODO: is it worth throwing away all lifetime bound info just
 	   * because one failed? */
@@ -4129,7 +4134,7 @@ Parser<ManagedTokenSource>::parse_lifetime_bounds (EndTokenPred is_end_token)
 	  return {};
 	}
 
-      lifetime_bounds.push_back (std::move (lifetime));
+      lifetime_bounds.push_back (std::move (lifetime.value ()));
 
       /* plus is maybe not allowed at end - spec defines it weirdly, so
        * assuming allowed at end */
@@ -4146,14 +4151,20 @@ Parser<ManagedTokenSource>::parse_lifetime_bounds (EndTokenPred is_end_token)
 /* Parses a lifetime token (named, 'static, or '_). Also handles lifetime not
  * existing. */
 template <typename ManagedTokenSource>
-AST::Lifetime
+tl::expected<AST::Lifetime, ParseLifetimeError>
 Parser<ManagedTokenSource>::parse_lifetime (bool allow_elided)
 {
   const_TokenPtr lifetime_tok = lexer.peek_token ();
   if (lifetime_tok->get_id () != LIFETIME)
     {
-      return (allow_elided) ? AST::Lifetime::elided ()
-			    : AST::Lifetime::error ();
+      if (allow_elided)
+	{
+	  return AST::Lifetime::elided ();
+	}
+      else
+	{
+	  return tl::make_unexpected<ParseLifetimeError> ({});
+	}
     }
   lexer.skip_token ();
 
@@ -6163,6 +6174,10 @@ Parser<ManagedTokenSource>::parse_let_stmt (AST::AttrVec outer_attrs,
 	}
     }
 
+  tl::optional<std::unique_ptr<AST::Expr>> else_expr = tl::nullopt;
+  if (maybe_skip_token (ELSE))
+    else_expr = parse_block_expr ();
+
   if (restrictions.consume_semi)
     {
       // `stmt` macro variables are parsed without a semicolon, but should be
@@ -6177,7 +6192,7 @@ Parser<ManagedTokenSource>::parse_let_stmt (AST::AttrVec outer_attrs,
 
   return std::unique_ptr<AST::LetStmt> (
     new AST::LetStmt (std::move (pattern), std::move (expr), std::move (type),
-		      std::move (outer_attrs), locus));
+		      std::move (else_expr), std::move (outer_attrs), locus));
 }
 
 // Parses a type path.
@@ -6238,7 +6253,7 @@ Parser<ManagedTokenSource>::parse_type_path ()
 }
 
 template <typename ManagedTokenSource>
-AST::GenericArg
+tl::optional<AST::GenericArg>
 Parser<ManagedTokenSource>::parse_generic_arg ()
 {
   auto tok = lexer.peek_token ();
@@ -6259,7 +6274,7 @@ Parser<ManagedTokenSource>::parse_generic_arg ()
 	    if (type)
 	      return AST::GenericArg::create_type (std::move (type));
 	    else
-	      return AST::GenericArg::create_error ();
+	      return tl::nullopt;
 	  }
 	else if (next_tok->get_id () == COLON)
 	  {
@@ -6276,7 +6291,7 @@ Parser<ManagedTokenSource>::parse_generic_arg ()
 	    if (type)
 	      return AST::GenericArg::create_type (std::move (type));
 	    else
-	      return AST::GenericArg::create_error ();
+	      return tl::nullopt;
 	  }
 	lexer.skip_token ();
 	return AST::GenericArg::create_ambiguous (tok->get_str (),
@@ -6302,12 +6317,12 @@ Parser<ManagedTokenSource>::parse_generic_arg ()
 	if (type)
 	  return AST::GenericArg::create_type (std::move (type));
 	else
-	  return AST::GenericArg::create_error ();
+	  return tl::nullopt;
       }
     }
 
   if (!expr)
-    return AST::GenericArg::create_error ();
+    return tl::nullopt;
 
   return AST::GenericArg::create_const (std::move (expr));
 }
@@ -6336,14 +6351,14 @@ Parser<ManagedTokenSource>::parse_path_generic_args ()
   location_t locus = t->get_locus ();
   while (!is_right_angle_tok (t->get_id ()))
     {
-      AST::Lifetime lifetime = parse_lifetime (false);
-      if (lifetime.is_error ())
+      auto lifetime = parse_lifetime (false);
+      if (!lifetime)
 	{
 	  // not necessarily an error
 	  break;
 	}
 
-      lifetime_args.push_back (std::move (lifetime));
+      lifetime_args.push_back (std::move (lifetime.value ()));
 
       // if next token isn't comma, then it must be end of list
       if (lexer.peek_token ()->get_id () != COMMA)
@@ -6372,9 +6387,9 @@ Parser<ManagedTokenSource>::parse_path_generic_args ()
 	break;
 
       auto arg = parse_generic_arg ();
-      if (!arg.is_error ())
+      if (arg)
 	{
-	  generic_args.emplace_back (std::move (arg));
+	  generic_args.emplace_back (std::move (arg.value ()));
 	}
 
       // FIXME: Do we need to break if we encounter an error?
@@ -6957,10 +6972,12 @@ Parser<ManagedTokenSource>::parse_self_param ()
       // now test whether it has a lifetime
       if (lexer.peek_token ()->get_id () == LIFETIME)
 	{
-	  lifetime = parse_lifetime (true);
-
 	  // something went wrong somehow
-	  if (lifetime.is_error ())
+	  if (auto parsed_lifetime = parse_lifetime (true))
+	    {
+	      lifetime = parsed_lifetime.value ();
+	    }
+	  else
 	    {
 	      Error error (lexer.peek_token ()->get_locus (),
 			   "failed to parse lifetime in self param");
@@ -7149,9 +7166,9 @@ Parser<ManagedTokenSource>::parse_expr_stmt (AST::AttrVec outer_attrs,
 // Parses a block expression, including the curly braces at start and end.
 template <typename ManagedTokenSource>
 std::unique_ptr<AST::BlockExpr>
-Parser<ManagedTokenSource>::parse_block_expr (AST::AttrVec outer_attrs,
-					      AST::LoopLabel label,
-					      location_t pratt_parsed_loc)
+Parser<ManagedTokenSource>::parse_block_expr (
+  AST::AttrVec outer_attrs, tl::optional<AST::LoopLabel> label,
+  location_t pratt_parsed_loc)
 {
   location_t locus = pratt_parsed_loc;
   if (locus == UNKNOWN_LOCATION)
@@ -7515,12 +7532,10 @@ Parser<ManagedTokenSource>::parse_break_expr (AST::AttrVec outer_attrs,
       skip_token (BREAK);
     }
 
-  // parse label (lifetime) if it exists - create dummy first
-  AST::Lifetime label = AST::Lifetime::error ();
-  if (lexer.peek_token ()->get_id () == LIFETIME)
-    {
-      label = parse_lifetime (false);
-    }
+  auto parsed_label = parse_lifetime (false);
+  auto label = (parsed_label)
+		 ? tl::optional<AST::Lifetime> (parsed_label.value ())
+		 : tl::nullopt;
 
   // parse break return expression if it exists
   ParseRestrictions restrictions;
@@ -7546,12 +7561,10 @@ Parser<ManagedTokenSource>::parse_continue_expr (AST::AttrVec outer_attrs,
       skip_token (CONTINUE);
     }
 
-  // parse label (lifetime) if it exists - create dummy first
-  AST::Lifetime label = AST::Lifetime::error ();
-  if (lexer.peek_token ()->get_id () == LIFETIME)
-    {
-      label = parse_lifetime (false);
-    }
+  auto parsed_label = parse_lifetime (false);
+  auto label = (parsed_label)
+		 ? tl::optional<AST::Lifetime> (parsed_label.value ())
+		 : tl::nullopt;
 
   return std::unique_ptr<AST::ContinueExpr> (
     new AST::ContinueExpr (std::move (label), std::move (outer_attrs), locus));
@@ -7559,14 +7572,15 @@ Parser<ManagedTokenSource>::parse_continue_expr (AST::AttrVec outer_attrs,
 
 // Parses a loop label used in loop expressions.
 template <typename ManagedTokenSource>
-AST::LoopLabel
+tl::expected<AST::LoopLabel, ParseLoopLabelError>
 Parser<ManagedTokenSource>::parse_loop_label (const_TokenPtr tok)
 {
   // parse lifetime - if doesn't exist, assume no label
   if (tok->get_id () != LIFETIME)
     {
       // not necessarily an error
-      return AST::LoopLabel::error ();
+      return tl::unexpected<ParseLoopLabelError> (
+	ParseLoopLabelError::NOT_LOOP_LABEL);
     }
   /* FIXME: check for named lifetime requirement here? or check in semantic
    * analysis phase? */
@@ -7575,10 +7589,12 @@ Parser<ManagedTokenSource>::parse_loop_label (const_TokenPtr tok)
   if (!skip_token (COLON))
     {
       // skip somewhere?
-      return AST::LoopLabel::error ();
+      return tl::unexpected<ParseLoopLabelError> (
+	ParseLoopLabelError::MISSING_COLON);
     }
 
-  return AST::LoopLabel (std::move (label), tok->get_locus ());
+  return tl::expected<AST::LoopLabel, ParseLoopLabelError> (
+    AST::LoopLabel (std::move (label), tok->get_locus ()));
 }
 
 /* Parses an if expression of any kind, including with else, else if, else if
@@ -7931,16 +7947,16 @@ Parser<ManagedTokenSource>::parse_if_let_expr (AST::AttrVec outer_attrs,
 template <typename ManagedTokenSource>
 std::unique_ptr<AST::LoopExpr>
 Parser<ManagedTokenSource>::parse_loop_expr (AST::AttrVec outer_attrs,
-					     AST::LoopLabel label,
+					     tl::optional<AST::LoopLabel> label,
 					     location_t pratt_parsed_loc)
 {
   location_t locus = pratt_parsed_loc;
   if (locus == UNKNOWN_LOCATION)
     {
-      if (label.is_error ())
-	locus = lexer.peek_token ()->get_locus ();
+      if (label)
+	locus = label->get_locus ();
       else
-	locus = label.get_locus ();
+	locus = lexer.peek_token ()->get_locus ();
 
       if (!skip_token (LOOP))
 	{
@@ -7950,8 +7966,8 @@ Parser<ManagedTokenSource>::parse_loop_expr (AST::AttrVec outer_attrs,
     }
   else
     {
-      if (!label.is_error ())
-	locus = label.get_locus ();
+      if (label)
+	locus = label->get_locus ();
     }
 
   // parse loop body, which is required
@@ -7974,17 +7990,17 @@ Parser<ManagedTokenSource>::parse_loop_expr (AST::AttrVec outer_attrs,
  * via parse_labelled_loop_expr, which would call this. */
 template <typename ManagedTokenSource>
 std::unique_ptr<AST::WhileLoopExpr>
-Parser<ManagedTokenSource>::parse_while_loop_expr (AST::AttrVec outer_attrs,
-						   AST::LoopLabel label,
-						   location_t pratt_parsed_loc)
+Parser<ManagedTokenSource>::parse_while_loop_expr (
+  AST::AttrVec outer_attrs, tl::optional<AST::LoopLabel> label,
+  location_t pratt_parsed_loc)
 {
   location_t locus = pratt_parsed_loc;
   if (locus == UNKNOWN_LOCATION)
     {
-      if (label.is_error ())
-	locus = lexer.peek_token ()->get_locus ();
+      if (label)
+	locus = label->get_locus ();
       else
-	locus = label.get_locus ();
+	locus = lexer.peek_token ()->get_locus ();
 
       if (!skip_token (WHILE))
 	{
@@ -7994,8 +8010,8 @@ Parser<ManagedTokenSource>::parse_while_loop_expr (AST::AttrVec outer_attrs,
     }
   else
     {
-      if (!label.is_error ())
-	locus = label.get_locus ();
+      if (label)
+	locus = label->get_locus ();
     }
 
   // ensure it isn't a while let loop
@@ -8047,14 +8063,14 @@ Parser<ManagedTokenSource>::parse_while_loop_expr (AST::AttrVec outer_attrs,
  * parsed via parse_labelled_loop_expr, which would call this. */
 template <typename ManagedTokenSource>
 std::unique_ptr<AST::WhileLetLoopExpr>
-Parser<ManagedTokenSource>::parse_while_let_loop_expr (AST::AttrVec outer_attrs,
-						       AST::LoopLabel label)
+Parser<ManagedTokenSource>::parse_while_let_loop_expr (
+  AST::AttrVec outer_attrs, tl::optional<AST::LoopLabel> label)
 {
   location_t locus = UNKNOWN_LOCATION;
-  if (label.is_error ())
-    locus = lexer.peek_token ()->get_locus ();
+  if (label)
+    locus = label->get_locus ();
   else
-    locus = label.get_locus ();
+    locus = lexer.peek_token ()->get_locus ();
   maybe_skip_token (WHILE);
 
   /* check for possible accidental recognition of a while loop as a while let
@@ -8121,14 +8137,14 @@ Parser<ManagedTokenSource>::parse_while_let_loop_expr (AST::AttrVec outer_attrs,
  * parse_labelled_loop_expr, which would call this. */
 template <typename ManagedTokenSource>
 std::unique_ptr<AST::ForLoopExpr>
-Parser<ManagedTokenSource>::parse_for_loop_expr (AST::AttrVec outer_attrs,
-						 AST::LoopLabel label)
+Parser<ManagedTokenSource>::parse_for_loop_expr (
+  AST::AttrVec outer_attrs, tl::optional<AST::LoopLabel> label)
 {
   location_t locus = UNKNOWN_LOCATION;
-  if (label.is_error ())
-    locus = lexer.peek_token ()->get_locus ();
+  if (label)
+    locus = label->get_locus ();
   else
-    locus = label.get_locus ();
+    locus = lexer.peek_token ()->get_locus ();
   maybe_skip_token (FOR);
 
   // parse pattern, which is required
@@ -8206,8 +8222,9 @@ Parser<ManagedTokenSource>::parse_labelled_loop_expr (const_TokenPtr tok,
     }
 
   // parse loop label (required)
-  AST::LoopLabel label = parse_loop_label (tok);
-  if (label.is_error ())
+  // TODO: Convert this return type to tl::expected instead of tl::optional
+  auto parsed_label = parse_loop_label (tok);
+  if (!parsed_label)
     {
       Error error (lexer.peek_token ()->get_locus (),
 		   "failed to parse loop label in labelled loop expr");
@@ -8216,6 +8233,10 @@ Parser<ManagedTokenSource>::parse_labelled_loop_expr (const_TokenPtr tok,
       // skip?
       return nullptr;
     }
+
+  auto label = parsed_label
+		 ? tl::optional<AST::LoopLabel> (parsed_label.value ())
+		 : tl::nullopt;
 
   // branch on next token
   const_TokenPtr t = lexer.peek_token ();
@@ -9594,8 +9615,12 @@ Parser<ManagedTokenSource>::parse_reference_type_inner (location_t locus)
   AST::Lifetime lifetime = AST::Lifetime::elided ();
   if (lexer.peek_token ()->get_id () == LIFETIME)
     {
-      lifetime = parse_lifetime (true);
-      if (lifetime.is_error ())
+      auto parsed_lifetime = parse_lifetime (true);
+      if (parsed_lifetime)
+	{
+	  lifetime = parsed_lifetime.value ();
+	}
+      else
 	{
 	  Error error (lexer.peek_token ()->get_locus (),
 		       "failed to parse lifetime in reference type");
@@ -12396,8 +12421,8 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
       return parse_continue_expr (std::move (outer_attrs), tok->get_locus ());
     case LEFT_CURLY:
       // ok - this is an expression with block for once.
-      return parse_block_expr (std::move (outer_attrs),
-			       AST::LoopLabel::error (), tok->get_locus ());
+      return parse_block_expr (std::move (outer_attrs), tl::nullopt,
+			       tok->get_locus ());
     case IF:
       // if or if let, so more lookahead to find out
       if (lexer.peek_token ()->get_id () == LET)
@@ -12413,7 +12438,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
     case LIFETIME:
       return parse_labelled_loop_expr (tok, std::move (outer_attrs));
     case LOOP:
-      return parse_loop_expr (std::move (outer_attrs), AST::LoopLabel::error (),
+      return parse_loop_expr (std::move (outer_attrs), tl::nullopt,
 			      tok->get_locus ());
     case WHILE:
       if (lexer.peek_token ()->get_id () == LET)
@@ -12422,13 +12447,11 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	}
       else
 	{
-	  return parse_while_loop_expr (std::move (outer_attrs),
-					AST::LoopLabel::error (),
+	  return parse_while_loop_expr (std::move (outer_attrs), tl::nullopt,
 					tok->get_locus ());
 	}
     case FOR:
-      return parse_for_loop_expr (std::move (outer_attrs),
-				  AST::LoopLabel::error ());
+      return parse_for_loop_expr (std::move (outer_attrs), tl::nullopt);
     case MATCH_KW:
       // also an expression with block
       return parse_match_expr (std::move (outer_attrs), tok->get_locus ());

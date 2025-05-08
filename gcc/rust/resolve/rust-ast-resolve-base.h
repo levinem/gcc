@@ -27,6 +27,11 @@
 
 namespace Rust {
 namespace Resolver {
+inline void
+redefined_error (const rich_location &loc)
+{
+  rust_error_at (loc, "redefined multiple times");
+}
 
 class ResolverBase : public AST::ASTVisitor
 {
@@ -105,6 +110,7 @@ public:
   void visit (AST::AwaitExpr &);
   void visit (AST::AsyncBlockExpr &);
   void visit (AST::InlineAsm &);
+  void visit (AST::LlvmInlineAsm &);
 
   void visit (AST::TypeParam &);
 

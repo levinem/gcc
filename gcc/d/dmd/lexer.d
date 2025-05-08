@@ -6,9 +6,9 @@
  * Copyright:   Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
- * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/lexer.d, _lexer.d)
+ * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/lexer.d, _lexer.d)
  * Documentation:  https://dlang.org/phobos/dmd_lexer.html
- * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/src/dmd/lexer.d
+ * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/compiler/src/dmd/lexer.d
  */
 
 module dmd.lexer;
@@ -132,7 +132,7 @@ class Lexer
         // debug printf("Lexer::Lexer(%p)\n", base);
         // debug printf("lexer.filename = %s\n", filename);
         token = Token.init;
-        this.baseLoc = newBaseLoc(filename, endoffset);
+        this.baseLoc = newBaseLoc(filename, base[0 .. endoffset]);
         this.linnum = 1;
         this.base = base;
         this.end = base + endoffset;
@@ -224,7 +224,7 @@ class Lexer
         inTokenStringConstant = 0;
         lastDocLine = 0;
 
-        baseLoc = newBaseLoc("#defines", slice.length);
+        baseLoc = newBaseLoc("#defines", slice);
         scanloc = baseLoc.getLoc(0);
     }
 

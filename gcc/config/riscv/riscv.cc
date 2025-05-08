@@ -3863,7 +3863,40 @@ riscv_rtx_costs (rtx x, machine_mode mode, int outer_code, int opno ATTRIBUTE_UN
      Cost Model need to be well analyzed and supported in the future. */
   if (riscv_v_ext_mode_p (mode))
     {
-      *total = COSTS_N_INSNS (1);
+      int gr2vr_cost = get_gr2vr_cost ();
+
+      switch (outer_code)
+	{
+	case SET:
+	  {
+	    switch (GET_CODE (x))
+	      {
+	      case VEC_DUPLICATE:
+		*total = gr2vr_cost * COSTS_N_INSNS (1);
+		break;
+	      case PLUS:
+		{
+		  rtx op_0 = XEXP (x, 0);
+		  rtx op_1 = XEXP (x, 1);
+
+		  if (GET_CODE (op_0) == VEC_DUPLICATE
+		      || GET_CODE (op_1) == VEC_DUPLICATE)
+		    *total = (gr2vr_cost + 1) * COSTS_N_INSNS (1);
+		  else
+		    *total = COSTS_N_INSNS (1);
+		}
+		break;
+	      default:
+		*total = COSTS_N_INSNS (1);
+		break;
+	      }
+	  }
+	  break;
+	default:
+	  *total = COSTS_N_INSNS (1);
+	  break;
+	}
+
       return true;
     }
 
@@ -6879,6 +6912,7 @@ riscv_asm_output_opcode (FILE *asm_out_file, const char *p)
    'T'	Print shift-index of inverted single-bit mask OP.
    '~'	Print w if TARGET_64BIT is true; otherwise not print anything.
    'N'  Print register encoding as integer (0-31).
+   'H'  Print the name of the next register for integer.
 
    Note please keep this list and the list in riscv.md in sync.  */
 
@@ -7172,6 +7206,27 @@ riscv_print_operand (FILE *file, rtx op, int letter)
 	  output_operand_lossage ("invalid register number for 'N' modifier");
 
 	asm_fprintf (file, "%u", (regno - offset));
+	break;
+      }
+    case 'H':
+      {
+	if (!REG_P (op))
+	  {
+	    output_operand_lossage ("modifier 'H' require register operand");
+	    break;
+	  }
+	if (REGNO (op) > 31)
+	  {
+	    output_operand_lossage ("modifier 'H' is for integer registers only");
+	    break;
+	  }
+	if (REGNO (op) == 31)
+	  {
+	    output_operand_lossage ("modifier 'H' cannot be applied to R31");
+	    break;
+	  }
+
+	fputs (reg_names[REGNO (op) + 1], file);
 	break;
       }
     default:
@@ -9650,26 +9705,26 @@ int
 riscv_register_move_cost (machine_mode mode,
 			  reg_class_t from, reg_class_t to)
 {
-  bool from_is_fpr = from == FP_REGS || from == RVC_FP_REGS;
-  bool from_is_gpr = from == GR_REGS || from == RVC_GR_REGS;
-  bool to_is_fpr = to == FP_REGS || to == RVC_FP_REGS;
-  bool to_is_gpr = to == GR_REGS || to == RVC_GR_REGS;
+  bool from_is_fpr = reg_class_subset_p (from, FP_REGS);
+  bool from_is_gpr = reg_class_subset_p (from, GR_REGS);
+  bool to_is_fpr = reg_class_subset_p (to, FP_REGS);
+  bool to_is_gpr = reg_class_subset_p (to, GR_REGS);
   if ((from_is_fpr && to_is_gpr) || (from_is_gpr && to_is_fpr))
     return tune_param->fmv_cost;
 
   if (from == V_REGS)
     {
-      if (to == GR_REGS)
+      if (to_is_gpr)
 	return get_vector_costs ()->regmove->VR2GR;
-      else if (to == FP_REGS)
+      else if (to_is_fpr)
 	return get_vector_costs ()->regmove->VR2FR;
     }
 
   if (to == V_REGS)
     {
-      if (from == GR_REGS)
-	return get_vector_costs ()->regmove->GR2VR;
-      else if (from == FP_REGS)
+      if (from_is_gpr)
+	return get_gr2vr_cost ();
+      else if (from_is_fpr)
 	return get_vector_costs ()->regmove->FR2VR;
     }
 
@@ -10382,7 +10437,7 @@ riscv_file_end ()
       fprintf (asm_out_file, "1:\n");
 
       /* pr_type.  */
-      fprintf (asm_out_file, "\t.p2align\t3\n");
+      fprintf (asm_out_file, "\t.p2align\t%u\n", p2align);
       fprintf (asm_out_file, "2:\n");
       fprintf (asm_out_file, "\t.long\t0xc0000000\n");
       /* pr_datasz.  */
@@ -12047,27 +12102,30 @@ riscv_emit_frm_mode_set (int mode, int prev_mode)
   if (prev_mode == riscv_vector::FRM_DYN_CALL)
     emit_insn (gen_frrmsi (backup_reg)); /* Backup frm when DYN_CALL.  */
 
-  if (mode != prev_mode)
-    {
-      rtx frm = gen_int_mode (mode, SImode);
+  if (mode == prev_mode)
+    return;
 
-      if (mode == riscv_vector::FRM_DYN_CALL
-	&& prev_mode != riscv_vector::FRM_DYN && STATIC_FRM_P (cfun))
-	/* No need to emit when prev mode is DYN already.  */
-	emit_insn (gen_fsrmsi_restore_volatile (backup_reg));
-      else if (mode == riscv_vector::FRM_DYN_EXIT && STATIC_FRM_P (cfun)
-	&& prev_mode != riscv_vector::FRM_DYN
-	&& prev_mode != riscv_vector::FRM_DYN_CALL)
-	/* No need to emit when prev mode is DYN or DYN_CALL already.  */
-	emit_insn (gen_fsrmsi_restore_volatile (backup_reg));
-      else if (mode == riscv_vector::FRM_DYN
-	&& prev_mode != riscv_vector::FRM_DYN_CALL)
-	/* Restore frm value from backup when switch to DYN mode.  */
-	emit_insn (gen_fsrmsi_restore (backup_reg));
-      else if (riscv_static_frm_mode_p (mode))
-	/* Set frm value when switch to static mode.  */
-	emit_insn (gen_fsrmsi_restore (frm));
+  if (riscv_static_frm_mode_p (mode))
+    {
+      /* Set frm value when switch to static mode.  */
+      emit_insn (gen_fsrmsi_restore (gen_int_mode (mode, SImode)));
+      return;
     }
+
+  bool restore_p
+    = /* No need to emit when prev mode is DYN.  */
+      (STATIC_FRM_P (cfun) && mode == riscv_vector::FRM_DYN_CALL
+       && prev_mode != riscv_vector::FRM_DYN)
+      /* No need to emit if prev mode is DYN or DYN_CALL.  */
+      || (STATIC_FRM_P (cfun) && mode == riscv_vector::FRM_DYN_EXIT
+	  && prev_mode != riscv_vector::FRM_DYN
+	  && prev_mode != riscv_vector::FRM_DYN_CALL)
+      /* Restore frm value when switch to DYN mode.  */
+      || (mode == riscv_vector::FRM_DYN
+	  && prev_mode != riscv_vector::FRM_DYN_CALL);
+
+  if (restore_p)
+    emit_insn (gen_fsrmsi_restore (backup_reg));
 }
 
 /* Implement Mode switching.  */
@@ -12268,6 +12326,41 @@ riscv_mode_needed (int entity, rtx_insn *insn, HARD_REG_SET)
       return code >= 0 ? get_attr_vxrm_mode (insn) : VXRM_MODE_NONE;
     case RISCV_FRM:
       return riscv_frm_mode_needed (insn, code);
+    default:
+      gcc_unreachable ();
+    }
+}
+
+/* Return TRUE if the rouding mode is dynamic.  */
+
+static bool
+riscv_dynamic_frm_mode_p (int mode)
+{
+  return mode == riscv_vector::FRM_DYN
+	 || mode == riscv_vector::FRM_DYN_CALL
+	 || mode == riscv_vector::FRM_DYN_EXIT;
+}
+
+/* Implement TARGET_MODE_CONFLUENCE.  */
+
+static int
+riscv_mode_confluence (int entity, int mode1, int mode2)
+{
+  switch (entity)
+    {
+    case RISCV_VXRM:
+      return VXRM_MODE_NONE;
+    case RISCV_FRM:
+      {
+	/* FRM_DYN, FRM_DYN_CALL and FRM_DYN_EXIT are all compatible.
+	   Although we already try to set the mode needed to FRM_DYN after a
+	   function call, there are still some corner cases where both FRM_DYN
+	   and FRM_DYN_CALL may appear on incoming edges.  */
+	if (riscv_dynamic_frm_mode_p (mode1)
+	    && riscv_dynamic_frm_mode_p (mode2))
+	  return riscv_vector::FRM_DYN;
+	return riscv_vector::FRM_NONE;
+      }
     default:
       gcc_unreachable ();
     }
@@ -12480,6 +12573,21 @@ get_vector_costs ()
   return costs;
 }
 
+/* Return the cost of operation that move from gpr to vr.
+   It will take the value of --param=gpr2vr_cost if it is provided.
+   Or the default regmove->GR2VR will be returned.  */
+
+int
+get_gr2vr_cost ()
+{
+  int cost = get_vector_costs ()->regmove->GR2VR;
+
+  if (gpr2vr_cost != GPR2VR_COST_UNPROVIDED)
+    cost = gpr2vr_cost;
+
+  return cost;
+}
+
 /* Implement targetm.vectorize.builtin_vectorization_cost.  */
 
 static int
@@ -12546,7 +12654,7 @@ riscv_builtin_vectorization_cost (enum vect_cost_for_stmt type_of_cost,
 	{
 	  /* TODO: This is too pessimistic in case we can splat.  */
 	  int regmove_cost = fp ? costs->regmove->FR2VR
-	    : costs->regmove->GR2VR;
+	    : get_gr2vr_cost ();
 	  return (regmove_cost + common_costs->scalar_to_vec_cost)
 	    * estimated_poly_value (TYPE_VECTOR_SUBPARTS (vectype));
 	}
@@ -13135,9 +13243,6 @@ parse_features_for_version (tree decl,
     = riscv_minimal_hwprobe_feature_bits (arch_string, &res,
 					  DECL_SOURCE_LOCATION (decl));
   gcc_assert (parse_res);
-
-  if (arch_string != default_opts->x_riscv_arch_string)
-    free (CONST_CAST (void *, (const void *) arch_string));
 
   cl_target_option_restore (&global_options, &global_options_set,
 			    &cur_target);
@@ -14359,6 +14464,8 @@ bool need_shadow_stack_push_pop_p ()
 #define TARGET_MODE_EMIT riscv_emit_mode_set
 #undef TARGET_MODE_NEEDED
 #define TARGET_MODE_NEEDED riscv_mode_needed
+#undef TARGET_MODE_CONFLUENCE
+#define TARGET_MODE_CONFLUENCE riscv_mode_confluence
 #undef TARGET_MODE_AFTER
 #define TARGET_MODE_AFTER riscv_mode_after
 #undef TARGET_MODE_ENTRY

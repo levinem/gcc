@@ -651,7 +651,7 @@ public:
       }
 
     DECL_INITIAL (vtblsym->csym)
-      = build_constructor (TREE_TYPE (vtblsym->csym), elms);
+      = build_padded_constructor (TREE_TYPE (vtblsym->csym), elms);
     d_finish_decl (vtblsym->csym);
 
     d->semanticRun (PASS::obj);
@@ -791,6 +791,12 @@ public:
       }
     else if (d->isDataseg ())
       {
+	/* When the front-end type size is invalid, an error has already been
+	   given for the declaration or type.  */
+	dinteger_t size = dmd::size (d->type, d->loc);
+	if (size == SIZE_INVALID)
+	  return;
+
 	tree decl = get_symbol_decl (d);
 
 	/* Only need to build the VAR_DECL for extern declarations.  */
@@ -804,9 +810,7 @@ public:
 	  return;
 
 	/* How big a symbol can be should depend on back-end.  */
-	tree size = build_integer_cst (dmd::size (d->type, d->loc),
-				       build_ctype (Type::tsize_t));
-	if (!valid_constant_size_p (size))
+	if (!valid_constant_size_p (build_integer_cst (size, size_type_node)))
 	  {
 	    error_at (make_location_t (d->loc), "size is too large");
 	    return;
@@ -835,8 +839,9 @@ public:
 	  }
 
 	/* Frontend should have already caught this.  */
-	gcc_assert (!integer_zerop (size)
-		    || d->type->toBasetype ()->isTypeSArray ());
+	gcc_assert ((size != 0 && size != SIZE_INVALID)
+		    || d->type->toBasetype ()->isTypeSArray ()
+		    || d->isCsymbol ());
 
 	d_finish_decl (decl);
 
@@ -2391,6 +2396,12 @@ aggregate_initializer_decl (AggregateDeclaration *decl)
   if (sd && !sd->alignment.isDefault ())
     {
       SET_DECL_ALIGN (sinit, sd->alignment.get () * BITS_PER_UNIT);
+      DECL_USER_ALIGN (sinit) = true;
+    }
+  else if (sd == NULL)
+    {
+      /* Alignment of class is determined its biggest field alignment.  */
+      SET_DECL_ALIGN (sinit, decl->alignsize * BITS_PER_UNIT);
       DECL_USER_ALIGN (sinit) = true;
     }
 

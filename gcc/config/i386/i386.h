@@ -207,6 +207,16 @@ struct processor_costs {
   const int divsd;		/* cost of DIVSD instructions.  */
   const int sqrtss;		/* cost of SQRTSS instructions.  */
   const int sqrtsd;		/* cost of SQRTSD instructions.  */
+  const int cvtss2sd;		/* cost SSE FP conversions,
+				   such as CVTSS2SD.  */
+  const int vcvtps2pd256;	/* cost 256bit packed FP conversions,
+				   such as VCVTPD2PS with larger reg in ymm.  */
+  const int vcvtps2pd512;	/* cost 512bit packed FP conversions,
+				   such as VCVTPD2PS with larger reg in zmm.  */
+  const int cvtsi2ss;		/* cost of CVTSI2SS instruction.  */
+  const int cvtss2si;		/* cost of CVT(T)SS2SI instruction.  */
+  const int cvtpi2ps;		/* cost of CVTPI2PS instruction.  */
+  const int cvtps2pi;		/* cost of CVT(T)PS2PI instruction.  */
   const int reassoc_int, reassoc_fp, reassoc_vec_int, reassoc_vec_fp;
 				/* Specify reassociation width for integer,
 				   fp, vector integer and vector fp
@@ -525,6 +535,7 @@ extern unsigned char ix86_prefetch_sse;
 #define TARGET_GNU2_TLS		(ix86_tls_dialect == TLS_DIALECT_GNU2)
 #define TARGET_ANY_GNU_TLS	(TARGET_GNU_TLS || TARGET_GNU2_TLS)
 #define TARGET_SUN_TLS		0
+#define TARGET_WIN32_TLS	0
 
 #ifndef TARGET_64BIT_DEFAULT
 #define TARGET_64BIT_DEFAULT 0
@@ -2449,11 +2460,11 @@ constexpr wide_int_bitmask PTA_DIAMONDRAPIDS = PTA_SKYLAKE | PTA_PKU | PTA_SHA
   | PTA_WBNOINVD | PTA_CLWB | PTA_MOVDIRI | PTA_MOVDIR64B | PTA_ENQCMD
   | PTA_CLDEMOTE | PTA_PTWRITE | PTA_WAITPKG | PTA_SERIALIZE | PTA_TSXLDTRK
   | PTA_AMX_TILE | PTA_AMX_INT8 | PTA_AMX_BF16 | PTA_UINTR | PTA_AVXVNNI
-  | PTA_AMX_FP16 | PTA_PREFETCHI | PTA_AMX_COMPLEX | PTA_AVX10_1
-  | PTA_AVXIFMA | PTA_AVXNECONVERT | PTA_AVXVNNIINT16 | PTA_AVXVNNIINT8
-  | PTA_CMPCCXADD | PTA_SHA512 | PTA_SM3 | PTA_SM4 | PTA_AVX10_2
-  | PTA_APX_F | PTA_AMX_AVX512 | PTA_AMX_FP8 | PTA_AMX_TF32 | PTA_AMX_TRANSPOSE
-  | PTA_MOVRS | PTA_AMX_MOVRS | PTA_USER_MSR;
+  | PTA_AMX_FP16 | PTA_PREFETCHI | PTA_AMX_COMPLEX | PTA_AVX10_1_256
+  | PTA_AVX10_1 | PTA_AVXIFMA | PTA_AVXNECONVERT | PTA_AVXVNNIINT16
+  | PTA_AVXVNNIINT8 | PTA_CMPCCXADD | PTA_SHA512 | PTA_SM3 | PTA_SM4
+  | PTA_AVX10_2 | PTA_APX_F | PTA_AMX_AVX512 | PTA_AMX_FP8 | PTA_AMX_TF32
+  | PTA_AMX_TRANSPOSE | PTA_MOVRS | PTA_AMX_MOVRS | PTA_USER_MSR;
 
 constexpr wide_int_bitmask PTA_BDVER1 = PTA_64BIT | PTA_MMX | PTA_SSE
   | PTA_SSE2 | PTA_SSE3 | PTA_SSE4A | PTA_CX16 | PTA_ABM | PTA_SSSE3

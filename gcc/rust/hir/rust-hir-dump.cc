@@ -546,7 +546,8 @@ Dump::do_traitfunctiondecl (TraitFunctionDecl &e)
   else
     put_field ("where_clause", "none");
 
-  put_field ("self", e.get_self ().as_string ());
+  if (e.is_method ())
+    put_field ("self", e.get_self_unchecked ().as_string ());
 
   end ("TraitFunctionDecl");
 }
@@ -1283,7 +1284,9 @@ Dump::visit (BlockExpr &e)
   do_expr (e);
   do_inner_attrs (e);
   put_field ("tail_reachable", std::to_string (e.is_tail_reachable ()));
-  put_field ("label", e.get_label ().as_string ());
+
+  if (e.has_label ())
+    put_field ("label", e.get_label ().as_string ());
 
   visit_collection ("statements", e.get_statements ());
 
@@ -1507,6 +1510,10 @@ Dump::visit (InlineAsm &e)
 {}
 
 void
+Dump::visit (LlvmInlineAsm &e)
+{}
+
+void
 Dump::visit (TypeParam &e)
 {
   begin ("TypeParam");
@@ -1693,7 +1700,8 @@ Dump::visit (Function &e)
     put_field ("where clause", e.get_where_clause ().as_string ());
 
   visit_field ("function_body", e.get_definition ());
-  put_field ("self", e.get_self_param ().as_string ());
+  if (e.is_method ())
+    put_field ("self", e.get_self_param_unchecked ().as_string ());
 
   end ("Function");
 }
@@ -1932,7 +1940,9 @@ Dump::visit (TraitItemConst &e)
 
   put_field ("name", e.get_name ().as_string ());
   visit_field ("type", e.get_type ());
-  visit_field ("expr", e.get_expr ());
+  if (e.has_expr ())
+    visit_field ("expr", e.get_expr ());
+
   end ("TraitItemConst");
 }
 
@@ -2438,7 +2448,9 @@ Dump::visit (BareFunctionType &e)
       end_field ("params");
     }
 
-  visit_field ("return_type", e.get_return_type ());
+  if (e.has_return_type ())
+    visit_field ("return_type", e.get_return_type ());
+
   put_field ("is_variadic", std::to_string (e.get_is_variadic ()));
   end ("BareFunctionType");
 }

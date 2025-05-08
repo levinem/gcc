@@ -1960,6 +1960,12 @@
 #endif
 
 
+/* Define to 1 if you have the `memrchr' function. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_MEMRCHR
+#endif
+
+
 /* Define to 1 if you have the `mmap' function. */
 #ifndef USED_FOR_TARGET
 #undef HAVE_MMAP
@@ -2311,6 +2317,13 @@
 /* Define if O_NONBLOCK supported by fcntl. */
 #ifndef USED_FOR_TARGET
 #undef HOST_HAS_O_NONBLOCK
+#endif
+
+
+/* Define if personality and ADDR_NO_RANDOMIZE are declared in
+   sys/personality.h. */
+#ifndef USED_FOR_TARGET
+#undef HOST_HAS_PERSONALITY_ADDR_NO_RANDOMIZE
 #endif
 
 

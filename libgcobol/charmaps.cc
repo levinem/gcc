@@ -37,12 +37,12 @@
 #include <unordered_map>
 #include <locale.h>
 #include <iconv.h>
+#include <vector>
 
 #include "ec.h"
 #include "common-defs.h"
 #include "io.h"
 #include "gcobolio.h"
-#include "libgcobol.h"
 #include "charmaps.h"
 #include "valconv.h"
 

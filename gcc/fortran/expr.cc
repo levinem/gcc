@@ -1194,6 +1194,7 @@ is_subref_array (gfc_expr * e)
 	 what follows cannot be a subreference array, unless there is a
 	 substring reference.  */
       if (!seen_array && ref->type == REF_COMPONENT
+	  && ref->next == NULL
 	  && ref->u.c.component->ts.type != BT_CHARACTER
 	  && ref->u.c.component->ts.type != BT_CLASS
 	  && !gfc_bt_struct (ref->u.c.component->ts.type))
@@ -3836,7 +3837,13 @@ gfc_check_assign (gfc_expr *lvalue, gfc_expr *rvalue, int conform,
       if (has_pointer && (ref == NULL || ref->next == NULL)
 	  && lvalue->symtree->n.sym->attr.data)
         return true;
-      else
+      /* Prevent the following error message for caf-single mode, because there
+	 are no teams in single mode and the simplify returns a null then.  */
+      else if (!(flag_coarray == GFC_FCOARRAY_SINGLE
+		 && rvalue->ts.type == BT_DERIVED
+		 && rvalue->ts.u.derived->from_intmod == INTMOD_ISO_FORTRAN_ENV
+		 && rvalue->ts.u.derived->intmod_sym_id
+		      == ISOFORTRAN_TEAM_TYPE))
 	{
 	  gfc_error ("NULL appears on right-hand side in assignment at %L",
 		     &rvalue->where);

@@ -577,7 +577,7 @@ c_build_functype_attribute_variant (tree ntype, tree otype, tree attrs)
 }
 
 /* Given a type which could be a typedef name, make sure to return the
-   original type.  */
+   original type.  See set_underlying_type. */
 static const_tree
 c_type_original (const_tree t)
 {
@@ -590,6 +590,26 @@ c_type_original (const_tree t)
     t = DECL_ORIGINAL_TYPE (TYPE_NAME (t));
   return t;
 }
+
+/* Return the tag for a tagged type.  */
+tree
+c_type_tag (const_tree t)
+{
+  gcc_assert (RECORD_OR_UNION_TYPE_P (t) || TREE_CODE (t) == ENUMERAL_TYPE);
+  const_tree orig = c_type_original (t);
+  tree name = TYPE_NAME (orig);
+  if (!name)
+    return NULL_TREE;
+  if (TREE_CODE (name) == TYPE_DECL)
+    {
+      /* A TYPE_DECL added by add_decl_expr.  */
+      gcc_checking_assert (!DECL_NAME (name));
+      return NULL_TREE;
+    }
+  gcc_checking_assert (TREE_CODE (name) == IDENTIFIER_NODE);
+  return name;
+}
+
 
 
 /* Return the composite type of two compatible types.
@@ -744,7 +764,7 @@ composite_type_internal (tree t1, tree t2, struct composite_cache* cache)
       if (flag_isoc23 && !comptypes_same_p (t1, t2))
 	{
 	  /* Go to the original type to get the right tag.  */
-	  tree tag = TYPE_NAME (c_type_original (const_cast<tree> (t1)));
+	  tree tag = c_type_tag (t1);
 
 	  gcc_checking_assert (COMPLETE_TYPE_P (t1) && COMPLETE_TYPE_P (t2));
 	  gcc_checking_assert (!tag || comptypes (t1, t2));
@@ -1807,17 +1827,7 @@ tagged_types_tu_compatible_p (const_tree t1, const_tree t2,
 {
   tree s1, s2;
 
-  /* We have to verify that the tags of the types are the same.  This
-     is harder than it looks because this may be a typedef, so we have
-     to go look at the original type.  */
-  t1 = c_type_original (t1);
-  t2 = c_type_original (t2);
-  gcc_checking_assert (!TYPE_NAME (t1)
-		       || TREE_CODE (TYPE_NAME (t1)) == IDENTIFIER_NODE);
-  gcc_checking_assert (!TYPE_NAME (t2)
-		       || TREE_CODE (TYPE_NAME (t2)) == IDENTIFIER_NODE);
-
-  if (TYPE_NAME (t1) != TYPE_NAME (t2))
+  if (c_type_tag (t1) != c_type_tag (t2))
     return false;
 
   /* When forming equivalence classes for TYPE_CANONICAL in C23, we treat
@@ -1828,7 +1838,7 @@ tagged_types_tu_compatible_p (const_tree t1, const_tree t2,
 
   /* Different types without tag are incompatible except as an anonymous
      field or when forming equivalence classes for TYPE_CANONICAL.  */
-  if (!data->anon_field && !data->equiv && NULL_TREE == TYPE_NAME (t1))
+  if (!data->anon_field && !data->equiv && NULL_TREE == c_type_tag (t1))
     return false;
 
   if (!data->anon_field && TYPE_STUB_DECL (t1) != TYPE_STUB_DECL (t2))
@@ -3003,12 +3013,16 @@ build_access_with_size_for_counted_by (location_t loc, tree ref,
   gcc_assert (c_flexible_array_member_type_p (TREE_TYPE (ref)));
   /* The result type of the call is a pointer to the flexible array type.  */
   tree result_type = c_build_pointer_type (TREE_TYPE (ref));
+  tree first_param
+    = c_fully_fold (array_to_pointer_conversion (loc, ref), false, NULL);
+  tree second_param
+    = c_fully_fold (counted_by_ref, false, NULL);
 
   tree call
     = build_call_expr_internal_loc (loc, IFN_ACCESS_WITH_SIZE,
 				    result_type, 6,
-				    array_to_pointer_conversion (loc, ref),
-				    counted_by_ref,
+				    first_param,
+				    second_param,
 				    build_int_cst (integer_type_node, 1),
 				    build_int_cst (counted_by_type, 0),
 				    build_int_cst (integer_type_node, -1),
@@ -4149,12 +4163,6 @@ convert_argument (location_t ploc, tree function, tree fundecl,
 					 val, origtype, ic_argpass,
 					 npc, fundecl, function,
 					 parmnum + 1, warnopt);
-
-  if (targetm.calls.promote_prototypes (fundecl ? TREE_TYPE (fundecl) : 0)
-      && INTEGRAL_TYPE_P (type)
-      && (TYPE_PRECISION (type) < TYPE_PRECISION (integer_type_node)))
-    parmval = default_conversion (parmval);
-
   return parmval;
 }
 
@@ -4328,7 +4336,8 @@ convert_arguments (location_t loc, vec<location_t> arg_loc, tree fntype,
 	  builtin_typetail = NULL_TREE;
 	}
 
-      if (!typetail && parmnum == 0 && !TYPE_NO_NAMED_ARGS_STDARG_P (fntype))
+      if (!typetail && parmnum == 0 && !TYPE_NO_NAMED_ARGS_STDARG_P (fntype)
+	  && !(fundecl && fndecl_built_in_p (fundecl)))
 	{
 	  auto_diagnostic_group d;
 	  bool warned;
@@ -4824,8 +4833,8 @@ pointer_diff (location_t loc, tree op0, tree op1, tree *instrument_expr)
   if (current_function_decl != NULL_TREE
       && sanitize_flags_p (SANITIZE_POINTER_SUBTRACT))
     {
-      op0 = save_expr (op0);
-      op1 = save_expr (op1);
+      op0 = save_expr (c_fully_fold (op0, false, NULL));
+      op1 = save_expr (c_fully_fold (op1, false, NULL));
 
       tree tt = builtin_decl_explicit (BUILT_IN_ASAN_POINTER_SUBTRACT);
       *instrument_expr = build_call_expr_loc (loc, tt, 2, op0, op1);
@@ -6730,17 +6739,12 @@ c_safe_arg_type_equiv_p (tree t1, tree t2)
       && TREE_CODE (t2) == POINTER_TYPE)
     return true;
 
-  /* The signedness of the parameter matters only when an integral
-     type smaller than int is promoted to int, otherwise only the
-     precision of the parameter matters.
-     This check should make sure that the callee does not see
-     undefined values in argument registers.  */
+  /* Only the precision of the parameter matters.  This check should
+     make sure that the callee does not see undefined values in argument
+     registers.  */
   if (INTEGRAL_TYPE_P (t1)
       && INTEGRAL_TYPE_P (t2)
-      && TYPE_PRECISION (t1) == TYPE_PRECISION (t2)
-      && (TYPE_UNSIGNED (t1) == TYPE_UNSIGNED (t2)
-	  || !targetm.calls.promote_prototypes (NULL_TREE)
-	  || TYPE_PRECISION (t1) >= TYPE_PRECISION (integer_type_node)))
+      && TYPE_PRECISION (t1) == TYPE_PRECISION (t2))
     return true;
 
   return comptypes (t1, t2);
@@ -9139,8 +9143,24 @@ check_constexpr_init (location_t loc, tree type, tree init,
       /* The initializer must be an integer constant expression,
 	 representable in the target type.  */
       if (!int_const_expr)
-	error_at (loc, "%<constexpr%> integer initializer is not an "
-		  "integer constant expression");
+	{
+	  if (TREE_CODE (init) == RAW_DATA_CST
+	      && TYPE_PRECISION (type) == CHAR_BIT)
+	    {
+	      if (!TYPE_UNSIGNED (type))
+		for (unsigned int i = 0;
+		     i < (unsigned) RAW_DATA_LENGTH (init); ++i)
+		  if (RAW_DATA_SCHAR_ELT (init, i) < 0)
+		    {
+		      error_at (loc, "%<constexpr%> initializer not "
+				"representable in type of object");
+		      break;
+		    }
+	    }
+	  else
+	    error_at (loc, "%<constexpr%> integer initializer is not an "
+		      "integer constant expression");
+	}
       else if (!int_fits_type_p (init, type))
 	error_at (loc, "%<constexpr%> initializer not representable in "
 		  "type of object");
@@ -14455,8 +14475,8 @@ build_binary_op (location_t location, enum tree_code code,
 	  && current_function_decl != NULL_TREE
 	  && sanitize_flags_p (SANITIZE_POINTER_COMPARE))
 	{
-	  op0 = save_expr (op0);
-	  op1 = save_expr (op1);
+	  op0 = save_expr (c_fully_fold (op0, false, NULL));
+	  op1 = save_expr (c_fully_fold (op1, false, NULL));
 
 	  tree tt = builtin_decl_explicit (BUILT_IN_ASAN_POINTER_COMPARE);
 	  instrument_expr = build_call_expr_loc (location, tt, 2, op0, op1);

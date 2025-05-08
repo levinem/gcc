@@ -2417,7 +2417,7 @@ generate_reduce_op_wrapper (gfc_expr *op)
   gfc_symbol *operation = op->symtree->n.sym;
   gfc_symbol *wrapper, *a, *b, *c;
   gfc_symtree *st;
-  char tname[GFC_MAX_SYMBOL_LEN+1];
+  char tname[2 * GFC_MAX_SYMBOL_LEN + 2];
   char *name;
   gfc_namespace *ns;
   gfc_expr *e;
@@ -2462,7 +2462,7 @@ generate_reduce_op_wrapper (gfc_expr *op)
   a->attr.flavor = FL_VARIABLE;
   a->attr.dummy = 1;
   a->attr.artificial = 1;
-  a->attr.intent = INTENT_INOUT;
+  a->attr.intent = INTENT_IN;
   wrapper->formal = gfc_get_formal_arglist ();
   wrapper->formal->sym = a;
   gfc_set_sym_referenced (a);
@@ -2476,7 +2476,7 @@ generate_reduce_op_wrapper (gfc_expr *op)
   b->attr.dummy = 1;
   b->attr.optional= 1;
   b->attr.artificial = 1;
-  b->attr.intent = INTENT_INOUT;
+  b->attr.intent = INTENT_IN;
   wrapper->formal->next = gfc_get_formal_arglist ();
   wrapper->formal->next->sym = b;
   gfc_set_sym_referenced (b);
@@ -3209,17 +3209,28 @@ gfc_resolve_get_team (gfc_expr *f, gfc_expr *level ATTRIBUTE_UNUSED)
 {
   static char get_team[] = "_gfortran_caf_get_team";
   f->rank = 0;
-  f->ts.type = BT_INTEGER;
-  f->ts.kind = gfc_default_integer_kind;
+  f->ts.type = BT_DERIVED;
+  gfc_find_symbol ("team_type", gfc_current_ns, 1, &f->ts.u.derived);
+  if (!f->ts.u.derived
+      || f->ts.u.derived->from_intmod != INTMOD_ISO_FORTRAN_ENV)
+    {
+      gfc_error (
+	"GET_TEAM at %L needs USE of the intrinsic module ISO_FORTRAN_ENV "
+	"to define its result type TEAM_TYPE",
+	&f->where);
+      f->ts.type = BT_UNKNOWN;
+    }
   f->value.function.name = get_team;
-}
 
+  /* No requirements to resolve for level argument now.  */
+}
 
 /* Resolve image_index (...).  */
 
 void
 gfc_resolve_image_index (gfc_expr *f, gfc_expr *array ATTRIBUTE_UNUSED,
-			 gfc_expr *sub ATTRIBUTE_UNUSED)
+			 gfc_expr *sub ATTRIBUTE_UNUSED,
+			 gfc_expr *team_or_team_number ATTRIBUTE_UNUSED)
 {
   static char image_index[] = "__image_index";
   f->ts.type = BT_INTEGER;
@@ -3248,31 +3259,46 @@ gfc_resolve_stopped_images (gfc_expr *f, gfc_expr *team ATTRIBUTE_UNUSED,
 /* Resolve team_number (team).  */
 
 void
-gfc_resolve_team_number (gfc_expr *f, gfc_expr *team ATTRIBUTE_UNUSED)
+gfc_resolve_team_number (gfc_expr *f, gfc_expr *team)
 {
   static char team_number[] = "_gfortran_caf_team_number";
   f->rank = 0;
   f->ts.type = BT_INTEGER;
   f->ts.kind = gfc_default_integer_kind;
   f->value.function.name = team_number;
+
+  if (team)
+    gfc_resolve_expr (team);
 }
 
-
 void
-gfc_resolve_this_image (gfc_expr *f, gfc_expr *array, gfc_expr *dim,
-			gfc_expr *distance ATTRIBUTE_UNUSED)
+gfc_resolve_this_image (gfc_expr *f, gfc_expr *coarray, gfc_expr *dim,
+			gfc_expr *team)
 {
   static char this_image[] = "__this_image";
-  if (array && gfc_is_coarray (array))
-    resolve_bound (f, array, dim, NULL, "__this_image", true);
+  if (coarray && dim)
+    resolve_bound (f, coarray, dim, NULL, this_image, true);
+  else if (coarray)
+    {
+      f->ts.type = BT_INTEGER;
+      f->ts.kind = gfc_default_integer_kind;
+      f->value.function.name = this_image;
+      if (f->shape && f->rank != 1)
+	gfc_free_shape (&f->shape, f->rank);
+      f->rank = 1;
+      f->shape = gfc_get_shape (1);
+      mpz_init_set_ui (f->shape[0], coarray->corank);
+    }
   else
     {
       f->ts.type = BT_INTEGER;
       f->ts.kind = gfc_default_integer_kind;
       f->value.function.name = this_image;
     }
-}
 
+  if (team)
+    gfc_resolve_expr (team);
+}
 
 void
 gfc_resolve_time (gfc_expr *f)

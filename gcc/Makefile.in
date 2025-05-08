@@ -1555,6 +1555,7 @@ OBJS = \
 	incpath.o \
 	init-regs.o \
 	internal-fn.o \
+	ipa-locality-cloning.o \
 	ipa-cp.o \
 	ipa-sra.o \
 	ipa-devirt.o \
@@ -2508,7 +2509,7 @@ s-mlib: $(srcdir)/genmultilib Makefile
 srcextra: gcc.srcextra lang.srcextra
 
 gcc.srcextra: gengtype-lex.cc
-	-cp -p $^ $(srcdir)
+	-sed -e '/^#line/s,".*/gcc/gengtype-lex\.l","gengtype-lex.l",' $^ > $(srcdir)/$^
 
 AR_OBJS = file-find.o
 AR_LIBS = @COLLECT2_LIBS@
@@ -3026,6 +3027,7 @@ GTFILES = $(CPPLIB_H) $(srcdir)/input.h $(srcdir)/coretypes.h \
   $(srcdir)/ipa-param-manipulation.h $(srcdir)/ipa-sra.cc \
   $(srcdir)/ipa-modref.h $(srcdir)/ipa-modref.cc \
   $(srcdir)/ipa-modref-tree.h \
+  $(srcdir)/ipa-locality-cloning.cc \
   $(srcdir)/signop.h \
   $(srcdir)/diagnostic-spec.h $(srcdir)/diagnostic-spec.cc \
   $(srcdir)/dwarf2out.h \

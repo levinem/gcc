@@ -5104,6 +5104,19 @@ verify_gimple_cond (gcond *stmt)
       return true;
     }
 
+  tree lhs = gimple_cond_lhs (stmt);
+
+  /* GIMPLE_CONDs condition may not throw.  */
+  if (flag_exceptions
+      && cfun->can_throw_non_call_exceptions
+      && operation_could_trap_p (gimple_cond_code (stmt),
+				 FLOAT_TYPE_P (TREE_TYPE (lhs)),
+				 false, NULL_TREE))
+    {
+      error ("gimple cond condition cannot throw");
+      return true;
+    }
+
   return verify_gimple_comparison (boolean_type_node,
 				   gimple_cond_lhs (stmt),
 				   gimple_cond_rhs (stmt),
@@ -9799,18 +9812,20 @@ pass_warn_function_return::execute (function *fun)
 	   (e = ei_safe_edge (ei)); )
 	{
 	  last = *gsi_last_bb (e->src);
-	  if ((gimple_code (last) == GIMPLE_RETURN
-	       || gimple_call_builtin_p (last, BUILT_IN_RETURN))
-	      && location == UNKNOWN_LOCATION
-	      && ((location = LOCATION_LOCUS (gimple_location (last)))
-		  != UNKNOWN_LOCATION)
-	      && !optimize)
-	    break;
-	  /* When optimizing, replace return stmts in noreturn functions
+	  /* Warn about __builtin_return .*/
+	  if (gimple_call_builtin_p (last, BUILT_IN_RETURN)
+	      && location == UNKNOWN_LOCATION)
+	    {
+	      location = LOCATION_LOCUS (gimple_location (last));
+	      ei_next (&ei);
+	    }
+	  /* Replace return stmts in noreturn functions
 	     with __builtin_unreachable () call.  */
-	  if (optimize && gimple_code (last) == GIMPLE_RETURN)
+	  else if (gimple_code (last) == GIMPLE_RETURN)
 	    {
 	      location_t loc = gimple_location (last);
+	      if (location == UNKNOWN_LOCATION)
+	        location = LOCATION_LOCUS (loc);
 	      gimple *new_stmt = gimple_build_builtin_unreachable (loc);
 	      gimple_stmt_iterator gsi = gsi_for_stmt (last);
 	      gsi_replace (&gsi, new_stmt, true);

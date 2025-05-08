@@ -38,6 +38,7 @@ std_freestanding = \
 	${std_srcdir}/generator \
 	${std_srcdir}/iterator \
 	${std_srcdir}/limits \
+	${std_srcdir}/mdspan \
 	${std_srcdir}/memory \
 	${std_srcdir}/numbers \
 	${std_srcdir}/numeric \
@@ -195,6 +196,7 @@ bits_headers = \
 	${bits_srcdir}/cow_string.h \
 	${bits_srcdir}/deque.tcc \
 	${bits_srcdir}/erase_if.h \
+	${bits_srcdir}/formatfwd.h \
 	${bits_srcdir}/forward_list.h \
 	${bits_srcdir}/forward_list.tcc \
 	${bits_srcdir}/fs_dir.h \

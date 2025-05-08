@@ -166,8 +166,8 @@ create_our_type_nodes_init()
   long_double_ten_node = build_real_from_int_cst(
                            LONGDOUBLE,
                            build_int_cst_type(INT,10));
-  sizeof_size_t  = build_int_cst_type(SIZE_T, sizeof(size_t));
-  sizeof_pointer = build_int_cst_type(SIZE_T, sizeof(void *));
+  sizeof_size_t  = build_int_cst_type(SIZE_T, int_size_in_bytes(SIZE_T));
+  sizeof_pointer = build_int_cst_type(SIZE_T, int_size_in_bytes(VOID_P));
 
   bool_true_node = build2(EQ_EXPR,
                           integer_type_node,
@@ -294,7 +294,7 @@ cobol_langhook_init_options_struct (struct gcc_options *opts) {
 
   cobol_set_debugging( false, false, false );
 
-  copybook_directory_add( getenv("GCOB_COPYBOOK") );
+  copybook_directory_add( getenv("GCOBOL_COPYBOOK") );
 }
 
 static unsigned int
@@ -385,10 +385,6 @@ cobol_langhook_handle_option (size_t scode,
             return true;
         }
 
-        case OPT_fmax_errors:
-            flag_max_errors = atoi(arg);
-            return true;
-
         case OPT_ffixed_form:
             cobol_set_indicator_column(-7);
             return true;
@@ -413,8 +409,8 @@ cobol_langhook_handle_option (size_t scode,
           }
           return true;
         case OPT_include:
-          if( ! include_file_add(cobol_include) ) {
-            cbl_errx( "could not include %s", cobol_include);
+          if( ! include_file_add(arg) ) {
+            cbl_errx( "could not include %s", arg);
           }
             return true;
 

@@ -27,6 +27,9 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+%top{
+#include "config.h"
+}
 %{
 #include <fstream>  // Before cobol-system because it uses poisoned functions
 #include "cobol-system.h"
@@ -1543,9 +1546,9 @@ USE({SPC}FOR)?		{ return USE; }
   NOT{SPC}(ON{SPC})?EXCEPTION {
                                   yylval.number = NOT;       return EXCEPTION; }
 
- (ON{SPC})?OVERFLOW      { yylval.number = OVERFLOW; return OVERFLOW; }
+ (ON{SPC})?OVERFLOW      { yylval.number = OVERFLOW_kw; return OVERFLOW_kw; }
   NOT{SPC}(ON{SPC})?OVERFLOW {
-                                  yylval.number = NOT;      return OVERFLOW; }
+                                  yylval.number = NOT;      return OVERFLOW_kw; }
 
  (AT{SPC})?END/[[:space:]]                { yylval.number = END;
                                                    return END; }
@@ -2312,7 +2315,7 @@ BASIS		{ yy_push_state(basis); return BASIS; }
   ORGANIZATION	{ return ORGANIZATION; }
   OTHER	{ return OTHER; }
   OUTPUT	{ return OUTPUT; }
-  OVERFLOW	{ return OVERFLOW; }
+  OVERFLOW	{ return OVERFLOW_kw; }
   OVERRIDE	{ return OVERRIDE; }
   PACKED-DECIMAL	{ return PACKED_DECIMAL; }
   PAGE	{ return PAGE; }

@@ -37,34 +37,37 @@ static stringop_algs ix86_size_memset[2] = {
 const
 struct processor_costs ix86_size_cost = {/* costs for tuning for size */
   {
-  /* Start of register allocator costs.  integer->integer move cost is 2. */
-  2,				     /* cost for loading QImode using movzbl */
-  {2, 2, 2},				/* cost of loading integer registers
+  /* Start of register allocator costs.  integer->integer move cost is 2
+     and coststs are relative to it.  movl %eax, %ebx is 2 bytes, so the
+     sizes coincides with average size of instruction encoding.  */
+  3,				     /* cost for loading QImode using movzbl */
+  /* Typical load/save from stack frame is 4 bytes with ebp and 5 with esp.  */
+  {5, 6, 5},				/* cost of loading integer registers
 					   in QImode, HImode and SImode.
 					   Relative to reg-reg move (2).  */
-  {2, 2, 2},				/* cost of storing integer registers */
+  {5, 6, 5},				/* cost of storing integer registers */
   2,					/* cost of reg,reg fld/fst */
-  {2, 2, 2},				/* cost of loading fp registers
+  {5, 6, 5},				/* cost of loading fp registers
 					   in SFmode, DFmode and XFmode */
-  {2, 2, 2},				/* cost of storing fp registers
+  {5, 6, 5},				/* cost of storing fp registers
 					   in SFmode, DFmode and XFmode */
   3,					/* cost of moving MMX register */
-  {3, 3},				/* cost of loading MMX registers
+  {6, 6},				/* cost of loading MMX registers
 					   in SImode and DImode */
-  {3, 3},				/* cost of storing MMX registers
+  {6, 6},				/* cost of storing MMX registers
 					   in SImode and DImode */
-  3, 3, 3,				/* cost of moving XMM,YMM,ZMM register */
-  {3, 3, 3, 3, 3},			/* cost of loading SSE registers
+  4, 4, 6,				/* cost of moving XMM,YMM,ZMM register */
+  {6, 6, 6, 6, 11},			/* cost of loading SSE registers
 					   in 32,64,128,256 and 512-bit */
-  {3, 3, 3, 3, 3},			/* cost of storing SSE registers
+  {6, 6, 6, 6, 11},			/* cost of storing SSE registers
 					   in 32,64,128,256 and 512-bit */
-  3, 3,				/* SSE->integer and integer->SSE moves */
-  3, 3,				/* mask->integer and integer->mask moves */
-  {2, 2, 2},				/* cost of loading mask register
+  4, 4,				/* SSE->integer and integer->SSE moves */
+  4, 4,				/* mask->integer and integer->mask moves */
+  {7, 7, 7},				/* cost of loading mask register
 					   in QImode, HImode, SImode.  */
-  {2, 2, 2},				/* cost if storing mask register
+  {7, 7, 7},				/* cost if storing mask register
 					   in QImode, HImode, SImode.  */
-  2,					/* cost of moving mask register.  */
+  4,					/* cost of moving mask register.  */
   /* End of register allocator costs.  */
   },
 
@@ -88,22 +91,24 @@ struct processor_costs ix86_size_cost = {/* costs for tuning for size */
   0,					/* "large" insn */
   2,					/* MOVE_RATIO */
   2,					/* CLEAR_RATIO */
-  {2, 2, 2},				/* cost of loading integer registers
+  /* These costs are relative to reg-reg move with cost of 2.  Since it has
+     2 bytes, this coincides with average instruction sizes.  */
+  {5, 6, 5},				/* cost of loading integer registers
 					   in QImode, HImode and SImode.
 					   Relative to reg-reg move (2).  */
-  {2, 2, 2},				/* cost of storing integer registers */
-  {3, 3, 3, 3, 3},			/* cost of loading SSE register
+  {5, 6, 5},				/* cost of storing integer registers */
+  {6, 6, 6, 6, 11},			/* cost of loading SSE register
 					   in 32bit, 64bit, 128bit, 256bit and 512bit */
-  {3, 3, 3, 3, 3},			/* cost of storing SSE register
+  {6, 6, 6, 6, 11},			/* cost of storing SSE register
 					   in 32bit, 64bit, 128bit, 256bit and 512bit */
-  {3, 3, 3, 3, 3},			/* cost of unaligned SSE load
+  {6, 6, 6, 6, 11},			/* cost of unaligned SSE load
 					   in 128bit, 256bit and 512bit */
-  {3, 3, 3, 3, 3},			/* cost of unaligned SSE store
+  {6, 6, 6, 6, 11},			/* cost of unaligned SSE store
 					   in 128bit, 256bit and 512bit */
-  3, 3, 3,				/* cost of moving XMM,YMM,ZMM register */
-  3,					/* cost of moving SSE register to integer.  */
-  5, 0,					/* Gather load static, per_elt.  */
-  5, 0,					/* Gather store static, per_elt.  */
+  4, 4, 6,				/* cost of moving XMM,YMM,ZMM register */
+  4,					/* cost of moving SSE register to integer.  */
+  COSTS_N_BYTES (5), 0,			/* Gather load static, per_elt.  */
+  COSTS_N_BYTES (5), 0,			/* Gather store static, per_elt.  */
   0,					/* size of l1 cache  */
   0,					/* size of l2 cache  */
   0,					/* size of prefetch block */
@@ -116,16 +121,24 @@ struct processor_costs ix86_size_cost = {/* costs for tuning for size */
   COSTS_N_BYTES (2),			/* cost of FCHS instruction.  */
   COSTS_N_BYTES (2),			/* cost of FSQRT instruction.  */
 
-  COSTS_N_BYTES (2),			/* cost of cheap SSE instruction.  */
-  COSTS_N_BYTES (2),			/* cost of ADDSS/SD SUBSS/SD insns.  */
-  COSTS_N_BYTES (2),			/* cost of MULSS instruction.  */
-  COSTS_N_BYTES (2),			/* cost of MULSD instruction.  */
-  COSTS_N_BYTES (2),			/* cost of FMA SS instruction.  */
-  COSTS_N_BYTES (2),			/* cost of FMA SD instruction.  */
-  COSTS_N_BYTES (2),			/* cost of DIVSS instruction.  */
-  COSTS_N_BYTES (2),			/* cost of DIVSD instruction.  */
-  COSTS_N_BYTES (2),			/* cost of SQRTSS instruction.  */
-  COSTS_N_BYTES (2),			/* cost of SQRTSD instruction.  */
+  COSTS_N_BYTES (4),			/* cost of cheap SSE instruction.  */
+  COSTS_N_BYTES (4),			/* cost of ADDSS/SD SUBSS/SD insns.  */
+  COSTS_N_BYTES (4),			/* cost of MULSS instruction.  */
+  COSTS_N_BYTES (4),			/* cost of MULSD instruction.  */
+  COSTS_N_BYTES (4),			/* cost of FMA SS instruction.  */
+  COSTS_N_BYTES (4),			/* cost of FMA SD instruction.  */
+  COSTS_N_BYTES (4),			/* cost of DIVSS instruction.  */
+  COSTS_N_BYTES (4),			/* cost of DIVSD instruction.  */
+  COSTS_N_BYTES (4),			/* cost of SQRTSS instruction.  */
+  COSTS_N_BYTES (4),			/* cost of SQRTSD instruction.  */
+  COSTS_N_BYTES (4),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_BYTES (4),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_BYTES (6),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_BYTES (4),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_BYTES (4),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_BYTES (4),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_BYTES (4),			/* cost of CVT(T)PS2PI instruction.  */
+  
   1, 1, 1, 1,				/* reassoc int, fp, vec_int, vec_fp.  */
   ix86_size_memcpy,
   ix86_size_memset,
@@ -238,6 +251,13 @@ struct processor_costs i386_cost = {	/* 386 specific costs */
   COSTS_N_INSNS (88),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (122),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (122),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (27),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (54),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (108),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (27),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (27),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (27),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (27),			/* cost of CVT(T)PS2PI instruction.  */
   1, 1, 1, 1,				/* reassoc int, fp, vec_int, vec_fp.  */
   i386_memcpy,
   i386_memset,
@@ -351,6 +371,13 @@ struct processor_costs i486_cost = {	/* 486 specific costs */
   COSTS_N_INSNS (74),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (83),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (83),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (8),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (16),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (32),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (27),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (27),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (27),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (27),			/* cost of CVT(T)PS2PI instruction.  */
   1, 1, 1, 1,				/* reassoc int, fp, vec_int, vec_fp.  */
   i486_memcpy,
   i486_memset,
@@ -462,6 +489,13 @@ struct processor_costs pentium_cost = {
   COSTS_N_INSNS (39),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (70),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (70),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (6),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (12),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (3),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVT(T)PS2PI instruction.  */
   1, 1, 1, 1,				/* reassoc int, fp, vec_int, vec_fp.  */
   pentium_memcpy,
   pentium_memset,
@@ -566,6 +600,13 @@ struct processor_costs lakemont_cost = {
   COSTS_N_INSNS (60),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (31),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (63),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (5),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (10),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (20),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (5),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (5),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (5),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (5),			/* cost of CVT(T)PS2PI instruction.  */
   1, 1, 1, 1,				/* reassoc int, fp, vec_int, vec_fp.  */
   pentium_memcpy,
   pentium_memset,
@@ -685,6 +726,13 @@ struct processor_costs pentiumpro_cost = {
   COSTS_N_INSNS (18),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (31),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (31),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (6),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (12),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (3),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVT(T)PS2PI instruction.  */
   1, 1, 1, 1,				/* reassoc int, fp, vec_int, vec_fp.  */
   pentiumpro_memcpy,
   pentiumpro_memset,
@@ -795,6 +843,13 @@ struct processor_costs geode_cost = {
   COSTS_N_INSNS (47),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (54),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (54),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (6),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (12),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (24),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (6),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (6),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (6),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (6),			/* cost of CVT(T)PS2PI instruction.  */
   1, 1, 1, 1,				/* reassoc int, fp, vec_int, vec_fp.  */
   geode_memcpy,
   geode_memset,
@@ -908,6 +963,13 @@ struct processor_costs k6_cost = {
   COSTS_N_INSNS (56),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (56),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (56),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (2),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (4),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (8),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (2),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (2),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (2),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (2),			/* cost of CVT(T)PS2PI instruction.  */
   1, 1, 1, 1,				/* reassoc int, fp, vec_int, vec_fp.  */
   k6_memcpy,
   k6_memset,
@@ -1022,6 +1084,13 @@ struct processor_costs athlon_cost = {
   COSTS_N_INSNS (24),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (19),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (19),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (4),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (8),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (16),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (4),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (6),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (4),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (6),			/* cost of CVT(T)PS2PI instruction.  */
   1, 1, 1, 1,				/* reassoc int, fp, vec_int, vec_fp.  */
   athlon_memcpy,
   athlon_memset,
@@ -1145,6 +1214,13 @@ struct processor_costs k8_cost = {
   COSTS_N_INSNS (20),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (19),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (27),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (4),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (8),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (16),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (14),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (10),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (4),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (5),			/* cost of CVT(T)PS2PI instruction.  */
   1, 1, 1, 1,				/* reassoc int, fp, vec_int, vec_fp.  */
   k8_memcpy,
   k8_memset,
@@ -1276,6 +1352,13 @@ struct processor_costs amdfam10_cost = {
   COSTS_N_INSNS (20),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (19),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (27),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (4),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (8),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (16),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (14),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (8),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (7),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (4),			/* cost of CVT(T)PS2PI instruction.  */
   1, 1, 1, 1,				/* reassoc int, fp, vec_int, vec_fp.  */
   amdfam10_memcpy,
   amdfam10_memset,
@@ -1400,6 +1483,13 @@ const struct processor_costs bdver_cost = {
   COSTS_N_INSNS (27),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (15),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (26),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (4),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (7),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (14),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (14),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (13),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (4),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (4),			/* cost of CVT(T)PS2PI instruction.  */
   1, 2, 1, 1,				/* reassoc int, fp, vec_int, vec_fp.  */
   bdver_memcpy,
   bdver_memset,
@@ -1548,6 +1638,14 @@ struct processor_costs znver1_cost = {
   COSTS_N_INSNS (13),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (10),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (15),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVTSS2SD etc.  */
+  /* Real latency is 4, but for split regs multiply cost of half op by 2.  */
+  COSTS_N_INSNS (6),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (12),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (8),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (7),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (6),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (6),			/* cost of CVT(T)PS2PI instruction.  */
   /* Zen can execute 4 integer operations per cycle. FP operations take 3 cycles
      and it can execute 2 integer additions and 2 multiplications thus
      reassociation may make sense up to with of 6.  SPEC2k6 bencharks suggests
@@ -1707,6 +1805,13 @@ struct processor_costs znver2_cost = {
   COSTS_N_INSNS (13),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (10),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (15),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (5),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (10),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (7),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (6),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (6),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVT(T)PS2PI instruction.  */
   /* Zen can execute 4 integer operations per cycle.  FP operations
      take 3 cycles and it can execute 2 integer additions and 2
      multiplications thus reassociation may make sense up to with of 6.
@@ -1842,6 +1947,13 @@ struct processor_costs znver3_cost = {
   COSTS_N_INSNS (13),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (10),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (15),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (5),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (10),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (6),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (6),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (4),			/* cost of CVT(T)PS2PI instruction.  */
   /* Zen can execute 4 integer operations per cycle.  FP operations
      take 3 cycles and it can execute 2 integer additions and 2
      multiplications thus reassociation may make sense up to with of 6.
@@ -1979,6 +2091,14 @@ struct processor_costs znver4_cost = {
   COSTS_N_INSNS (13),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (15),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (21),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (5),			/* cost of 256bit VCVTPS2PD etc.  */
+  /* Real latency is 6, but for split regs multiply cost of half op by 2.  */
+  COSTS_N_INSNS (10),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (6),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (6),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (4),			/* cost of CVT(T)PS2PI instruction.  */
   /* Zen can execute 4 integer operations per cycle.  FP operations
      take 3 cycles and it can execute 2 integer additions and 2
      multiplications thus reassociation may make sense up to with of 6.
@@ -2115,7 +2235,7 @@ struct processor_costs znver5_cost = {
   COSTS_N_INSNS (1),			/* cost of cheap SSE instruction.  */
   /* ADDSS has throughput 2 and latency 2
      (in some cases when source is another addition).  */
-  COSTS_N_INSNS (2),			/* cost of ADDSS/SD SUBSS/SD insns.  */
+  COSTS_N_INSNS (3),			/* cost of ADDSS/SD SUBSS/SD insns.  */
   /* MULSS has throughput 2 and latency 3.  */
   COSTS_N_INSNS (3),			/* cost of MULSS instruction.  */
   COSTS_N_INSNS (3),			/* cost of MULSD instruction.  */
@@ -2130,6 +2250,13 @@ struct processor_costs znver5_cost = {
   COSTS_N_INSNS (14),			/* cost of SQRTSS instruction.  */
   /* DIVSD has throughtput 0.13 and latency 20.  */
   COSTS_N_INSNS (20),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (5),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (5),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (6),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (6),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (4),			/* cost of CVT(T)PS2PI instruction.  */
   /* Zen5 can execute:
       - integer ops: 6 per cycle, at most 3 multiplications.
 	latency 1 for additions, 3 for multiplications (pipelined)
@@ -2269,6 +2396,13 @@ struct processor_costs skylake_cost = {
   COSTS_N_INSNS (14),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (12),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (18),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (2),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (2),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (4),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (6),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (6),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (6),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (7),			/* cost of CVT(T)PS2PI instruction.  */
   1, 4, 2, 2,				/* reassoc int, fp, vec_int, vec_fp.  */
   skylake_memcpy,
   skylake_memset,
@@ -2398,6 +2532,13 @@ struct processor_costs icelake_cost = {
   COSTS_N_INSNS (14),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (12),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (18),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (2),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (2),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (2),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (6),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (6),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (7),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (6),			/* cost of CVT(T)PS2PI instruction.  */
   1, 4, 2, 2,				/* reassoc int, fp, vec_int, vec_fp.  */
   icelake_memcpy,
   icelake_memset,
@@ -2521,6 +2662,13 @@ struct processor_costs alderlake_cost = {
   COSTS_N_INSNS (17),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (14),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (18),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (2),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (2),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (2),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (6),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (6),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (7),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (6),			/* cost of CVT(T)PS2PI instruction.  */
   1, 4, 3, 3,				/* reassoc int, fp, vec_int, vec_fp.  */
   alderlake_memcpy,
   alderlake_memset,
@@ -2637,6 +2785,13 @@ const struct processor_costs btver1_cost = {
   COSTS_N_INSNS (17),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (14),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (48),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (4),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (7),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (14),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (14),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (13),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (4),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (4),			/* cost of CVT(T)PS2PI instruction.  */
   1, 1, 1, 1,				/* reassoc int, fp, vec_int, vec_fp.  */
   btver1_memcpy,
   btver1_memset,
@@ -2750,6 +2905,13 @@ const struct processor_costs btver2_cost = {
   COSTS_N_INSNS (19),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (16),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (21),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (4),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (7),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (14),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (14),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (13),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (4),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (4),			/* cost of CVT(T)PS2PI instruction.  */
   1, 1, 1, 1,				/* reassoc int, fp, vec_int, vec_fp.  */
   btver2_memcpy,
   btver2_memset,
@@ -2862,6 +3024,13 @@ struct processor_costs pentium4_cost = {
   COSTS_N_INSNS (38),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (23),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (38),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (10),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (20),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (40),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (20),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (17),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (12),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (8),			/* cost of CVT(T)PS2PI instruction.  */
   1, 1, 1, 1,				/* reassoc int, fp, vec_int, vec_fp.  */
   pentium4_memcpy,
   pentium4_memset,
@@ -2977,6 +3146,13 @@ struct processor_costs nocona_cost = {
   COSTS_N_INSNS (40),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (32),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (41),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (10),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (20),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (40),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (20),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (17),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (12),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (8),			/* cost of CVT(T)PS2PI instruction.  */
   1, 1, 1, 1,				/* reassoc int, fp, vec_int, vec_fp.  */
   nocona_memcpy,
   nocona_memset,
@@ -3090,6 +3266,13 @@ struct processor_costs atom_cost = {
   COSTS_N_INSNS (60),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (31),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (63),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (6),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (12),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (24),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (7),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (10),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (6),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (4),			/* cost of CVT(T)PS2PI instruction.  */
   2, 2, 2, 2,				/* reassoc int, fp, vec_int, vec_fp.  */
   atom_memcpy,
   atom_memset,
@@ -3203,6 +3386,13 @@ struct processor_costs slm_cost = {
   COSTS_N_INSNS (69),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (20),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (35),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (6),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (12),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (5),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (5),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (4),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (4),			/* cost of CVT(T)PS2PI instruction.  */
   1, 2, 1, 1,				/* reassoc int, fp, vec_int, vec_fp.  */
   slm_memcpy,
   slm_memset,
@@ -3330,6 +3520,13 @@ struct processor_costs tremont_cost = {
   COSTS_N_INSNS (17),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (14),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (18),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (6),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (12),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (6),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (6),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (4),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (4),			/* cost of CVT(T)PS2PI instruction.  */
   1, 4, 3, 3,				/* reassoc int, fp, vec_int, vec_fp.  */
   tremont_memcpy,
   tremont_memset,
@@ -3443,6 +3640,13 @@ struct processor_costs intel_cost = {
   COSTS_N_INSNS (20),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (40),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (40),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (8),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (16),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (32),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (8),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (8),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (8),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (8),			/* cost of CVT(T)PS2PI instruction.  */
   1, 4, 1, 1,				/* reassoc int, fp, vec_int, vec_fp.  */
   intel_memcpy,
   intel_memset,
@@ -3561,6 +3765,13 @@ struct processor_costs lujiazui_cost = {
   COSTS_N_INSNS (17),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (32),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (60),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (6),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (12),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (3),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVT(T)PS2PI instruction.  */
   1, 4, 3, 3,				/* reassoc int, fp, vec_int, vec_fp.  */
   lujiazui_memcpy,
   lujiazui_memset,
@@ -3677,6 +3888,13 @@ struct processor_costs yongfeng_cost = {
   COSTS_N_INSNS (14),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (20),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (35),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (6),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (12),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (3),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVT(T)PS2PI instruction.  */
   4, 4, 4, 4,				/* reassoc int, fp, vec_int, vec_fp.  */
   yongfeng_memcpy,
   yongfeng_memset,
@@ -3793,6 +4011,13 @@ struct processor_costs shijidadao_cost = {
   COSTS_N_INSNS (14),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (11),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (18),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (6),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (12),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (3),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVT(T)PS2PI instruction.  */
   4, 4, 4, 4,				/* reassoc int, fp, vec_int, vec_fp.  */
   shijidadao_memcpy,
   shijidadao_memset,
@@ -3917,6 +4142,13 @@ struct processor_costs generic_cost = {
   COSTS_N_INSNS (17),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (14),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (18),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (4),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (5),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (6),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (6),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (3),			/* cost of CVT(T)PS2PI instruction.  */
   1, 4, 3, 3,				/* reassoc int, fp, vec_int, vec_fp.  */
   generic_memcpy,
   generic_memset,
@@ -4046,6 +4278,13 @@ struct processor_costs core_cost = {
   COSTS_N_INSNS (32),			/* cost of DIVSD instruction.  */
   COSTS_N_INSNS (30),			/* cost of SQRTSS instruction.  */
   COSTS_N_INSNS (58),			/* cost of SQRTSD instruction.  */
+  COSTS_N_INSNS (2),			/* cost of CVTSS2SD etc.  */
+  COSTS_N_INSNS (2),			/* cost of 256bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (2),			/* cost of 512bit VCVTPS2PD etc.  */
+  COSTS_N_INSNS (6),			/* cost of CVTSI2SS instruction.  */
+  COSTS_N_INSNS (6),			/* cost of CVT(T)SS2SI instruction.  */
+  COSTS_N_INSNS (6),			/* cost of CVTPI2PS instruction.  */
+  COSTS_N_INSNS (7),			/* cost of CVT(T)PS2PI instruction.  */
   1, 4, 2, 2,				/* reassoc int, fp, vec_int, vec_fp.  */
   core_memcpy,
   core_memset,

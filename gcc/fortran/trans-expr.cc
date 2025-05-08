@@ -2579,10 +2579,8 @@ gfc_caf_get_image_index (stmtblock_t *block, gfc_expr *e, tree desc)
   gcc_assert (ref != NULL);
 
   if (ref->u.ar.dimen_type[ref->u.ar.dimen] == DIMEN_THIS_IMAGE)
-    {
-      return build_call_expr_loc (input_location, gfor_fndecl_caf_this_image, 1,
-				  integer_zero_node);
-    }
+    return build_call_expr_loc (input_location, gfor_fndecl_caf_this_image, 1,
+				null_pointer_node);
 
   img_idx = build_zero_cst (gfc_array_index_type);
   extent = build_one_cst (gfc_array_index_type);
@@ -6753,12 +6751,6 @@ gfc_conv_procedure_call (gfc_se * se, gfc_symbol * sym,
   gfc_intrinsic_sym *isym = expr && expr->rank ?
 			    expr->value.function.isym : NULL;
 
-  /* In order that the library function for intrinsic REDUCE be type and kind
-     agnostic, the result is passed by reference.  Allocatable components are
-     handled within the OPERATION wrapper.  */
-  bool reduce_scalar = expr && !expr->rank && expr->value.function.isym
-		       && expr->value.function.isym->id == GFC_ISYM_REDUCE;
-
   comp = gfc_get_proc_ptr_comp (expr);
 
   bool elemental_proc = (comp
@@ -6931,10 +6923,18 @@ gfc_conv_procedure_call (gfc_se * se, gfc_symbol * sym,
 		{
 		  /* Pass a NULL pointer for an absent arg.  */
 		  parmse.expr = null_pointer_node;
+
+		  /* Is it an absent character dummy?  */
+		  bool absent_char = false;
 		  gfc_dummy_arg * const dummy_arg = arg->associated_dummy;
-		  if (dummy_arg
-		      && gfc_dummy_arg_get_typespec (*dummy_arg).type
-			 == BT_CHARACTER)
+
+		  /* Fall back to inferred type only if no formal.  */
+		  if (fsym)
+		    absent_char = (fsym->ts.type == BT_CHARACTER);
+		  else if (dummy_arg)
+		    absent_char = (gfc_dummy_arg_get_typespec (*dummy_arg).type
+				   == BT_CHARACTER);
+		  if (absent_char)
 		    parmse.string_length = build_int_cst (gfc_charlen_type_node,
 							  0);
 		}
@@ -6960,9 +6960,7 @@ gfc_conv_procedure_call (gfc_se * se, gfc_symbol * sym,
 			  || !CLASS_DATA (fsym)->attr.allocatable));
 	  gfc_init_se (&parmse, NULL);
 	  parmse.expr = null_pointer_node;
-	  if (arg->associated_dummy
-	      && gfc_dummy_arg_get_typespec (*arg->associated_dummy).type
-		 == BT_CHARACTER)
+	  if (fsym->ts.type == BT_CHARACTER)
 	    parmse.string_length = build_int_cst (gfc_charlen_type_node, 0);
 	}
       else if (fsym && fsym->ts.type == BT_CLASS
@@ -8147,7 +8145,7 @@ gfc_conv_procedure_call (gfc_se * se, gfc_symbol * sym,
 		goto end_pointer_check;
 
 	      tmp = parmse.expr;
-	      if (fsym && fsym->ts.type == BT_CLASS)
+	      if (fsym && fsym->ts.type == BT_CLASS && !attr.proc_pointer)
 		{
 		  if (POINTER_TYPE_P (TREE_TYPE (tmp)))
 		    tmp = build_fold_indirect_ref_loc (input_location, tmp);
@@ -8596,16 +8594,6 @@ gfc_conv_procedure_call (gfc_se * se, gfc_symbol * sym,
       else if (ts.type == BT_CHARACTER)
 	vec_safe_push (retargs, len);
     }
-  else if (reduce_scalar)
-    {
-      /* In order that the library function for intrinsic REDUCE be type and
-	 kind agnostic, the result is passed by reference.  Allocatable
-	 components are handled within the OPERATION wrapper.  */
-      type = gfc_typenode_for_spec (&expr->ts);
-      result = gfc_create_var (type, "sr");
-      tmp =  gfc_build_addr_expr (pvoid_type_node, result);
-      vec_safe_push (retargs, tmp);
-    }
 
   gfc_free_interface_mapping (&mapping);
 
@@ -8820,14 +8808,6 @@ gfc_conv_procedure_call (gfc_se * se, gfc_symbol * sym,
 					    NULL, GFC_CAF_COARRAY_NOCOARRAY);
 	  gfc_add_expr_to_block (&se->pre, tmp);
 	}
-    }
-  else if (reduce_scalar)
-    {
-      /* Even though the REDUCE intrinsic library function returns the result
-	 by reference, the scalar call passes the result as se->expr.  */
-      gfc_add_expr_to_block (&se->pre, se->expr);
-      se->expr = result;
-      gfc_add_block_to_block (&se->post, &post);
     }
   else
     {
@@ -9854,7 +9834,12 @@ gfc_trans_subcomponent_assign (tree dest, gfc_component * cm,
 	   && !cm->attr.proc_pointer)
     {
       if (cm->attr.allocatable && expr->expr_type == EXPR_NULL)
- 	gfc_conv_descriptor_data_set (&block, dest, null_pointer_node);
+	{
+	  gfc_conv_descriptor_data_set (&block, dest, null_pointer_node);
+	  if (cm->attr.codimension && flag_coarray == GFC_FCOARRAY_LIB)
+	    gfc_add_modify (&block, gfc_conv_descriptor_token (dest),
+			    null_pointer_node);
+	}
       else if (cm->attr.allocatable || cm->attr.pdt_array)
 	{
 	  tmp = gfc_trans_alloc_subarray_assign (dest, cm, expr);
@@ -10927,9 +10912,11 @@ gfc_trans_pointer_assignment (gfc_expr * expr1, gfc_expr * expr2)
   gfc_init_se (&lse, NULL);
 
   /* Usually testing whether this is not a proc pointer assignment.  */
-  non_proc_ptr_assign = !(gfc_expr_attr (expr1).proc_pointer
-			&& expr2->expr_type == EXPR_VARIABLE
-			&& expr2->symtree->n.sym->attr.flavor == FL_PROCEDURE);
+  non_proc_ptr_assign
+    = !(gfc_expr_attr (expr1).proc_pointer
+	&& ((expr2->expr_type == EXPR_VARIABLE
+	     && expr2->symtree->n.sym->attr.flavor == FL_PROCEDURE)
+	    || expr2->expr_type == EXPR_NULL));
 
   /* Check whether the expression is a scalar or not; we cannot use
      expr1->rank as it can be nonzero for proc pointers.  */

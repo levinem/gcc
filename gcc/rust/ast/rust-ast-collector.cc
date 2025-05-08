@@ -22,6 +22,7 @@
 #include "rust-expr.h"
 #include "rust-item.h"
 #include "rust-keyword-values.h"
+#include "rust-location.h"
 #include "rust-path.h"
 #include "rust-system.h"
 #include "rust-token.h"
@@ -490,7 +491,7 @@ TokenCollector::visit (ConstGenericParam &param)
   if (param.has_default_value ())
     {
       push (Rust::Token::make (EQUAL, UNDEF_LOCATION));
-      visit (param.get_default_value ());
+      visit (param.get_default_value_unchecked ());
     }
 }
 
@@ -638,8 +639,6 @@ TokenCollector::visit (GenericArg &arg)
 	push (Rust::Token::make_identifier (UNDEF_LOCATION, std::move (path)));
       }
       break;
-    case GenericArg::Kind::Error:
-      rust_unreachable ();
     }
 }
 
@@ -1278,7 +1277,7 @@ TokenCollector::visit (ContinueExpr &expr)
 {
   push (Rust::Token::make (CONTINUE, expr.get_locus ()));
   if (expr.has_label ())
-    visit (expr.get_label ());
+    visit (expr.get_label_unchecked ());
 }
 
 void
@@ -1286,7 +1285,7 @@ TokenCollector::visit (BreakExpr &expr)
 {
   push (Rust::Token::make (BREAK, expr.get_locus ()));
   if (expr.has_label ())
-    visit (expr.get_label ());
+    visit (expr.get_label_unchecked ());
   if (expr.has_break_expr ())
     visit (expr.get_break_expr ());
 }
@@ -1520,6 +1519,47 @@ TokenCollector::visit (AsyncBlockExpr &expr)
 void
 TokenCollector::visit (InlineAsm &expr)
 {}
+
+void
+TokenCollector::visit (LlvmInlineAsm &expr)
+{
+  push (Rust::Token::make_identifier (expr.get_locus (), "llvm_asm"));
+  push (Rust::Token::make (EXCLAM, expr.get_locus ()));
+  push (Rust::Token::make (LEFT_PAREN, expr.get_locus ()));
+  for (auto &template_str : expr.get_templates ())
+    push (Rust::Token::make_string (template_str.get_locus (),
+				    std::move (template_str.symbol)));
+
+  push (Rust::Token::make (COLON, expr.get_locus ()));
+  for (auto output : expr.get_outputs ())
+    {
+      push (Rust::Token::make_string (expr.get_locus (),
+				      std::move (output.constraint)));
+      visit (output.expr);
+      push (Rust::Token::make (COMMA, expr.get_locus ()));
+    }
+
+  push (Rust::Token::make (COLON, expr.get_locus ()));
+  for (auto input : expr.get_inputs ())
+    {
+      push (Rust::Token::make_string (expr.get_locus (),
+				      std::move (input.constraint)));
+      visit (input.expr);
+      push (Rust::Token::make (COMMA, expr.get_locus ()));
+    }
+
+  push (Rust::Token::make (COLON, expr.get_locus ()));
+  for (auto &clobber : expr.get_clobbers ())
+    {
+      push (Rust::Token::make_string (expr.get_locus (),
+				      std::move (clobber.symbol)));
+      push (Rust::Token::make (COMMA, expr.get_locus ()));
+    }
+  push (Rust::Token::make (COLON, expr.get_locus ()));
+  // Dump options
+
+  push (Rust::Token::make (RIGHT_PAREN, expr.get_locus ()));
+}
 
 // rust-item.h
 
@@ -2587,6 +2627,13 @@ TokenCollector::visit (LetStmt &stmt)
       push (Rust::Token::make (EQUAL, UNDEF_LOCATION));
       visit (stmt.get_init_expr ());
     }
+
+  if (stmt.has_else_expr ())
+    {
+      push (Rust::Token::make (ELSE, UNDEF_LOCATION));
+      visit (stmt.get_else_expr ());
+    }
+
   push (Rust::Token::make (SEMICOLON, UNDEF_LOCATION));
 }
 

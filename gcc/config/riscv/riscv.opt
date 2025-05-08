@@ -274,6 +274,8 @@ Mask(ZA64RS)  Var(riscv_za_subext)
 
 Mask(ZA128RS) Var(riscv_za_subext)
 
+Mask(ZAMA16B) Var(riscv_za_subext)
+
 TargetVariable
 int riscv_zb_subext
 
@@ -466,6 +468,10 @@ Mask(XCVBI) Var(riscv_xcv_subext)
 TargetVariable
 int riscv_sv_subext
 
+Mask(SVADE) Var(riscv_sv_subext)
+
+Mask(SVADU) Var(riscv_sv_subext)
+
 Mask(SVINVAL) Var(riscv_sv_subext)
 
 Mask(SVNAPOT) Var(riscv_sv_subext)
@@ -578,6 +584,10 @@ Inline strlen calls if possible.
 -param=riscv-strcmp-inline-limit=
 Target RejectNegative Joined UInteger Var(riscv_strcmp_inline_limit) Init(64)
 Max number of bytes to compare as part of inlined strcmp/strncmp routines (default: 64).
+
+-param=gpr2vr-cost=
+Target RejectNegative Joined UInteger Var(gpr2vr_cost) Init(GPR2VR_COST_UNPROVIDED)
+Set the cost value of the rvv instruction when operate from GPR to VR.
 
 Enum
 Name(rvv_max_lmul) Type(enum rvv_max_lmul_enum)

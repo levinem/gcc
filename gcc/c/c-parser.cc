@@ -1072,9 +1072,11 @@ c_parser_error_richloc (c_parser *parser, const char *gmsgid,
       const char *header_hint
 	= get_c_stdlib_header_for_string_macro_name (token_name);
       if (header_hint != NULL)
-	h = name_hint (NULL, new suggest_missing_header (token->location,
-							 token_name,
-							 header_hint));
+	h = name_hint (nullptr,
+		       std::make_unique<suggest_missing_header>
+			 (token->location,
+			  token_name,
+			  header_hint));
     }
 
   c_parse_error (gmsgid,
@@ -20837,8 +20839,8 @@ c_parser_omp_clause_init_modifiers (c_parser *parser, bool *target,
   while (true);
 
 fail:
-  c_parser_error (parser, "%<init%> clause with modifier other than "
-			  "%<prefer_type%>, %<target%> or %<targetsync%>");
+  c_parser_error (parser,
+		  "expected %<prefer_type%>, %<target%>, or %<targetsync%>");
   return false;
 }
 
@@ -20859,44 +20861,22 @@ c_parser_omp_clause_init (c_parser *parser, tree list)
   if (!parens.require_open (parser))
     return list;
 
-  unsigned raw_pos = 1;
-  while (c_parser_peek_nth_token_raw (parser, raw_pos)->type == CPP_NAME)
-    {
-      raw_pos++;
-      if (c_parser_peek_nth_token_raw (parser, raw_pos)->type == CPP_OPEN_PAREN)
-	{
-	  raw_pos++;
-	  c_parser_check_balanced_raw_token_sequence (parser, &raw_pos);
-	  if (c_parser_peek_nth_token_raw (parser, raw_pos)->type != CPP_CLOSE_PAREN)
-	    {
-	      raw_pos = 0;
-	      break;
-	    }
-	  raw_pos++;
-	}
-      if (c_parser_peek_nth_token_raw (parser, raw_pos)->type == CPP_COLON)
-	break;
-      if (c_parser_peek_nth_token_raw (parser, raw_pos)->type != CPP_COMMA)
-	{
-	  raw_pos = 0;
-	  break;
-	}
-      raw_pos++;
-    }
-
   bool target = false;
   bool targetsync = false;
   tree prefer_type_tree = NULL_TREE;
 
-  if (raw_pos > 1
-      && (!c_parser_omp_clause_init_modifiers (parser, &target, &targetsync,
-					       &prefer_type_tree)
-	  || !c_parser_require (parser, CPP_COLON, "expected %<:%>")))
+  if (!c_parser_omp_clause_init_modifiers (parser, &target, &targetsync,
+					   &prefer_type_tree)
+      || !c_parser_require (parser, CPP_COLON, "expected %<:%>"))
     {
       if (prefer_type_tree != error_mark_node)
 	parens.skip_until_found_close (parser);
       return list;
     }
+
+  if (!target && !targetsync)
+    error_at (loc,
+	      "missing required %<target%> and/or %<targetsync%> modifier");
 
   tree nl = c_parser_omp_variable_list (parser, loc, OMP_CLAUSE_INIT, list,
 					false);
@@ -27166,6 +27146,10 @@ c_finish_omp_declare_variant (c_parser *parser, tree fndecl, tree parms)
 		  || !c_parser_require (parser, CPP_CLOSE_PAREN,
 					"expected %<)%> or %<,%>"))
 		goto fail;
+	      if (!target && !targetsync)
+		error_at (loc,
+			  "missing required %<target%> and/or "
+			  "%<targetsync%> modifier");
 	      tree t = build_tree_list (target ? boolean_true_node
 					       : boolean_false_node,
 					targetsync ? boolean_true_node

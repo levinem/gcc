@@ -157,7 +157,13 @@ TraitResolver::resolve_path_to_trait (const HIR::TypePath &path,
     }
 
   auto resolved_item = mappings.lookup_hir_item (hid.value ());
-  rust_assert (resolved_item.has_value ());
+  if (!resolved_item.has_value ())
+    {
+      rust_error_at (path.get_locus (),
+		     "Failed to resolve trait by looking up hir node");
+      return false;
+    }
+
   if (resolved_item.value ()->get_item_kind () != HIR::Item::ItemKind::Trait)
     {
       rich_location r (line_table, path.get_locus ());
@@ -228,7 +234,9 @@ TraitResolver::resolve_trait (HIR::Trait *trait_reference)
 	    // The one exception is the implicit Self type of a trait
 	    bool apply_sized = !is_self;
 	    auto param_type
-	      = TypeResolveGenericParam::Resolve (*generic_param, apply_sized);
+	      = TypeResolveGenericParam::Resolve (*generic_param, true,
+						  apply_sized);
+
 	    context->insert_type (generic_param->get_mappings (), param_type);
 	    substitutions.push_back (
 	      TyTy::SubstitutionParamMapping (typaram, param_type));
@@ -376,7 +384,26 @@ TraitItemReference::resolve_item (HIR::TraitItemType &type)
 void
 TraitItemReference::resolve_item (HIR::TraitItemConst &constant)
 {
-  // TODO
+  TyTy::BaseType *ty = nullptr;
+  if (constant.has_type ())
+    ty = TypeCheckType::Resolve (constant.get_type ());
+
+  TyTy::BaseType *expr = nullptr;
+  if (constant.has_expr ())
+    expr = TypeCheckExpr::Resolve (constant.get_expr ());
+
+  bool have_specified_ty = ty != nullptr && !ty->is<TyTy::ErrorType> ();
+  bool have_expr_ty = expr != nullptr && !expr->is<TyTy::ErrorType> ();
+
+  if (have_specified_ty && have_expr_ty)
+    {
+      coercion_site (constant.get_mappings ().get_hirid (),
+		     TyTy::TyWithLocation (ty,
+					   constant.get_type ().get_locus ()),
+		     TyTy::TyWithLocation (expr,
+					   constant.get_expr ().get_locus ()),
+		     constant.get_locus ());
+    }
 }
 
 void
@@ -485,7 +512,7 @@ AssociatedImplTrait::setup_raw_associated_types ()
 TyTy::BaseType *
 AssociatedImplTrait::setup_associated_types (
   const TyTy::BaseType *self, const TyTy::TypeBoundPredicate &bound,
-  TyTy::SubstitutionArgumentMappings *args)
+  TyTy::SubstitutionArgumentMappings *args, bool infer)
 {
   // compute the constrained impl block generic arguments based on self and the
   // higher ranked trait bound
@@ -545,7 +572,7 @@ AssociatedImplTrait::setup_associated_types (
   std::vector<TyTy::SubstitutionArg> subst_args;
   for (auto &p : substitutions)
     {
-      if (p.needs_substitution ())
+      if (p.needs_substitution () && infer)
 	{
 	  TyTy::TyVar infer_var = TyTy::TyVar::get_implicit_infer_var (locus);
 	  subst_args.push_back (
@@ -619,7 +646,7 @@ AssociatedImplTrait::setup_associated_types (
 	= unify_site_and (a->get_ref (), TyTy::TyWithLocation (a),
 			  TyTy::TyWithLocation (b), impl_predicate.get_locus (),
 			  true /*emit-errors*/, true /*commit-if-ok*/,
-			  false /*infer*/, true /*cleanup-on-fail*/);
+			  true /*infer*/, true /*cleanup-on-fail*/);
       rust_assert (result->get_kind () != TyTy::TypeKind::ERROR);
     }
 
@@ -632,7 +659,7 @@ AssociatedImplTrait::setup_associated_types (
 				TyTy::TyWithLocation (impl_self_infer),
 				impl_predicate.get_locus (),
 				true /*emit-errors*/, true /*commit-if-ok*/,
-				false /*infer*/, true /*cleanup-on-fail*/);
+				true /*infer*/, true /*cleanup-on-fail*/);
   rust_assert (result->get_kind () != TyTy::TypeKind::ERROR);
   TyTy::BaseType *self_result = result;
 

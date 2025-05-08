@@ -122,6 +122,7 @@ _slp_tree::_slp_tree ()
   SLP_TREE_DEF_TYPE (this) = vect_uninitialized_def;
   SLP_TREE_CODE (this) = ERROR_MARK;
   this->ldst_lanes = false;
+  this->avoid_stlf_fail = false;
   SLP_TREE_VECTYPE (this) = NULL_TREE;
   SLP_TREE_REPRESENTATIVE (this) = NULL;
   SLP_TREE_MEMORY_ACCESS_TYPE (this) = VMAT_INVARIANT;
@@ -1099,7 +1100,7 @@ vect_build_slp_tree_1 (vec_info *vinfo, unsigned char *swap,
   tree first_lhs = NULL_TREE;
   tree first_op1 = NULL_TREE;
   stmt_vec_info first_load = NULL, prev_first_load = NULL;
-  bool first_stmt_ldst_p = false;
+  bool first_stmt_ldst_p = false, first_stmt_ldst_masklen_p = false;
   bool first_stmt_phi_p = false;
   int first_reduc_idx = -1;
   bool maybe_soft_fail = false;
@@ -1133,6 +1134,7 @@ vect_build_slp_tree_1 (vec_info *vinfo, unsigned char *swap,
   FOR_EACH_VEC_ELT (stmts, i, stmt_info)
     {
       bool ldst_p = false;
+      bool ldst_masklen_p = false;
       bool phi_p = false;
       code_helper rhs_code = ERROR_MARK;
 
@@ -1195,17 +1197,22 @@ vect_build_slp_tree_1 (vec_info *vinfo, unsigned char *swap,
 	  else
 	    rhs_code = CALL_EXPR;
 
-	  if (cfn == CFN_MASK_LOAD
-	      || cfn == CFN_GATHER_LOAD
-	      || cfn == CFN_MASK_GATHER_LOAD
-	      || cfn == CFN_MASK_LEN_GATHER_LOAD
-	      || cfn == CFN_SCATTER_STORE
-	      || cfn == CFN_MASK_SCATTER_STORE
-	      || cfn == CFN_MASK_LEN_SCATTER_STORE)
+	  if (cfn == CFN_GATHER_LOAD
+	      || cfn == CFN_SCATTER_STORE)
 	    ldst_p = true;
+	  else if (cfn == CFN_MASK_LOAD
+		   || cfn == CFN_MASK_GATHER_LOAD
+		   || cfn == CFN_MASK_LEN_GATHER_LOAD
+		   || cfn == CFN_MASK_SCATTER_STORE
+		   || cfn == CFN_MASK_LEN_SCATTER_STORE)
+	    {
+	      ldst_p = true;
+	      ldst_masklen_p = true;
+	    }
 	  else if (cfn == CFN_MASK_STORE)
 	    {
 	      ldst_p = true;
+	      ldst_masklen_p = true;
 	      rhs_code = CFN_MASK_STORE;
 	    }
 	  else if (cfn == CFN_GOMP_SIMD_LANE)
@@ -1246,6 +1253,7 @@ vect_build_slp_tree_1 (vec_info *vinfo, unsigned char *swap,
 	  first_lhs = lhs;
 	  first_stmt_code = rhs_code;
 	  first_stmt_ldst_p = ldst_p;
+	  first_stmt_ldst_masklen_p = ldst_masklen_p;
 	  first_stmt_phi_p = phi_p;
 	  first_reduc_idx = STMT_VINFO_REDUC_IDX (stmt_info);
 
@@ -1364,6 +1372,7 @@ vect_build_slp_tree_1 (vec_info *vinfo, unsigned char *swap,
 		  && (STMT_VINFO_GATHER_SCATTER_P (stmt_info)
 		      != STMT_VINFO_GATHER_SCATTER_P (first_stmt_info)))
 	      || first_stmt_ldst_p != ldst_p
+	      || (ldst_p && first_stmt_ldst_masklen_p != ldst_masklen_p)
 	      || first_stmt_phi_p != phi_p)
 	    {
 	      if (dump_enabled_p ())
@@ -2608,16 +2617,25 @@ out:
       if (oprnds_info[0]->def_stmts[0]
 	  && is_a<gassign *> (oprnds_info[0]->def_stmts[0]->stmt))
 	code = gimple_assign_rhs_code (oprnds_info[0]->def_stmts[0]->stmt);
+      basic_block bb = nullptr;
 
       for (unsigned j = 0; j < group_size; ++j)
 	{
 	  FOR_EACH_VEC_ELT (oprnds_info, i, oprnd_info)
 	    {
 	      stmt_vec_info stmt_info = oprnd_info->def_stmts[j];
-	      if (!stmt_info || !stmt_info->stmt
+	      if (!stmt_info
 		  || !is_a<gassign *> (stmt_info->stmt)
 		  || gimple_assign_rhs_code (stmt_info->stmt) != code
 		  || skip_args[i])
+		{
+		  success = false;
+		  break;
+		}
+	      /* Avoid mixing lanes with defs in different basic-blocks.  */
+	      if (!bb)
+		bb = gimple_bb (vect_orig_stmt (stmt_info)->stmt);
+	      else if (gimple_bb (vect_orig_stmt (stmt_info)->stmt) != bb)
 		{
 		  success = false;
 		  break;
@@ -3096,7 +3114,8 @@ vect_print_slp_tree (dump_flags_t dump_kind, dump_location_t loc,
 					 SLP_TREE_REF_COUNT (node));
   if (SLP_TREE_VECTYPE (node))
     dump_printf (metadata, " %T", SLP_TREE_VECTYPE (node));
-  dump_printf (metadata, "\n");
+  dump_printf (metadata, "%s\n",
+	       node->avoid_stlf_fail ? " (avoid-stlf-fail)" : "");
   if (SLP_TREE_DEF_TYPE (node) == vect_internal_def)
     {
       if (SLP_TREE_CODE (node) == VEC_PERM_EXPR)
@@ -5032,14 +5051,17 @@ vect_analyze_slp (vec_info *vinfo, unsigned max_tree_size,
 	    vec<stmt_vec_info> roots = vNULL;
 	    vec<tree> remain = vNULL;
 	    gphi *phi = as_a<gphi *> (STMT_VINFO_STMT (stmt_info));
-	    stmts.create (1);
 	    tree def = gimple_phi_arg_def_from_edge (phi, latch_e);
 	    stmt_vec_info lc_info = loop_vinfo->lookup_def (def);
-	    stmts.quick_push (vect_stmt_to_vectorize (lc_info));
-	    vect_build_slp_instance (vinfo, slp_inst_kind_reduc_group,
-				     stmts, roots, remain,
-				     max_tree_size, &limit,
-				     bst_map, NULL, force_single_lane);
+	    if (lc_info)
+	      {
+		stmts.create (1);
+		stmts.quick_push (vect_stmt_to_vectorize (lc_info));
+		vect_build_slp_instance (vinfo, slp_inst_kind_reduc_group,
+					 stmts, roots, remain,
+					 max_tree_size, &limit,
+					 bst_map, NULL, force_single_lane);
+	      }
 	    /* When the latch def is from a different cycle this can only
 	       be a induction.  Build a simple instance for this.
 	       ???  We should be able to start discovery from the PHI
@@ -5049,8 +5071,6 @@ vect_analyze_slp (vec_info *vinfo, unsigned max_tree_size,
 	    tem.quick_push (stmt_info);
 	    if (!bst_map->get (tem))
 	      {
-		gcc_assert (STMT_VINFO_DEF_TYPE (stmt_info)
-			    == vect_induction_def);
 		stmts.create (1);
 		stmts.quick_push (stmt_info);
 		vect_build_slp_instance (vinfo, slp_inst_kind_reduc_group,
@@ -11153,9 +11173,14 @@ vect_schedule_slp_node (vec_info *vinfo,
 			    == cycle_phi_info_type);
 		gphi *phi = as_a <gphi *>
 			      (vect_find_last_scalar_stmt_in_slp (child)->stmt);
-		if (!last_stmt
-		    || vect_stmt_dominates_stmt_p (last_stmt, phi))
+		if (!last_stmt)
 		  last_stmt = phi;
+		else if (vect_stmt_dominates_stmt_p (last_stmt, phi))
+		  last_stmt = phi;
+		else if (vect_stmt_dominates_stmt_p (phi, last_stmt))
+		  ;
+		else
+		  gcc_unreachable ();
 	      }
 	    /* We are emitting all vectorized stmts in the same place and
 	       the last one is the last.
@@ -11166,9 +11191,14 @@ vect_schedule_slp_node (vec_info *vinfo,
 	    FOR_EACH_VEC_ELT (SLP_TREE_VEC_DEFS (child), j, vdef)
 	      {
 		gimple *vstmt = SSA_NAME_DEF_STMT (vdef);
-		if (!last_stmt
-		    || vect_stmt_dominates_stmt_p (last_stmt, vstmt))
+		if (!last_stmt)
 		  last_stmt = vstmt;
+		else if (vect_stmt_dominates_stmt_p (last_stmt, vstmt))
+		  last_stmt = vstmt;
+		else if (vect_stmt_dominates_stmt_p (vstmt, last_stmt))
+		  ;
+		else
+		  gcc_unreachable ();
 	      }
 	  }
 	else if (!SLP_TREE_VECTYPE (child))
@@ -11181,9 +11211,14 @@ vect_schedule_slp_node (vec_info *vinfo,
 		  && !SSA_NAME_IS_DEFAULT_DEF (def))
 		{
 		  gimple *stmt = SSA_NAME_DEF_STMT (def);
-		  if (!last_stmt
-		      || vect_stmt_dominates_stmt_p (last_stmt, stmt))
+		  if (!last_stmt)
 		    last_stmt = stmt;
+		  else if (vect_stmt_dominates_stmt_p (last_stmt, stmt))
+		    last_stmt = stmt;
+		  else if (vect_stmt_dominates_stmt_p (stmt, last_stmt))
+		    ;
+		  else
+		    gcc_unreachable ();
 		}
 	  }
 	else
@@ -11204,9 +11239,14 @@ vect_schedule_slp_node (vec_info *vinfo,
 		      && !SSA_NAME_IS_DEFAULT_DEF (vdef))
 		    {
 		      gimple *vstmt = SSA_NAME_DEF_STMT (vdef);
-		      if (!last_stmt
-			  || vect_stmt_dominates_stmt_p (last_stmt, vstmt))
+		      if (!last_stmt)
 			last_stmt = vstmt;
+		      else if (vect_stmt_dominates_stmt_p (last_stmt, vstmt))
+			last_stmt = vstmt;
+		      else if (vect_stmt_dominates_stmt_p (vstmt, last_stmt))
+			;
+		      else
+			gcc_unreachable ();
 		    }
 	      }
 	  }
@@ -11333,11 +11373,11 @@ vect_remove_slp_scalar_calls (vec_info *vinfo,
     {
       if (!stmt_info)
 	continue;
+      if (!PURE_SLP_STMT (stmt_info))
+	continue;
+      stmt_info = vect_orig_stmt (stmt_info);
       gcall *stmt = dyn_cast <gcall *> (stmt_info->stmt);
       if (!stmt || gimple_bb (stmt) == NULL)
-	continue;
-      if (is_pattern_stmt_p (stmt_info)
-	  || !PURE_SLP_STMT (stmt_info))
 	continue;
       lhs = gimple_call_lhs (stmt);
       if (lhs)

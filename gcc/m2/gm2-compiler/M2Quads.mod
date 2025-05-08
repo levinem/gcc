@@ -69,6 +69,7 @@ FROM SymbolTable IMPORT ModeOfAddr, GetMode, PutMode, GetSymName, IsUnknown,
                         GetArraySubscript, GetDimension,
                         GetParam,
                         GetNth, GetNthParamAny,
+                        GetNthParamAnyClosest,
                         GetFirstUsed, GetDeclaredMod,
                         GetQuads, GetReadQuads, GetWriteQuads,
                         GetWriteLimitQuads, GetReadLimitQuads,
@@ -5676,7 +5677,8 @@ BEGIN
    WHILE i<=ParamTotal DO
       IF i <= NoOfParamAny (Proc)
       THEN
-         FormalI := GetParam(Proc, i) ;
+         (* FormalI := GetParam(Proc, i) ;  *)
+         FormalI := GetNthParamAnyClosest (Proc, i, GetCurrentModule ()) ;
          IF CompilerDebugging
          THEN
             n1 := GetSymName(FormalI) ;
@@ -5801,7 +5803,7 @@ BEGIN
             MetaError3 ('parameter {%3n} in {%1dD} causes a mismatch it was declared as a {%2d}', call, GetNth (call, i), i)
          END ;
          BuildRange (InitTypesParameterCheck (tokno, CheckedProcedure, i,
-                                              GetParam (CheckedProcedure, i),
+                                              GetNthParamAnyClosest (CheckedProcedure, i, GetCurrentModule ()),
                                               GetParam (ProcType, i), ParamCheckId)) ;
          INC(i)
       END
@@ -6150,7 +6152,7 @@ BEGIN
    MetaErrorStringT2 (tokpos, Msg, ProcedureSym, ParameterNo) ;
    IF NoOfParamAny (ProcedureSym) >= ParameterNo
    THEN
-      FormalParam := GetNthParamAny (ProcedureSym, ParameterNo) ;
+      FormalParam := GetNthParamAnyClosest (ProcedureSym, ParameterNo, GetCurrentModule ()) ;
       IF IsUnboundedParamAny (ProcedureSym, ParameterNo)
       THEN
          MetaErrorT2 (GetVarDeclFullTok (FormalParam), 'formal parameter {%1ad} has an open array type {%2tad}',
@@ -6205,7 +6207,7 @@ BEGIN
    MetaErrorStringT2 (tokpos, Msg, ProcedureSym, ParameterNo) ;
    IF NoOfParamAny (ProcedureSym) >= ParameterNo
    THEN
-      FormalParam := GetNthParamAny (ProcedureSym, ParameterNo) ;
+      FormalParam := GetNthParamAnyClosest (ProcedureSym, ParameterNo, GetCurrentModule ()) ;
       IF IsUnboundedParamAny (ProcedureSym, ParameterNo)
       THEN
          MetaErrorT2 (GetVarDeclFullTok (FormalParam), '{%W}formal parameter {%1ad} has an open array type {%2tad}',
@@ -8474,7 +8476,7 @@ BEGIN
       THEN
          (* we cannot test for IsConst(Param) AND (GetSType(Param)=Char)  as the type might not be assigned yet *)
          MetaError1 ('base procedure {%EkHIGH} expects a variable or string constant as its parameter {%1d:rather than {%1d}} {%1asa}', Param)
-      ELSIF IsUnbounded(Type)
+      ELSIF (Type # NulSym) AND IsUnbounded(Type)
       THEN
          BuildHighFromUnbounded (combinedtok)
       ELSE
@@ -11481,12 +11483,11 @@ END BuildDesignatorPointerError ;
 (*
    BuildDesignatorArray - Builds the array referencing.
                           The purpose of this procedure is to work out
-                          whether the DesignatorArray is a static or
-                          dynamic array and to call the appropriate
+                          whether the DesignatorArray is a constant string or
+                          dynamic array/static array and to call the appropriate
                           BuildRoutine.
 
                           The Stack is expected to contain:
-
 
                           Entry                   Exit
                           =====                   ====
@@ -11500,6 +11501,41 @@ END BuildDesignatorPointerError ;
 *)
 
 PROCEDURE BuildDesignatorArray ;
+BEGIN
+   IF IsConst (OperandT (2)) AND IsConstString (OperandT (2))
+   THEN
+      MetaErrorT1 (OperandTtok (2),
+                   '{%1Ead} is not an array, but a constant string.  Hint use a string constant created with an array constructor',
+                   OperandT (2)) ;
+      BuildDesignatorError ('bad array access')
+   ELSE
+      BuildDesignatorArrayStaticDynamic
+   END
+END BuildDesignatorArray ;
+
+
+(*
+   BuildDesignatorArrayStaticDynamic - Builds the array referencing.
+                                       The purpose of this procedure is to work out
+                                       whether the DesignatorArray is a static or
+                                       dynamic array and to call the appropriate
+                                       BuildRoutine.
+
+                                       The Stack is expected to contain:
+
+
+                                       Entry                   Exit
+                                       =====                   ====
+
+                                Ptr ->
+                                       +--------------+
+                                       | e            |                        <- Ptr
+                                       |--------------|        +------------+
+                                       | Sym  | Type  |        | S    | T   |
+                                       |--------------|        |------------|
+*)
+
+PROCEDURE BuildDesignatorArrayStaticDynamic ;
 VAR
    combinedTok,
    arrayTok,
@@ -11512,10 +11548,7 @@ BEGIN
    IF IsConst (OperandT (2))
    THEN
       type := GetDType (OperandT (2)) ;
-      IF type = NulSym
-      THEN
-         InternalError ('constant type should have been resolved')
-      ELSIF IsArray (type)
+      IF (type # NulSym) AND IsArray (type)
       THEN
          PopTtok (e, exprTok) ;
          PopTFDtok (Sym, Type, dim, arrayTok) ;
@@ -11533,7 +11566,7 @@ BEGIN
    IF (NOT IsVar (OperandT (2))) AND (NOT IsTemporary (OperandT (2)))
    THEN
       MetaErrorT1 (OperandTtok (2),
-                   'can only access arrays using variables or formal parameters not {%1Ead}',
+                   'can only access arrays using constants, variables or formal parameters not {%1Ead}',
                    OperandT (2)) ;
       BuildDesignatorError ('bad array access')
    END ;
@@ -11560,7 +11593,7 @@ BEGIN
                    Sym) ;
       BuildDesignatorError ('bad array access')
    END
-END BuildDesignatorArray ;
+END BuildDesignatorArrayStaticDynamic ;
 
 
 (*

@@ -1180,10 +1180,13 @@ finish_expr_stmt (tree expr)
         expr = error_mark_node;
 
       /* Simplification of inner statement expressions, compound exprs,
-	 etc can result in us already having an EXPR_STMT.  */
+	 etc can result in us already having an EXPR_STMT or other statement
+	 tree.  Don't wrap them in EXPR_STMT.  */
       if (TREE_CODE (expr) != CLEANUP_POINT_EXPR)
 	{
-	  if (TREE_CODE (expr) != EXPR_STMT)
+	  if (TREE_CODE (expr) != EXPR_STMT
+	      && !STATEMENT_CLASS_P (expr)
+	      && TREE_CODE (expr) != STATEMENT_LIST)
 	    expr = build_stmt (loc, EXPR_STMT, expr);
 	  expr = maybe_cleanup_point_expr_void (expr);
 	}
@@ -3082,6 +3085,7 @@ finish_stmt_expr_expr (tree expr, tree stmt_expr)
 	}
       else if (processing_template_decl)
 	{
+	  /* Not finish_expr_stmt because we don't want convert_to_void.  */
 	  expr = build_stmt (input_location, EXPR_STMT, expr);
 	  expr = add_stmt (expr);
 	  /* Mark the last statement so that we can recognize it as such at
@@ -3321,6 +3325,14 @@ finish_call_expr (tree fn, vec<tree, va_gc> **args, bool disallow_virtual,
       if (type_dependent_expression_p (fn)
 	  || any_type_dependent_arguments_p (*args))
 	{
+	  if (koenig_p
+	      && TREE_CODE (orig_fn) == FUNCTION_DECL
+	      && !fndecl_built_in_p (orig_fn))
+	    /* For an ADL-enabled call where unqualified lookup found a
+	       single non-template function, wrap it in an OVERLOAD so that
+	       later substitution doesn't overeagerly mark the function as
+	       used.  */
+	    orig_fn = ovl_make (orig_fn, NULL_TREE);
 	  result = build_min_nt_call_vec (orig_fn, *args);
 	  SET_EXPR_LOCATION (result, cp_expr_loc_or_input_loc (fn));
 	  KOENIG_LOOKUP_P (result) = koenig_p;
@@ -4755,6 +4767,7 @@ finish_id_expression_1 (tree id_expression,
 	 body, except inside an unevaluated context (i.e. decltype).  */
       if (TREE_CODE (decl) == PARM_DECL
 	  && DECL_CONTEXT (decl) == NULL_TREE
+	  && !CONSTRAINT_VAR_P (decl)
 	  && !cp_unevaluated_operand
 	  && !processing_contract_condition
 	  && !processing_omp_trait_property_expr)
@@ -5087,22 +5100,32 @@ static tree
 finish_type_pack_element (tree idx, tree types, tsubst_flags_t complain)
 {
   idx = maybe_constant_value (idx, NULL_TREE, mce_true);
-  if (TREE_CODE (idx) != INTEGER_CST || !INTEGRAL_TYPE_P (TREE_TYPE (idx)))
+  if (!INTEGRAL_TYPE_P (TREE_TYPE (idx)))
     {
       if (complain & tf_error)
-	error ("pack index is not an integral constant");
+	error ("pack index has non-integral type %qT", TREE_TYPE (idx));
+      return error_mark_node;
+    }
+  if (TREE_CODE (idx) != INTEGER_CST)
+    {
+      if (complain & tf_error)
+	{
+	  error ("pack index is not an integral constant");
+	  cxx_constant_value (idx);
+	}
       return error_mark_node;
     }
   if (tree_int_cst_sgn (idx) < 0)
     {
       if (complain & tf_error)
-	error ("pack index is negative");
+	error ("pack index %qE is negative", idx);
       return error_mark_node;
     }
   if (wi::to_widest (idx) >= TREE_VEC_LENGTH (types))
     {
       if (complain & tf_error)
-	error ("pack index is out of range");
+	error ("pack index %qE is out of range for pack of length %qd",
+	       idx, TREE_VEC_LENGTH (types));
       return error_mark_node;
     }
   return TREE_VEC_ELT (types, tree_to_shwi (idx));

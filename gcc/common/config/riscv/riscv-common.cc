@@ -137,6 +137,7 @@ static const riscv_implied_info_t riscv_implied_info[] =
   {"zve64f", "f"},
   {"zve64d", "d"},
 
+  {"zve32x", "zicsr"},
   {"zve32x", "zvl32b"},
   {"zve32f", "zve32x"},
   {"zve32f", "zvl32b"},
@@ -218,6 +219,37 @@ static const riscv_implied_info_t riscv_implied_info[] =
    {
      return subset_list->xlen () == 32 && subset_list->lookup ("f");
    }},
+  {"zca", "c",
+   [] (const riscv_subset_list *subset_list) -> bool
+   {
+     /* For RV32 Zca implies C for one of these combinations of
+	extensions: Zca, F_Zca_Zcf and FD_Zca_Zcf_Zcd.  */
+     if (subset_list->xlen () == 32)
+       {
+	 if (subset_list->lookup ("d"))
+	   return subset_list->lookup ("zcf") && subset_list->lookup ("zcd");
+
+	 if (subset_list->lookup ("f"))
+	   return subset_list->lookup ("zcf");
+
+	 return true;
+       }
+
+     /* For RV64 Zca implies C for one of these combinations of
+	extensions: Zca and FD_Zca_Zcd (Zcf is not available
+	for RV64).  */
+     if (subset_list->xlen () == 64)
+       {
+	 if (subset_list->lookup ("d"))
+	   return subset_list->lookup ("zcd");
+
+	 return true;
+       }
+
+     /* Do nothing for future RV128 specification. Behaviour
+	for this case is not yet well defined.  */
+     return false;
+   }},
 
   {"smaia", "ssaia"},
   {"smstateen", "ssstateen"},
@@ -295,6 +327,7 @@ static const struct riscv_ext_version riscv_ext_version_table[] =
   {"zalrsc", ISA_SPEC_CLASS_NONE, 1, 0},
   {"zabha", ISA_SPEC_CLASS_NONE, 1, 0},
   {"zacas", ISA_SPEC_CLASS_NONE, 1, 0},
+  {"zama16b", ISA_SPEC_CLASS_NONE, 1, 0},
 
   {"zba", ISA_SPEC_CLASS_NONE, 1, 0},
   {"zbb", ISA_SPEC_CLASS_NONE, 1, 0},
@@ -400,6 +433,8 @@ static const struct riscv_ext_version riscv_ext_version_table[] =
   {"zcmp", ISA_SPEC_CLASS_NONE, 1, 0},
   {"zcmt", ISA_SPEC_CLASS_NONE, 1, 0},
 
+  {"sdtrig",  ISA_SPEC_CLASS_NONE, 1, 0},
+
   {"smaia",     ISA_SPEC_CLASS_NONE, 1, 0},
   {"smepmp",    ISA_SPEC_CLASS_NONE, 1, 0},
   {"smstateen", ISA_SPEC_CLASS_NONE, 1, 0},
@@ -408,7 +443,10 @@ static const struct riscv_ext_version riscv_ext_version_table[] =
   {"sscofpmf",  ISA_SPEC_CLASS_NONE, 1, 0},
   {"ssstateen", ISA_SPEC_CLASS_NONE, 1, 0},
   {"sstc",      ISA_SPEC_CLASS_NONE, 1, 0},
+  {"ssstrict",  ISA_SPEC_CLASS_NONE, 1, 0},
 
+  {"svade",   ISA_SPEC_CLASS_NONE, 1, 0},
+  {"svadu",   ISA_SPEC_CLASS_NONE, 1, 0},
   {"svinval", ISA_SPEC_CLASS_NONE, 1, 0},
   {"svnapot", ISA_SPEC_CLASS_NONE, 1, 0},
   {"svpbmt",  ISA_SPEC_CLASS_NONE, 1, 0},
@@ -1620,6 +1658,7 @@ static const riscv_ext_flag_table_t riscv_ext_flag_table[] =
   RISCV_EXT_FLAG_ENTRY ("zalrsc",  x_riscv_za_subext, MASK_ZALRSC),
   RISCV_EXT_FLAG_ENTRY ("zabha",   x_riscv_za_subext, MASK_ZABHA),
   RISCV_EXT_FLAG_ENTRY ("zacas",   x_riscv_za_subext, MASK_ZACAS),
+  RISCV_EXT_FLAG_ENTRY ("zama16b", x_riscv_za_subext, MASK_ZAMA16B),
 
   RISCV_EXT_FLAG_ENTRY ("zba", x_riscv_zb_subext, MASK_ZBA),
   RISCV_EXT_FLAG_ENTRY ("zbb", x_riscv_zb_subext, MASK_ZBB),
@@ -1732,9 +1771,11 @@ static const riscv_ext_flag_table_t riscv_ext_flag_table[] =
   RISCV_EXT_FLAG_ENTRY ("zcmp", x_riscv_zc_subext, MASK_ZCMP),
   RISCV_EXT_FLAG_ENTRY ("zcmt", x_riscv_zc_subext, MASK_ZCMT),
 
-  RISCV_EXT_FLAG_ENTRY ("svinval", x_riscv_sv_subext, MASK_SVINVAL),
-  RISCV_EXT_FLAG_ENTRY ("svnapot", x_riscv_sv_subext, MASK_SVNAPOT),
-  RISCV_EXT_FLAG_ENTRY ("svvptc", x_riscv_sv_subext, MASK_SVVPTC),
+  RISCV_EXT_FLAG_ENTRY ("svade",       x_riscv_sv_subext, MASK_SVADE),
+  RISCV_EXT_FLAG_ENTRY ("svadu",       x_riscv_sv_subext, MASK_SVADU),
+  RISCV_EXT_FLAG_ENTRY ("svinval",     x_riscv_sv_subext, MASK_SVINVAL),
+  RISCV_EXT_FLAG_ENTRY ("svnapot",     x_riscv_sv_subext, MASK_SVNAPOT),
+  RISCV_EXT_FLAG_ENTRY ("svvptc",      x_riscv_sv_subext, MASK_SVVPTC),
 
   RISCV_EXT_FLAG_ENTRY ("ztso", x_riscv_ztso_subext, MASK_ZTSO),
 

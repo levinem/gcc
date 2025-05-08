@@ -2206,6 +2206,8 @@ struct GTY(()) language_function {
 
   BOOL_BITFIELD invalid_constexpr : 1;
   BOOL_BITFIELD throwing_cleanup : 1;
+  /* True if we gave any errors in this function.  */
+  BOOL_BITFIELD erroneous : 1;
 
   hash_table<named_label_hash> *x_named_labels;
 
@@ -2489,6 +2491,7 @@ struct GTY(()) lang_type {
   unsigned unique_obj_representations_set : 1;
   bool erroneous : 1;
   bool non_pod_aggregate : 1;
+  bool non_aggregate_pod : 1;
 
   /* When adding a flag here, consider whether or not it ought to
      apply to a template instance if it applies to the template.  If
@@ -2497,7 +2500,7 @@ struct GTY(()) lang_type {
   /* There are some bits left to fill out a 32-bit word.  Keep track
      of this by updating the size of this bitfield whenever you add or
      remove a flag.  */
-  unsigned dummy : 3;
+  unsigned dummy : 2;
 
   tree primary_base;
   vec<tree_pair_s, va_gc> *vcall_indices;
@@ -2824,6 +2827,11 @@ struct GTY(()) lang_type {
    with a hash_set only filled in when abi_version_crosses (17).  */
 #define CLASSTYPE_NON_POD_AGGREGATE(NODE) \
   (LANG_TYPE_CLASS_CHECK (NODE)->non_pod_aggregate)
+
+/* True if this class is layout-POD though it's not an aggregate in C++20 and
+   above (c++/120012).  This could also be a hash_set.  */
+#define CLASSTYPE_NON_AGGREGATE_POD(NODE) \
+  (LANG_TYPE_CLASS_CHECK (NODE)->non_aggregate_pod)
 
 /* Additional macros for inheritance information.  */
 
@@ -6753,8 +6761,14 @@ struct GTY((chain_next ("%h.next"))) tinst_level {
   /* The location where the template is instantiated.  */
   location_t locus;
 
-  /* errorcount + sorrycount when we pushed this level.  */
-  unsigned short errors;
+  /* errorcount + sorrycount when we pushed this level.  If the value
+     overflows, it will always seem like we currently have more errors, so we
+     will limit template recursion even from non-erroneous templates.  In a TU
+     with over 32k errors, that's fine.  */
+  unsigned short errors : 15;
+
+  /* set in pop_tinst_level if there have been errors since we pushed.  */
+  bool had_errors : 1;
 
   /* Count references to this object.  If refcount reaches
      refcount_infinity value, we don't increment or decrement the
@@ -7079,6 +7093,7 @@ extern tree convert_to_reference		(tree, tree, int, int, tree,
 						 tsubst_flags_t);
 extern tree convert_from_reference		(tree);
 extern tree force_rvalue			(tree, tsubst_flags_t);
+extern tree force_lvalue			(tree, tsubst_flags_t);
 extern tree ocp_convert				(tree, tree, int, int,
 						 tsubst_flags_t);
 extern tree cp_convert				(tree, tree, tsubst_flags_t);
@@ -7617,7 +7632,6 @@ extern void cp_finish_omp_range_for (tree, tree);
 extern bool cp_maybe_parse_omp_decl (tree, tree);
 extern bool parsing_nsdmi (void);
 extern bool parsing_function_declarator ();
-extern bool parsing_default_capturing_generic_lambda_in_template (void);
 extern void inject_this_parameter (tree, cp_cv_quals);
 extern location_t defparse_location (tree);
 extern void maybe_show_extern_c_location (void);
@@ -7692,6 +7706,7 @@ extern tree fn_type_unification			(tree, tree, tree,
 						 tree, unification_kind_t, int,
 						 struct conversion **,
 						 bool, bool);
+extern void setup_explicit_instantiation_definition_linkage (tree);
 extern void mark_decl_instantiated		(tree, int);
 extern int more_specialized_fn			(tree, tree, int);
 extern tree type_targs_deducible_from		(tree, tree);
@@ -8835,6 +8850,7 @@ extern void cxx_constant_dtor			(tree, tree);
 extern tree cxx_constant_init			(tree, tree = NULL_TREE);
 extern tree maybe_constant_value		(tree, tree = NULL_TREE, mce_value = mce_unknown);
 extern tree maybe_constant_init			(tree, tree = NULL_TREE, bool = false);
+extern tree maybe_constant_init			(tree, tree, mce_value);
 extern tree fold_non_dependent_expr		(tree,
 						 tsubst_flags_t = tf_warning_or_error,
 						 bool = false, tree = NULL_TREE);

@@ -1372,17 +1372,12 @@ cxx_safe_arg_type_equiv_p (tree t1, tree t2)
       && TYPE_PTR_P (t2))
     return true;
 
-  /* The signedness of the parameter matters only when an integral
-     type smaller than int is promoted to int, otherwise only the
-     precision of the parameter matters.
-     This check should make sure that the callee does not see
-     undefined values in argument registers.  */
+  /* Only the precision of the parameter matters.  This check should
+     make sure that the callee does not see undefined values in argument
+     registers.  */
   if (INTEGRAL_TYPE_P (t1)
       && INTEGRAL_TYPE_P (t2)
-      && TYPE_PRECISION (t1) == TYPE_PRECISION (t2)
-      && (TYPE_UNSIGNED (t1) == TYPE_UNSIGNED (t2)
-	  || !targetm.calls.promote_prototypes (NULL_TREE)
-	  || TYPE_PRECISION (t1) >= TYPE_PRECISION (integer_type_node)))
+      && TYPE_PRECISION (t1) == TYPE_PRECISION (t2))
     return true;
 
   return same_type_p (t1, t2);
@@ -3870,13 +3865,11 @@ cp_build_indirect_ref_1 (location_t loc, tree ptr, ref_operator errorstring,
 	  return error_mark_node;
 	}
       else if (do_fold && TREE_CODE (pointer) == ADDR_EXPR
-	       && same_type_p (t, TREE_TYPE (TREE_OPERAND (pointer, 0)))
-	       /* Don't let this change the value category.  '*&TARGET_EXPR'
-		  is an lvalue, but folding it into 'TARGET_EXPR' would turn
-		  it into a prvalue of class type.  */
-	       && lvalue_p (TREE_OPERAND (pointer, 0)))
+	       && same_type_p (t, TREE_TYPE (TREE_OPERAND (pointer, 0))))
 	/* The POINTER was something like `&x'.  We simplify `*&x' to
-	   `x'.  */
+	   `x'.  This can change the value category: '*&TARGET_EXPR'
+	   is an lvalue and folding it into 'TARGET_EXPR' turns it into
+	   a prvalue of class type.  */
 	return TREE_OPERAND (pointer, 0);
       else
 	{

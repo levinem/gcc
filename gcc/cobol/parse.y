@@ -28,11 +28,13 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 %code requires {
+  #include "config.h"
   #include <fstream>  // Before cobol-system because it uses poisoned functions
   #include "cobol-system.h"
   #include "coretypes.h"
   #include "../../libgcobol/io.h"
   #include "../../libgcobol/ec.h"
+  #include "tree.h"
 
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 
@@ -278,6 +280,7 @@
 }
 
 %{
+#include "config.h"
 #include <fstream>  // Before cobol-system because it uses poisoned functions
 #include "cobol-system.h"
 #include "coretypes.h"
@@ -337,7 +340,7 @@
 %token  <number>        INVALID
 %token  <number>        NUMBER NEGATIVE
 %token  <numstr>        NUMSTR    "numeric literal"
-%token  <number>        OVERFLOW
+%token  <number>        OVERFLOW_kw "OVERFLOW"
 %token  <computational> COMPUTATIONAL
 
 %token  <boolean>       PERFORM BACKWARD
@@ -698,6 +701,7 @@
                         relative_key_clause reserve_clause sharing_clause
 
 %type   <file>          filename read_body write_body delete_body
+%type   <file>		start_impl start_cond start_body
 %type   <rewrite_t>     rewrite_body
 %type   <min_max>       record_vary rec_contains from_to record_desc
 %type   <file_op>       read_file rewrite1 write_file
@@ -711,7 +715,7 @@
 %type   <refer>         move_tgt selected_name read_key read_into vary_by
 %type   <refer>         accept_refer num_operand envar search_expr any_arg
 %type   <accept_func>	accept_body
-%type   <refers>        expr_list subscripts arg_list free_tgts
+%type   <refers>        subscript_exprs subscripts arg_list free_tgts
 %type   <targets>       move_tgts set_tgts
 %type   <field>         search_varying
 %type   <field>         search_term search_terms
@@ -944,18 +948,20 @@
 
 %printer { fprintf(yyo, "%s (token %d)", keyword_str($$), $$ ); } relop
 %printer { fprintf(yyo, "'%s'", $$? $$ : "" ); } NAME <string>
-%printer { fprintf(yyo, "%s'%.*s'{%zu} %s", $$.prefix, int($$.len), $$.data, $$.len,
+%printer { fprintf(yyo, "%s'%.*s'{" HOST_SIZE_T_PRINT_UNSIGNED "} %s",
+                        $$.prefix, int($$.len), $$.data, (fmt_size_t)$$.len,
                         $$.symbol_name()); } <literal>
-%printer { fprintf(yyo, "%s (1st of %zu)",
+%printer { fprintf(yyo, "%s (1st of " HOST_SIZE_T_PRINT_UNSIGNED ")",
                         $$->targets.empty()? "" : $$->targets.front().refer.field->name,
-                        $$->targets.size() ); } <targets>
-%printer { fprintf(yyo, "#%zu: %s",
-                        is_temporary($$)? 0 : field_index($$),
+                        (fmt_size_t)$$->targets.size() ); } <targets>
+%printer { fprintf(yyo, "#" HOST_SIZE_T_PRINT_UNSIGNED ": %s",
+                        is_temporary($$)? 0 : (fmt_size_t)field_index($$),
                         $$? name_of($$) : "<nil>" ); } name
-%printer { fprintf(yyo, "{%zu-%zu}", $$.min, $$.max ); } <min_max>
+%printer { fprintf(yyo, "{" HOST_SIZE_T_PRINT_UNSIGNED "-" HOST_SIZE_T_PRINT_UNSIGNED "}",
+                        (fmt_size_t)$$.min, (fmt_size_t)$$.max ); } <min_max>
 %printer { fprintf(yyo, "{%s}", $$? "+/-" : "" ); } signed
-%printer { fprintf(yyo, "{%s of %zu}",
-		         teed_up_names().front(), teed_up_names().size() ); } qname
+%printer { fprintf(yyo, "{%s of " HOST_SIZE_T_PRINT_UNSIGNED "}",
+		         teed_up_names().front(), (fmt_size_t) teed_up_names().size() ); } qname
 %printer { fprintf(yyo, "{%d}", $$ ); } <number>
 %printer { fprintf(yyo, "'%s'", $$.string ); } <numstr>
 %printer { const char *s = string_of($$);
@@ -967,9 +973,9 @@
                         $$.low?  (const char*) $$.low : "",
                         $$.high? (const char*) $$.high : "",
                         $$.also? "+" : "" ); } <colseq>
-%printer { fprintf(yyo, "{%s, %zu parameters}",
+%printer { fprintf(yyo, "{%s, " HOST_SIZE_T_PRINT_UNSIGNED " parameters}",
                         name_of($$.ffi_name->field), !$$.using_params? 0 :
-                        $$.using_params->elems.size()); } call_body
+                        (fmt_size_t)$$.using_params->elems.size()); } call_body
 %printer { fprintf(yyo, "%s <- %s", data_category_str($$.category),
                                     name_of($$.replacement->field)); } init_by
 
@@ -996,7 +1002,7 @@
                         DELETE DISPLAY DIVIDE EVALUATE END EOP EXIT FILLER_kw
                         GOBACK GOTO
                         INITIALIZE INSPECT
-                        MERGE MOVE MULTIPLY OPEN OVERFLOW PARAGRAPH PERFORM
+                        MERGE MOVE MULTIPLY OPEN OVERFLOW_kw PARAGRAPH PERFORM
                         READ RELEASE RETURN REWRITE
                         SEARCH SET SELECT SORT SORT_MERGE
                         STRING_kw STOP SUBTRACT START
@@ -1333,10 +1339,55 @@
       return strlen(lit.data) == lit.len? lit.data : NULL;
   }
 
+  static inline void strip_trailing_zeroes(char * const psz)
+    {
+    if( yydebug) return;
+    // The idea here is to take the output of real_to_decimal and make it
+    // more integer friendly.  Any integer value that can be expressed in 1
+    // to MAX_FIXED_POINT_DIGITS digits is converted to a string without a
+    // decimal point and no exponent.
+    char *pdot = strchr(psz, '.');
+    char *pe = strchr(psz, 'e');
+    char *pnz = pe-1;
+    while(*pnz == '0')
+      {
+      pnz--;
+      }
+    // pdot points to the decimal point.
+    // pe points to the 'e'.
+    // pnz points to the rightmost non-zero significand digit.
+
+    // Put the exponent on top of the trailing zeroes:
+    memmove(pnz+1, pe, strlen(pe)+1);
+    pe = pnz+1;
+    int exp = atoi(pe+1);
+    // Compute the number digits to the right of the decimal point:
+    int non_zero_digits = pe - (pdot+1);
+    if( exp >= 1 && exp <= MAX_FIXED_POINT_DIGITS && non_zero_digits <= exp)
+      {
+      // Further simplification is possible, because the value does not actually
+      // need a decimal point.  That's because we are dealing with something
+      // like 1.e+0, or 1.23e2 or 1.23e3
+
+      // Terminate the value where the 'e' is now:
+      *pe = '\0';
+      // Figure out where the extra zeroes will go:
+      pe -= 1;
+      // Get rid of the decimal place:
+      memmove(pdot, pdot+1, strlen(pdot)+1);
+      // Tack on the additional zeroes:
+      for(int i=0; i<exp - non_zero_digits; i++)
+        {
+        *pe++ = '0';
+        }
+      *pe++ = '\0';
+      }
+    }
+
   static inline char * string_of( const REAL_VALUE_TYPE &cce ) {
       char output[64];
       real_to_decimal( output, &cce, sizeof(output), 32, 0 );
-
+      strip_trailing_zeroes(output);
       char decimal = symbol_decimal_point();
       std::replace(output, output + strlen(output), '.', decimal);
       return xstrdup(output);
@@ -1657,9 +1708,9 @@ namestr:        ctx_name {
                               $$.prefix);
                     YYERROR;
                   }
-                  if( !is_cobol_word($$.data) ) {
+		  if( !is_cobol_charset($$.data) ) {
 		    error_msg(@1, "literal '%s' must be a COBOL or C identifier",
-                              $$.data);
+			      $$.data);
                   }
                 }
                 ;
@@ -3305,13 +3356,6 @@ level_name:     LEVEL ctx_name
 data_descr:     data_descr1
                 {
                   $$ = current_field($1); // make available for occurs, etc.
-                  char *env = getenv("symbols_update");
-                  if( env && env[0] == 'P' ) {
-                    dbgmsg("parse.y:%d: %-15s %s (%s)", __LINE__,
-                          cbl_field_type_str($$->type) + 3,
-                          field_str($$),
-                          cbl_field_type_str($$->usage) + 3);
-                  }
                 }
         |       error { static cbl_field_t none = {}; $$ = &none; }
                 ;
@@ -3622,12 +3666,12 @@ data_descr1:    level_name
 
                   // SIGN clause valid only with "S" in picture
                   if( $field->type == FldNumericDisplay && !is_signable($field) ) {
-                    static const size_t sign_attrs = leading_e | separate_e;
+                    static const uint64_t sign_attrs = leading_e | separate_e;
                     static_assert(sizeof(sign_attrs) == sizeof($field->attr),
                                   "size matters");
 
                     // remove inapplicable inherited sign attributes
-                    size_t group_sign = group_attr($field) & sign_attrs;
+                    uint64_t group_sign = group_attr($field) & sign_attrs;
                     $field->attr &= ~group_sign;
 
                     if( $field->attr & sign_attrs ) {
@@ -3783,7 +3827,7 @@ data_clauses:   data_clause
 
                   // If any implied TYPE bits are on in addition to
                   // type_clause_e, they're in conflict.
-                  static const size_t type_implies =
+                  static const uint64_t type_implies =
                     // ALIGNED clause not implemented
                     blank_zero_clause_e | justified_clause_e | picture_clause_e
                     | sign_clause_e | synched_clause_e | usage_clause_e;
@@ -3822,7 +3866,8 @@ data_clauses:   data_clause
                         if( yydebug ) {
                           yywarn("expanding %s size from %u bytes to %zu "
                                 "because it redefines %s with USAGE POINTER",
-                                field->name, field->size(), sizeof(void*),
+                                field->name, field->size(),
+                                (size_t)int_size_in_bytes(ptr_type_node),
                                 redefined->name);
                         }
                         field->embiggen();
@@ -4282,9 +4327,10 @@ usage_clause1:  usage COMPUTATIONAL[comp]   native
                   if( gcobol_feature_embiggen() && redefined &&
                       is_numeric(redefined->type) && redefined->size() == 4) {
                     // For now, we allow POINTER to expand a 32-bit item to 64 bits.
-                    field->data.capacity = sizeof(void *);
-                    dbgmsg("%s: expanding #%zu %s capacity %u => %u", __func__,
-                          field_index(redefined), redefined->name,
+                    field->data.capacity = int_size_in_bytes(ptr_type_node);
+                    dbgmsg("%s: expanding #" HOST_SIZE_T_PRINT_UNSIGNED
+                          " %s capacity %u => %u", __func__,
+                          (fmt_size_t)field_index(redefined), redefined->name,
                           redefined->data.capacity, field->data.capacity);
 
                     redefined->embiggen();
@@ -4538,7 +4584,7 @@ sign_clause:    sign_is sign_leading sign_separate
                   if( $sign_leading ) {
                     field->attr |= leading_e;
                   } else {
-                    field->attr &= ~size_t(leading_e); // turn off in case inherited
+                    field->attr &= ~uint64_t(leading_e); // turn off in case inherited
                     field->attr |= signable_e;
                   }
                   if( $sign_separate ) field->attr |= separate_e;
@@ -5259,7 +5305,7 @@ allocate:       ALLOCATE expr[size] CHARACTERS initialized RETURNING scalar[retu
                   statement_begin(@1, ALLOCATE);
                   if( $size->field->type == FldLiteralN ) {
 		    auto size = TREE_REAL_CST_PTR ($size->field->data.value_of());
-                    if( real_isneg(size) || real_iszero(size) ) { 
+                    if( real_isneg(size) || real_iszero(size) ) {
                       error_msg(@size, "size must be greater than 0");
                       YYERROR;
                     }
@@ -5299,7 +5345,7 @@ compute_impl:   COMPUTE compute_body[body]
                 {
                   parser_assign( $body.ntgt, $body.tgts, *$body.expr,
                                  NULL, NULL, current.compute_label() );
-                  current.declaratives_evaluate(ec_none_e);
+                  current.declaratives_evaluate();
                 }
                 ;
 compute_cond:   COMPUTE compute_body[body] arith_errs[err]
@@ -5307,7 +5353,7 @@ compute_cond:   COMPUTE compute_body[body] arith_errs[err]
                   parser_assign( $body.ntgt, $body.tgts, *$body.expr,
                                  $err.on_error, $err.not_error,
                                  current.compute_label() );
-                  current.declaratives_evaluate(ec_size_e);
+                  current.declaratives_evaluate();
                 }
                 ;
 end_compute:    %empty %prec COMPUTE
@@ -5353,7 +5399,7 @@ display:        disp_body end_display
 				   args.empty()? NULL : args.data(), args.size(),
 				   DISPLAY_ADVANCE);
 		  }
-		  current.declaratives_evaluate(ec_none_e);
+		  current.declaratives_evaluate();
                 }
         |       disp_body NO ADVANCING end_display
                 {
@@ -5369,10 +5415,10 @@ display:        disp_body end_display
 		    parser_move( dst, src );
 		  } else {
 		    parser_display($1.special,
-				   args.empty()? NULL : args.data(), args.size(), 
+				   args.empty()? NULL : args.data(), args.size(),
 				   DISPLAY_NO_ADVANCE);
 		  }
-		  current.declaratives_evaluate(ec_none_e);
+		  current.declaratives_evaluate();
                 }
                 ;
 end_display:    %empty
@@ -6348,14 +6394,14 @@ tableish:	name subscripts[subs] refmod[ref]  %prec NAME
 
 refmod:         LPAREN expr[from] ':' expr[len] ')' %prec NAME
                 {
-		  if( ! require_numeric(@from, *$from) ) YYERROR;
-		  if( ! require_numeric(@len, *$len) ) YYERROR;
+		  if( ! require_integer(@from, *$from) ) YYERROR;
+		  if( ! require_integer(@len, *$len) ) YYERROR;
                   $$.from = $from;
                   $$.len = $len;
                 }
         |       LPAREN expr[from] ':'           ')' %prec NAME
                 {
-		  if( ! require_numeric(@from, *$from) ) YYERROR;
+		  if( ! require_integer(@from, *$from) ) YYERROR;
                   $$.from = $from;
                   $$.len = nullptr;
                 }
@@ -7016,7 +7062,7 @@ stop_status:    status         { $$ = NULL; }
                 }
                 ;
 
-subscripts:     LPAREN expr_list ')' {
+subscripts:     LPAREN subscript_exprs ')' {
 		  $$ = $2;
 		  const auto& exprs( $$->refers );
 		  bool ok = std::all_of( exprs.begin(), exprs.end(),
@@ -7036,18 +7082,18 @@ subscripts:     LPAREN expr_list ')' {
 		  }
 		}
                 ;
-expr_list:	expr
+subscript_exprs:	expr
 		{
-		  if( ! require_numeric(@expr, *$expr) ) YYERROR;
+		  if( ! require_integer(@expr, *$expr) ) YYERROR;
 		  $$ = new refer_list_t($expr);
 		}
-        |       expr_list expr {
+        |       subscript_exprs expr {
                   if( $1->size() == MAXIMUM_TABLE_DIMENSIONS ) {
                     error_msg(@1, "table dimensions limited to %d",
                              MAXIMUM_TABLE_DIMENSIONS);
                     YYERROR;
                   }
-		  if( ! require_numeric(@expr, *$expr) ) YYERROR;
+		  if( ! require_integer(@expr, *$expr) ) YYERROR;
                   $1->push_back($2); $$ = $1;
                 }
         |       ALL {
@@ -7718,7 +7764,7 @@ raise:          RAISE EXCEPTION NAME
 
 read:           read_file
                 {
-                  current.declaratives_evaluate($1.file, $1.handled);
+                  current.declaratives_evaluate($1.file);
                 }
                 ;
 
@@ -7905,7 +7951,7 @@ read_key:       %empty      { $$ = new cbl_refer_t();  }
 
 write:          write_file
                 {
-                  current.declaratives_evaluate( $1.file, $1.handled );
+                  current.declaratives_evaluate($1.file );
                 }
                 ;
 
@@ -8121,7 +8167,7 @@ end_delete:     %empty %prec DELETE
 
 rewrite:        rewrite1
                 {
-                  current.declaratives_evaluate($1.file, $1.handled);
+                  current.declaratives_evaluate($1.file);
                 }
                 ;
 
@@ -8162,12 +8208,21 @@ end_rewrite:    %empty %prec REWRITE
                 ;
 
 start:          start_impl end_start
+                {
+                  current.declaratives_evaluate($1);
+                }
         |       start_cond end_start
+                {
+                  current.declaratives_evaluate($1);
+                }
                 ;
-start_impl:     START start_body
+start_impl:     START start_body {
+		  $$ = $2;
+		}
                 ;
 start_cond:     START start_body io_invalids {
                   parser_fi();
+		  $$ = $2;
                 }
                 ;
 end_start:      %empty %prec START
@@ -8177,7 +8232,7 @@ end_start:      %empty %prec START
 start_body:     filename[file]
                 {
                   statement_begin(@$, START);
-                  file_start_args.init(@file, $file);
+                  $$ = file_start_args.init(@file, $file);
                   parser_file_start( $file, lt_op, 0 );
                 }
         |       filename[file] KEY relop name[key]
@@ -8191,26 +8246,26 @@ start_body:     filename[file]
                     yywarn("START: key #%d '%s' has size %d",
                           key, $key->name, size);
                   }
-                  file_start_args.init(@file, $file);
+                  $$ = file_start_args.init(@file, $file);
                   parser_file_start( $file, relop_of($relop), key, ksize );
                 }
         |       filename[file] KEY relop name[key] with LENGTH expr
                 { // lexer swallows IS, although relop allows it.
                   statement_begin(@$, START);
                   int key = $file->key_one($key);
-                  file_start_args.init(@file, $file);
+                  $$ = file_start_args.init(@file, $file);
                   parser_file_start( $file, relop_of($relop), key, *$expr );
                 }
         |       filename[file] FIRST
                 {
                   statement_begin(@$, START);
-                  file_start_args.init(@file, $file);
+                  $$ = file_start_args.init(@file, $file);
                   parser_file_start( $file, lt_op, -1 );
                 }
         |       filename[file] LAST
                 {
                   statement_begin(@$, START);
-                  file_start_args.init(@file, $file);
+                  $$ = file_start_args.init(@file, $file);
                   parser_file_start( $file, gt_op, -2 );
                 }
                 ;
@@ -9270,7 +9325,7 @@ call_impl:      CALL call_body[body]
 		  cbl_ffi_arg_t *pargs = NULL;
                   if( narg > 0 ) {
 		    std::copy( params->elems.begin(),
-			       params->elems.end(), args.begin() );	 
+			       params->elems.end(), args.begin() );
                     pargs = args.data();
                   }
                   ast_call( $body.loc, *$body.ffi_name,
@@ -9287,15 +9342,13 @@ call_cond:      CALL call_body[body] call_excepts[except]
 		  cbl_ffi_arg_t *pargs = NULL;
                   if( narg > 0 ) {
 		    std::copy( params->elems.begin(),
-			       params->elems.end(), args.begin() );	 
+			       params->elems.end(), args.begin() );
                     pargs = args.data();
                   }
                   ast_call( $body.loc, *$body.ffi_name,
                                *$body.ffi_returning, narg, pargs,
                                $except.on_error, $except.not_error, false );
-                  auto handled = ec_type_t( static_cast<size_t>(ec_program_e) |
-                                            static_cast<size_t>(ec_external_e));
-                  current.declaratives_evaluate(handled);
+                  current.declaratives_evaluate();
                 }
                 ;
 end_call:       %empty %prec CALL
@@ -9493,7 +9546,7 @@ call_except:    EXCEPTION
                     std::swap($$.on_error, $$.not_error);
                   }
                 }
-        |       OVERFLOW
+        |       OVERFLOW_kw
                 {
                   $$.not_error = NULL;
                   $$.on_error = label_add(LblArith,
@@ -9501,7 +9554,7 @@ call_except:    EXCEPTION
                   if( !$$.on_error ) YYERROR;
                   parser_call_exception( $$.on_error );
 
-                  assert( $1 == OVERFLOW || $1 == NOT );
+                  assert( $1 == OVERFLOW_kw || $1 == NOT );
                   if( $1 == NOT ) {
                     std::swap($$.on_error, $$.not_error);
                   }
@@ -9635,14 +9688,14 @@ string:         string_impl end_string
 string_impl:    STRING_kw string_body[body]
                 {
                   stringify($body.inputs, *$body.into.first, *$body.into.second);
-                  current.declaratives_evaluate(ec_none_e);
+                  current.declaratives_evaluate();
                 }
                 ;
 string_cond:    STRING_kw string_body[body] on_overflows[over]
                 {
                   stringify($body.inputs, *$body.into.first, *$body.into.second,
                             $over.on_error, $over.not_error);
-                  current.declaratives_evaluate(ec_overflow_e);
+                  current.declaratives_evaluate();
                 }
                 ;
 end_string:     %empty %prec LITERAL
@@ -9756,7 +9809,7 @@ on_overflows:   on_overflow[over] statements %prec ADD
                 }
                 ;
 
-on_overflow:    OVERFLOW
+on_overflow:    OVERFLOW_kw
                 {
                   $$.not_error = NULL;
                   $$.on_error = label_add(LblString,
@@ -9764,7 +9817,7 @@ on_overflow:    OVERFLOW
                   if( !$$.on_error ) YYERROR;
                   parser_string_overflow( $$.on_error );
 
-                  assert( $1 == OVERFLOW || $1 == NOT );
+                  assert( $1 == OVERFLOW_kw || $1 == NOT );
                   if( $1 == NOT ) {
                     std::swap($$.on_error, $$.not_error);
                   }
@@ -9781,14 +9834,14 @@ end_unstring:   %empty %prec UNSTRING
 unstring_impl:  UNSTRING unstring_body[body]
                 {
                   unstringify( *$body.input, $body.delimited, $body.into );
-                  current.declaratives_evaluate(ec_none_e);
+                  current.declaratives_evaluate();
                 }
                 ;
 unstring_cond:  UNSTRING unstring_body[body] on_overflows[over]
                 {
                   unstringify( *$body.input, $body.delimited, $body.into,
                                $over.on_error, $over.not_error );
-                  current.declaratives_evaluate(ec_overflow_e);
+                  current.declaratives_evaluate();
                 }
                 ;
 
@@ -9963,7 +10016,6 @@ function_udf:   FUNCTION_UDF '(' arg_list[args] ')' {
                  *  var: [ALL] LITERAL, NUMSTR, instrinsic, or scalar
                  *  num_operand: signed NUMSTR/ZERO, instrinsic, or scalar
                  *  alpahaval: LITERAL, reserved_value, instrinsic, or scalar
-                 * Probably any numeric argument could be an expression.
                  */
 intrinsic:      function_udf
         |       intrinsic0
@@ -9983,13 +10035,13 @@ intrinsic:      function_udf
                   }
                   $$ = is_numeric(args[0].field)?
                          new_tempnumeric_float() :
-                         new_alphanumeric(args[0].field->data.capacity);
+                         new_alphanumeric();
 
                   parser_intrinsic_callv( $$, intrinsic_cname($1),
 					  args.size(), args.data() );
                 }
 
-        |       PRESENT_VALUE '(' expr_list[args] ')'
+        |       PRESENT_VALUE '(' arg_list[args] ')'
                 {
                   static char s[] = "__gg__present_value";
                   location_set(@1);
@@ -9997,11 +10049,15 @@ intrinsic:      function_udf
                   size_t n = $args->size();
                   assert(n > 0);
                   if( n < 2 ) {
-                    error_msg(@args, "PRESENT VALUE requires 2 parameters");
+                    error_msg(@args, "PRESENT-VALUE requires 2 parameters");
                     YYERROR;
                   }
                   std::vector <cbl_refer_t> args(n);
 		  std::copy( $args->begin(), $args->end(), args.begin() );
+		  bool ok = std::all_of( args.begin(),
+					 args.end(), [loc = @1]( auto r ) {
+					     return require_numeric(loc, r); } );
+		  if( ! ok ) YYERROR;
                   parser_intrinsic_callv( $$, s, args.size(), args.data() );
                 }
 
@@ -10013,7 +10069,7 @@ intrinsic:      function_udf
                 }
         |       BIT_OF  '(' expr[r1] ')' {
                   location_set(@1);
-                  $$ = new_alphanumeric(8 * $r1->field->data.capacity);
+                  $$ = new_alphanumeric();
                   if( ! intrinsic_call_1($$, BIT_OF, $r1, @r1)) YYERROR;
                 }
         |       CHAR  '(' expr[r1] ')' {
@@ -10031,27 +10087,24 @@ intrinsic:      function_udf
 
         |       DISPLAY_OF  '(' varg[r1]  ')' {
                   location_set(@1);
-                  uint32_t len = $r1->field->data.capacity;
-                  $$ = new_alphanumeric(4 * len);
+                  $$ = new_alphanumeric();
                   if( ! intrinsic_call_2($$, DISPLAY_OF, $r1, NULL) ) YYERROR;
                 }
         |       DISPLAY_OF  '(' varg[r1] varg[r2]  ')' {
                   location_set(@1);
-                  uint32_t len = $r1->field->data.capacity
-                    + $r2->field->data.capacity;
-                  $$ = new_alphanumeric(4 * len);
+                  $$ = new_alphanumeric();
                   if( ! intrinsic_call_2($$, DISPLAY_OF, $r1, $r2) ) YYERROR;
                 }
 
         |       EXCEPTION_FILE filename {
                   location_set(@1);
-                  $$ = new_alphanumeric(256);
+                  $$ = new_alphanumeric();
                   parser_exception_file( $$, $filename );
                 }
 
         |       FIND_STRING '(' varg[r1] last start_after anycase ')' {
                   location_set(@1);
-                  $$ = new_alphanumeric($r1->field->data.capacity);
+                  $$ = new_alphanumeric();
                   /* auto r1 = new_reference(new_literal(strlen($r1), $r1, quoted_e)); */
 		  cbl_unimplemented("FIND_STRING");
                   /* if( ! intrinsic_call_4($$, FIND_STRING, r1, $r2) ) YYERROR; */
@@ -10163,7 +10216,7 @@ intrinsic:      function_udf
 
         |       HEX_OF  '(' varg[r1] ')' {
                   location_set(@1);
-                  $$ = new_alphanumeric(2 * $r1->field->data.capacity);
+                  $$ = new_alphanumeric();
                   if( ! intrinsic_call_1($$, HEX_OF, $r1, @r1)) YYERROR;
                 }
 	|	LENGTH '(' tableish[val] ')' {
@@ -10241,7 +10294,7 @@ intrinsic:      function_udf
 
         |       SUBSTITUTE '(' varg[r1] subst_inputs[inputs] ')' {
                   location_set(@1);
-                  $$ = new_alphanumeric(64);
+                  $$ = new_alphanumeric();
                   std::vector <cbl_substitute_t> args($inputs->size());
                   std::transform( $inputs->begin(), $inputs->end(), args.begin(),
                                   []( const substitution_t& arg ) {
@@ -10284,14 +10337,14 @@ intrinsic:      function_udf
                      YYERROR;
                      break;
                   }
-                  $$ = new_alphanumeric($r1->field->data.capacity);
+                  $$ = new_alphanumeric();
                   cbl_refer_t * how = new_reference($trim_trailing);
                   if( ! intrinsic_call_2($$, TRIM, $r1, how) ) YYERROR;
                 }
 
         |       USUBSTR '(' alpha_val[r1] expr[r2] expr[r3]  ')' {
                   location_set(@1);
-                  $$ = new_alphanumeric(32);  // how long?
+                  $$ = new_alphanumeric();
                   if( ! intrinsic_call_3($$, FORMATTED_DATETIME,
                                              $r1, $r2, $r3) ) YYERROR;
                 }
@@ -10316,7 +10369,7 @@ intrinsic:      function_udf
                   auto type = intrinsic_return_type($1);
                   switch(type) {
                   case FldAlphanumeric:
-                    $$ = new_alphanumeric($r1->field->data.capacity);
+                    $$ = new_alphanumeric();
                     break;
                   default:
                     if( $1 == NUMVAL || $1 == NUMVAL_F )
@@ -10352,7 +10405,7 @@ intrinsic:      function_udf
                   static auto one = new cbl_refer_t( new_literal("1") );
                   static auto four = new cbl_refer_t( new_literal("4") );
                   cbl_span_t year(one, four);
-                  auto r3 = new_reference(new_alphanumeric(21));
+                  auto r3 = new_reference(new_alphanumeric(MAXLENGTH_CALENDAR_DATE));
                   r3->refmod = year;
 
                   parser_intrinsic_call_0( r3->field, "__gg__current_date" );
@@ -10368,7 +10421,7 @@ intrinsic:      function_udf
                   static auto one = new cbl_refer_t( new_literal("1") );
                   static auto four = new cbl_refer_t( new_literal("4") );
                   cbl_span_t year(one, four);
-                  auto r3 = new_reference(new_alphanumeric(21));
+                  auto r3 = new_reference(new_alphanumeric(MAXLENGTH_CALENDAR_DATE));
                   r3->refmod = year;
 
                   parser_intrinsic_call_0( r3->field, "__gg__current_date" );
@@ -10394,7 +10447,7 @@ intrinsic:      function_udf
                   static auto one = new cbl_refer_t( new_literal("1") );
                   static auto four = new cbl_refer_t( new_literal("4") );
                   cbl_span_t year(one, four);
-                  auto r3 = new_reference(new_alphanumeric(21));
+                  auto r3 = new_reference(new_alphanumeric(MAXLENGTH_CALENDAR_DATE));
                   r3->refmod = year;
 
                   parser_intrinsic_call_0( r3->field, "__gg__current_date" );
@@ -10410,7 +10463,7 @@ intrinsic:      function_udf
                   static auto one = new cbl_refer_t( new_literal("1") );
                   static auto four = new cbl_refer_t( new_literal("4") );
                   cbl_span_t year(one, four);
-                  auto r3 = new_reference(new_alphanumeric(21));
+                  auto r3 = new_reference(new_alphanumeric(MAXLENGTH_CALENDAR_DATE));
                   r3->refmod = year;
 
                   parser_intrinsic_call_0( r3->field, "__gg__current_date" );
@@ -10436,7 +10489,7 @@ intrinsic:      function_udf
                   static auto one = new cbl_refer_t( new_literal("1") );
                   static auto four = new cbl_refer_t( new_literal("4") );
                   cbl_span_t year(one, four);
-                  auto r3 = new_reference(new_alphanumeric(21));
+                  auto r3 = new_reference(new_alphanumeric(MAXLENGTH_CALENDAR_DATE));
                   r3->refmod = year;
 
                   parser_intrinsic_call_0( r3->field, "__gg__current_date" );
@@ -10452,7 +10505,7 @@ intrinsic:      function_udf
                   static auto one = new cbl_refer_t( new_literal("1") );
                   static auto four = new cbl_refer_t( new_literal("4") );
                   cbl_span_t year(one, four);
-                  auto r3 = new_reference(new_alphanumeric(21));
+                  auto r3 = new_reference(new_alphanumeric(MAXLENGTH_CALENDAR_DATE));
                   r3->refmod = year;
 
                   parser_intrinsic_call_0( r3->field, "__gg__current_date" );
@@ -10492,7 +10545,7 @@ intrinsic:      function_udf
         |       intrinsic_X2 '(' varg[r1] varg[r2] ')'
                 {
                   location_set(@1);
-                  $$ = new_alphanumeric($r1->field->data.capacity);
+                  $$ = new_alphanumeric();
                   if( ! intrinsic_call_2($$, $1, $r1, $r2) ) YYERROR;
                 }
         |       intrinsic_locale
@@ -10540,54 +10593,54 @@ intrinsic_locale:
                 LOCALE_COMPARE '(' varg[r1] varg[r2]  ')'
                 {
                   location_set(@1);
-                  $$ = new_alphanumeric($r1->field->data.capacity);
+                  $$ = new_alphanumeric();
                   cbl_refer_t dummy = {};
                   if( ! intrinsic_call_3($$, LOCALE_COMPARE, $r1, $r2, &dummy) ) YYERROR;
                 }
         |       LOCALE_COMPARE '(' varg[r1] varg[r2] varg[r3] ')'
                 {
                   location_set(@1);
-                  $$ = new_alphanumeric($r1->field->data.capacity);
+                  $$ = new_alphanumeric();
                   if( ! intrinsic_call_3($$, LOCALE_COMPARE, $r1, $r2, $r3) ) YYERROR;
                 }
 
         |       LOCALE_DATE '(' varg[r1]  ')'
                 {
                   location_set(@1);
-                  $$ = new_alphanumeric($r1->field->data.capacity);
+                  $$ = new_alphanumeric();
                   cbl_refer_t dummy = {};
                   if( ! intrinsic_call_2($$, LOCALE_DATE, $r1, &dummy) ) YYERROR;
                 }
         |             LOCALE_DATE '(' varg[r1] varg[r2]  ')'
                 {
                   location_set(@1);
-                  $$ = new_alphanumeric($r1->field->data.capacity);
+                  $$ = new_alphanumeric();
                   if( ! intrinsic_call_2($$, LOCALE_DATE, $r1, $r2) ) YYERROR;
                 }
         |       LOCALE_TIME '(' varg[r1]  ')'
                 {
                   location_set(@1);
-                  $$ = new_alphanumeric($r1->field->data.capacity);
+                  $$ = new_alphanumeric();
                   cbl_refer_t dummy = {};
                   if( ! intrinsic_call_2($$, LOCALE_TIME, $r1, &dummy) ) YYERROR;
                 }
         |       LOCALE_TIME '(' varg[r1] varg[r2]  ')'
                 {
                   location_set(@1);
-                  $$ = new_alphanumeric($r1->field->data.capacity);
+                  $$ = new_alphanumeric();
                   if( ! intrinsic_call_2($$, LOCALE_TIME, $r1, $r2) ) YYERROR;
                 }
         |       LOCALE_TIME_FROM_SECONDS '(' varg[r1]  ')'
                 {
                   location_set(@1);
-                  $$ = new_alphanumeric($r1->field->data.capacity);
+                  $$ = new_alphanumeric();
                   cbl_refer_t dummy = {};
                   if( ! intrinsic_call_2($$, LOCALE_TIME_FROM_SECONDS, $r1, &dummy) ) YYERROR;
                 }
         |       LOCALE_TIME_FROM_SECONDS '(' varg[r1] varg[r2]  ')'
                 {
                   location_set(@1);
-                  $$ = new_alphanumeric($r1->field->data.capacity);
+                  $$ = new_alphanumeric();
                   if( ! intrinsic_call_2($$, LOCALE_TIME_FROM_SECONDS, $r1, $r2) ) YYERROR;
                 }
                 ;
@@ -10603,7 +10656,7 @@ trim_trailing:  %empty          { $$ = new_literal("0"); }  // Remove both
 
 intrinsic0:     CURRENT_DATE {
                   location_set(@1);
-                  $$ = new_alphanumeric(21);
+                  $$ = new_alphanumeric(MAXLENGTH_CALENDAR_DATE);
                   parser_intrinsic_call_0( $$, "__gg__current_date" );
                 }
         |       E {
@@ -10614,33 +10667,33 @@ intrinsic0:     CURRENT_DATE {
 
         |       EXCEPTION_FILE_N {
                   location_set(@1);
-                  $$ = new_alphanumeric(256);
+                  $$ = new_alphanumeric();
                   intrinsic_call_0( $$, EXCEPTION_FILE_N );
                 }
 
         |       EXCEPTION_FILE {
                   location_set(@1);
-                  $$ = new_alphanumeric(256);
+                  $$ = new_alphanumeric();
                   parser_exception_file( $$ );
                 }
         |       EXCEPTION_LOCATION_N {
                   location_set(@1);
-                  $$ = new_alphanumeric(256);
+                  $$ = new_alphanumeric();
                   intrinsic_call_0( $$, EXCEPTION_LOCATION_N );
                 }
         |       EXCEPTION_LOCATION {
                   location_set(@1);
-                  $$ = new_alphanumeric(256);
+                  $$ = new_alphanumeric();
                   intrinsic_call_0( $$, EXCEPTION_LOCATION );
                 }
         |       EXCEPTION_STATEMENT {
                   location_set(@1);
-                  $$ = new_alphanumeric(63);
+                  $$ = new_alphanumeric();
                   intrinsic_call_0( $$, EXCEPTION_STATEMENT );
                 }
         |       EXCEPTION_STATUS {
                   location_set(@1);
-                  $$ = new_alphanumeric(31);
+                  $$ = new_alphanumeric();
                   intrinsic_call_0( $$, EXCEPTION_STATUS );
                 }
 
@@ -10656,12 +10709,12 @@ intrinsic0:     CURRENT_DATE {
                 }
         |       UUID4 {
                   location_set(@1);
-                  $$ = new_alphanumeric(32); // don't know correct size
+                  $$ = new_alphanumeric();
                  parser_intrinsic_call_0( $$, "__gg__uuid4" );
                 }
         |       WHEN_COMPILED {
                   location_set(@1);
-                  $$ = new_alphanumeric(21); // Returns YYYYMMDDhhmmssss-0500
+                  $$ = new_alphanumeric(MAXLENGTH_CALENDAR_DATE); // Returns YYYYMMDDhhmmssss-0500
                  parser_intrinsic_call_0( $$, "__gg__when_compiled" );
                 }
                 ;
@@ -10913,7 +10966,12 @@ cdf_basis:      BASIS NAME /* BASIS is never passed to the parser.  */
         |       BASIS LITERAL
                 ;
 
-cdf_use:        USE DEBUGGING on labels
+cdf_use:        cdf_use_when {
+		  statement_cleanup = false;
+		}
+		;
+
+cdf_use_when:	USE DEBUGGING on labels
                 {
                   if( ! current.declarative_section_name() ) {
                     error_msg(@1, "USE valid only in DECLARATIVES");
@@ -10931,12 +10989,11 @@ cdf_use:        USE DEBUGGING on labels
                   }
                   static const cbl_label_t all = {
 		    LblNone, 0, 0,0,0, false, false, false, 0,0, ":all:" };
-		      ////.name = { ':', 'a', 'l', 'l', ':',  } // workaround for gcc < 11.3
                   add_debugging_declarative(&all);
                  }
 
         |       USE globally mistake procedure on filenames
-		{
+		{ // Format 1
                   if( ! current.declarative_section_name() ) {
 		    error_msg(@1, "USE valid only in DECLARATIVES");
                     YYERROR;
@@ -10948,8 +11005,8 @@ cdf_use:        USE DEBUGGING on labels
                                     std::back_inserter(files),
                                     file_list_t::symbol_index );
                   cbl_declarative_t declarative(current.declarative_section(),
-                                                ec_all_e, files,
-                                                file_mode_none_e, global);
+                                                ec_io_e, files,
+                                                file_mode_any_e, global);
                   current.declaratives.add(declarative);
 		}
 
@@ -10962,12 +11019,12 @@ cdf_use:        USE DEBUGGING on labels
                   bool global = $globally == GLOBAL;
                   std::list<size_t> files;
                   cbl_declarative_t declarative(current.declarative_section(),
-                                                ec_all_e, files,
+                                                ec_io_e, files,
                                                 $io_mode, global);
                   current.declaratives.add(declarative);
                 }
-        |       USE cdf_use_excepts // Format 3: AFTER swallowed by lexer
-                {
+        |       USE cdf_use_excepts
+                { // Format 3 (AFTER swallowed by lexer)
                   if( ! current.declarative_section_name() ) {
                     error_msg(@1, "USE valid only in DECLARATIVES");
                     YYERROR;
@@ -11079,43 +11136,74 @@ void ast_call( const YYLTYPE& loc, cbl_refer_t name, cbl_refer_t returning,
     parser_symbol_add(name.field);
   }
 
-  if( getenv("ast_call") ) {
-    dbgmsg("%s: calling %s returning %s with %zu args:", __func__,
-	   name_of(name.field),
-	   (returning.field)? returning.field->name : "[none]",
-	   narg);
-    for( size_t i=0; i < narg; i++ ) {
-      const char *crv = "?";
-      switch(args[i].crv) {
-      case by_default_e: crv = "def"; break;
-      case by_reference_e: crv = "ref"; break;
-      case by_content_e: crv = "con"; break;
-      case by_value_e: crv = "val"; break;
-      }
-      dbgmsg("%s: %4zu: %s @%p %s", __func__,
-	     i, crv, args[i].refer.field, args[i].refer.field->name);
-    }
-  }
   parser_call( name, returning, narg, args, except, not_except, is_function );
 }
 
-static size_t
-statement_begin( const YYLTYPE& loc, int token ) {
-  // The following statement generates a message at run-time
-  // parser_print_string("statement_begin()\n");
-  location_set(loc);
-  prior_statement = token;
+/*
+ * Check if any EC *could* be raised that would be handled by a declarative. If
+ * so, the generated statement epilog will ask the runtime library to attempt
+ * to match any raised EC with a declarative.  If not, the statement epilog
+ * will be limited to calling the default EC handler, which logs unhandled ECs
+ * [todo] and calls abort(3) for fatal ECs.
+ */
+static bool
+possible_ec() {
+  bool format_1 = current.declaratives.has_format_1();
+      
+  bool enabled = 0xFF < (current.declaratives.status()
+			 &
+			 enabled_exceptions.status());
+  bool epilog = enabled || format_1;
+  
+  dbgmsg("%sEC handling for DCL %08x && EC %08x with %s Format 1",
+	 epilog? "" : "no ", 
+	 current.declaratives.status(),
+	 enabled_exceptions.status(), format_1? "a" : "no");
+  
+  return epilog;
+}
 
-  parser_statement_begin();
-
-  if( token != CONTINUE ) {
+/*
+ * If there's potential overlap between enabled ECs and Declaratives, generate
+ * a PERFORM of the _DECLARATIVES_EVAL "ladder" that matches a section number
+ * to its name, and executes the Declarative.
+ */
+static void
+statement_epilog( int token ) {
+  if( possible_ec() && token != CONTINUE ) { 
     if( enabled_exceptions.size() ) {
-      current.declaratives_evaluate(ec_none_e);
-      cbl_enabled_exceptions_array_t enabled(enabled_exceptions);
-      parser_exception_prepare( keyword_str(token), &enabled );
+      current.declaratives_evaluate();
     }
   }
-  return 0;
+  parser_check_fatal_exception();
+}
+
+static inline void
+statement_prolog( int token ) {
+  parser_statement_begin( keyword_str(token),
+			  current.declaratives.runtime.ena,
+			  current.declaratives.runtime.dcl );
+}
+
+/*
+ * We check the EC against the Declarative status prior to parsing the
+ * statement because a TURN directive can be embedded in the statement.  An
+ * embedded directive applies to the following statement, not the one being
+ * parsed.
+ */
+static void
+statement_begin( const YYLTYPE& loc, int token ) {
+  static int prior_token = 0;
+
+  if( statement_cleanup )  {
+    statement_epilog(prior_token);
+  } else {
+    statement_cleanup = true;
+  }
+  location_set(loc);
+  statement_prolog(token);
+
+  prior_token = token;
 }
 
 #include "parse_util.h"
@@ -11157,6 +11245,8 @@ tokenset_t::tokenset_t() {
 #include "token_names.h"
 }
 
+bool iso_cobol_word( const std::string& name, bool include_intrinsics );
+
 // Look up the lowercase form of a keyword, excluding some CDF names.
 int
 tokenset_t::find( const cbl_name_t name, bool include_intrinsics ) {
@@ -11186,8 +11276,10 @@ tokenset_t::find( const cbl_name_t name, bool include_intrinsics ) {
       }
   }
 
+  //// if( ! iso_cobol_word(uppercase(name), include_intrinsics) ) return 0;
+
   cbl_name_t lname;
-  std::transform(name, name + strlen(name) + 1, lname, tolower);
+  std::transform(name, name + strlen(name) + 1, lname, ftolower);
   auto p = tokens.find(lname);
   if( p == tokens.end() ) return 0;
   int token = p->second;
@@ -11404,11 +11496,6 @@ label_add( const YYLTYPE& loc,
 
   assert( !(p->type == LblSection && p->parent > 0) );
 
-  if( getenv(__func__) ) {
-    yywarn("%s: added label %3zu %10s for '%s' of %zu", __func__,
-          symbol_elem_of(p) - symbols_begin(), p->type_str()+3, p->name, p->parent);
-  }
-
   return p;
 }
 
@@ -11429,7 +11516,7 @@ perform_t::ec_labels_t::new_label( cbl_label_type_t type,
 {
   size_t n = 1 + symbols_end() - symbols_begin();
   cbl_name_t name;
-  sprintf(name, "_perf_%s_%zu", role, n);
+  sprintf(name, "_perf_%s_" HOST_SIZE_T_PRINT_UNSIGNED, role, (fmt_size_t)n);
   return label_add( type, name, yylineno );
 }
 
@@ -11469,19 +11556,11 @@ paragraph_reference( const char name[], size_t section )
   strcpy(label.name, name);
   if( label.type == LblNone ) assert(label.parent == 0);
 
-  const symbol_elem_t *last = symbols_end();
-
   p = symbol_label_add(PROGRAM, &label);
   assert(p);
 
   const char *sect_name = section? cbl_label_of(symbol_at(section))->name : NULL;
   procedure_reference_add(sect_name, p->name, yylineno, current.program_section());
-
-  if( getenv(__func__) ) {
-    yywarn("%s: %s label %3zu %10s for '%s' of %zu", __func__,
-          symbols_end() == last? "added" : "found",
-          symbol_index(symbol_elem_of(p)), p->type_str()+3, p->name, p->parent);
-  }
 
   return p;
 }
@@ -11676,14 +11755,9 @@ ast_add( arith_t *arith ) {
   pC = use_any(arith->tgts, C);
   pA = use_any(arith->A, A);
 
-  if( getenv(__func__) ) {
-    dbgmsg("%s:%d: %-12s C{%zu %p} A{%zu %p}", __func__, __LINE__,
-          arith->format_str(), nC, pC, nA, pA );
-  }
   parser_add( nC, pC, nA, pA, arith->format, arith->on_error, arith->not_error );
 
-  ec_type_t handled = arith->on_error || arith->not_error ? ec_size_e : ec_none_e;
-  current.declaratives_evaluate(handled);
+  current.declaratives_evaluate();
 }
 
 static bool
@@ -11699,8 +11773,7 @@ ast_subtract( arith_t *arith ) {
 
   parser_subtract( nC, pC, nA, pA, nB, pB, arith->format, arith->on_error, arith->not_error );
 
-  ec_type_t handled = arith->on_error || arith->not_error ? ec_size_e : ec_none_e;
-  current.declaratives_evaluate(handled);
+  current.declaratives_evaluate();
   return true;
 }
 
@@ -11717,8 +11790,7 @@ ast_multiply( arith_t *arith ) {
 
   parser_multiply( nC, pC, nA, pA, nB, pB, arith->on_error, arith->not_error );
 
-  ec_type_t handled = arith->on_error || arith->not_error ? ec_size_e : ec_none_e;
-  current.declaratives_evaluate(handled);
+  current.declaratives_evaluate();
   return true;
 }
 
@@ -11736,8 +11808,7 @@ ast_divide( arith_t *arith ) {
   parser_divide( nC, pC, nA, pA, nB, pB,
                  arith->remainder, arith->on_error, arith->not_error );
 
-  ec_type_t handled = arith->on_error || arith->not_error ? ec_size_e : ec_none_e;
-  current.declaratives_evaluate(handled);
+  current.declaratives_evaluate();
   return true;
 }
 
@@ -11756,8 +11827,8 @@ struct stringify_src_t : public cbl_string_src_t {
   }
 
   static void dump( const cbl_string_src_t& src ) {
-    dbgmsg( "%s:%d:, %zu inputs delimited by %s:", __func__, __LINE__,
-           src.ninput,
+    dbgmsg( "%s:%d:, " HOST_SIZE_T_PRINT_UNSIGNED " inputs delimited by %s:",
+           __func__, __LINE__, (fmt_size_t)src.ninput,
            src.delimited_by.field? field_str(src.delimited_by.field) : "SIZE" );
     std::for_each(src.inputs, src.inputs + src.ninput, dump_input);
   }
@@ -11781,9 +11852,6 @@ stringify( refer_collection_t *inputs,
   }
   assert( inputs->lists.back().marker );
   std::copy( inputs->lists.begin(), inputs->lists.end(), sources.begin() );
-  if( yydebug && getenv(__func__) ) {
-    std::for_each(sources.begin(), sources.end(), stringify_src_t::dump);
-  }
   parser_string( into, pointer, sources.size(), sources.data(), on_error, not_error );
 }
 
@@ -11909,8 +11977,8 @@ lang_check_failed (const char* file, int line, const char* function) {}
 
 void ast_inspect( cbl_refer_t& input, bool backward, ast_inspect_list_t& inspects ) {
   if( yydebug ) {
-    dbgmsg("%s:%d: INSPECT %zu operations on %s, line %d", __func__, __LINE__,
-          inspects.size(), input.field->name, yylineno);
+    dbgmsg("%s:%d: INSPECT " HOST_SIZE_T_PRINT_UNSIGNED " operations on %s, line %d",
+          __func__, __LINE__, (fmt_size_t)inspects.size(), input.field->name, yylineno);
   }
   std::for_each(inspects.begin(), inspects.end(), dump_inspect);
   auto array = inspects.as_array();
@@ -12051,6 +12119,7 @@ static REAL_VALUE_TYPE
 numstr2i( const char input[], radix_t radix ) {
   REAL_VALUE_TYPE output;
   size_t integer = 0;
+  fmt_size_t integerf = 0;
   int erc=0;
 
   switch( radix ) {
@@ -12062,7 +12131,8 @@ numstr2i( const char input[], radix_t radix ) {
     }
     break;
   case hexadecimal_e:
-    erc = sscanf(input, "%zx", &integer);
+    erc = sscanf(input, "%" GCC_PRISZ "x", &integerf);
+    integer = integer;
     real_from_integer (&output, VOIDmode, integer, UNSIGNED);
     break;
   case boolean_e:
@@ -12228,9 +12298,6 @@ initialize_one( cbl_num_result_t target, bool with_filler,
     } else {
       parser_move(tgt, src, current_rounded_mode());
     }
-    if( getenv(__func__) ) {
-      yywarn("%s:%-5s: %s", __func__, keyword_str(token), field_str(tgt.field));
-    }
     return true;
   }
 
@@ -12247,10 +12314,6 @@ initialize_one( cbl_num_result_t target, bool with_filler,
         parser_initialize(tgt);
       }
     }
-
-    if( getenv(__func__) ) {
-      yywarn("%s: value: %s", __func__, field_str(tgt.field));
-    }
   }
 
   // apply REPLACING, possibly overwriting VALUE
@@ -12263,74 +12326,14 @@ initialize_one( cbl_num_result_t target, bool with_filler,
   if( r != replacements.end() ) {
     parser_move( tgt, *r->second );
 
-    if( getenv(__func__) ) {
-      cbl_field_t *from = r->second->field;
-      char from_str[128]; // copy static buffer from field_str
-      strcpy( from_str, field_str(from) );
-      yywarn("%s:  move: %-18s %s \n\t      from %-18s %s", __func__,
-            cbl_field_type_str(tgt.field->type) + 3, field_str(tgt.field),
-            cbl_field_type_str(from->type) + 3, from_str);
-    }
     return true;
   }
 
   return true;
-
 }
 
 typedef std::pair<cbl_field_t*,cbl_field_t*> field_span_t;
 typedef std::pair<size_t, size_t>  cbl_bytespan_t;
-
-static void
-dump_spans( size_t isym,
-	    const cbl_field_t *table,
-	    const std::list<field_span_t>& spans,
-	    size_t nrange,
-	    const cbl_bytespan_t ranges[],
-	    size_t depth,
-	    const std::list<cbl_subtable_t>& subtables )
-{
-  int i=0;
-  assert( nrange == 0 || nrange == spans.size() );
-
-  if( isym != field_index(table) ) {
-    dbgmsg("%s:%d: isym %zu is not #%zu %02u %s", __func__, __LINE__,
-	  isym, field_index(table), table->level, table->name);
-  }
-  dbgmsg( "%s: [%zu] #%zu %s has %zu spans and %zu subtables",
-	 __func__, depth, isym, table->name, nrange, subtables.size() );
-  for( auto span : spans ) {
-    unsigned int last_level = 0;
-    const char *last_name = "<none>";
-    if( span.second ) {
-      last_level = span.second->level;
-      last_name = span.second->name;
-    }
-
-    char at_subtable[64] = {};
-    size_t offset = nrange? ranges[i].first : 0;
-    auto p = std::find_if(subtables.begin(), subtables.end(),
-			  [offset]( const cbl_subtable_t& tbl ) {
-			    return tbl.offset == offset;
-			  });
-    if( p != subtables.end() ) {
-      sprintf(at_subtable, "(subtable #%zu)", p->isym);
-    }
-    dbgmsg("\t    %02u %-20s to %02u %-20s: %3zu-%zu %s",
-	  span.first->level, span.first->name,
-	  last_level, last_name,
-	  nrange? ranges[i].first : 1,
-	  nrange? ranges[i].second : 0,
-	  at_subtable);
-    i++;
-  }
-  if( ! subtables.empty() ) {
-    dbgmsg("\ttable #%zu has %zu subtables", isym, subtables.size());
-    for( auto tbl : subtables ) {
-      dbgmsg("\t    #%zu @ %4zu", tbl.isym, tbl.offset);
-    }
-  }
-}
 
 /*
  * After the 1st record is initialized, copy it to the others.
@@ -12340,9 +12343,6 @@ initialize_table( cbl_num_result_t target,
 		  size_t nspan, const cbl_bytespan_t spans[],
 		  const std::list<cbl_subtable_t>& subtables )
 {
-  if( getenv("initialize_statement") ) {
-    dbgmsg("%s:%d: %s ", __func__, __LINE__, target.refer.str());
-  }
   assert( target.refer.nsubscript == dimensions(target.refer.field) );
   const cbl_refer_t& src( target.refer );
   size_t n( src.field->occurs.ntimes());
@@ -12392,12 +12392,6 @@ initialize_statement( const cbl_num_result_t& target, bool with_filler,
                       const category_map_t& replacements,
                       size_t depth = 0 )
 {
-  if( getenv(__func__) ) {
-    dbgmsg("%s:%d: %2zu: %s (%s%zuR)",
-	  __func__, __LINE__, depth, target.refer.str(),
-	  with_filler? "F" : "",
-	  replacements.size());
-  }
   const cbl_refer_t& tgt( target.refer );
   assert(dimensions(tgt.field) == tgt.nsubscript || 0 < depth);
   assert(!is_literal(tgt.field));
@@ -12481,10 +12475,6 @@ initialize_statement( const cbl_num_result_t& target, bool with_filler,
 			    return std::make_pair(first, second);
 			  } );
 	}
-	if( getenv("initialize_statement") ) {
-	  dump_spans( field_index(output.refer.field), output.refer.field,
-		      field_spans, ranges.size(), ranges.data(), depth, subtables );
-	}
 	return initialize_table( output, nrange, ranges.data(), subtables );
       }
     }
@@ -12551,18 +12541,6 @@ static void
 initialize_statement( std::list<cbl_num_result_t>& tgts, bool with_filler,
                      data_category_t value_category,
                      const category_map_t& replacements) {
-  if( yydebug && getenv(__func__) ) {
-    yywarn( "%s: %zu targets, %s filler",
-           __func__, tgts.size(), with_filler? "with" : "no");
-    for( auto tgt : tgts ) {
-      fprintf( stderr, "%28s: %s\n", __func__, name_of(tgt.refer.field) );
-    }
-    for( const auto& elem : replacements ) {
-      fprintf( stderr, "%28s: %s <-%s\n", __func__,
-               data_category_str(elem.first),
-               name_of(elem.second->field) );
-    }
-  }
 
   bool is_refmod = std::any_of( tgts.begin(), tgts.end(),
 				[]( const auto& tgt ) {
@@ -12582,9 +12560,11 @@ initialize_statement( std::list<cbl_num_result_t>& tgts, bool with_filler,
 
 static void
 dump_inspect_oper( const cbl_inspect_oper_t& op ) {
-  dbgmsg("\t%s: %zu \"matches\", %zu \"replaces\"",
+  dbgmsg("\t%s: " HOST_SIZE_T_PRINT_UNSIGNED
+         " \"matches\", " HOST_SIZE_T_PRINT_UNSIGNED " \"replaces\"",
         bound_str(op.bound),
-        op.matches? op.n_identifier_3 : 0, op.replaces? op.n_identifier_3 : 0);
+        op.matches? (fmt_size_t)op.n_identifier_3 : 0,
+        op.replaces? (fmt_size_t)op.n_identifier_3 : 0);
   if( op.matches )
     std::for_each(op.matches, op.matches + op.n_identifier_3, dump_inspect_match);
   if( op.replaces )
@@ -12672,10 +12652,11 @@ cbl_field_t *
 new_literal( const literal_t& lit, enum cbl_field_attr_t attr ) {
   bool zstring = lit.prefix[0] == 'Z';
   if( !zstring && lit.data[lit.len] != '\0' ) {
-    dbgmsg("%s:%d: line %d, no NUL terminator '%-*.*s'{%zu/%zu}",
+    dbgmsg("%s:%d: line %d, no NUL terminator '%-*.*s'{"
+          HOST_SIZE_T_PRINT_UNSIGNED "/" HOST_SIZE_T_PRINT_UNSIGNED "}",
           __func__, __LINE__, yylineno,
           int(lit.len), int(lit.len),
-          lit.data, strlen(lit.data), lit.len);
+          lit.data, (fmt_size_t)strlen(lit.data), (fmt_size_t)lit.len);
   }
   assert(zstring || lit.data[lit.len] == '\0');
 
@@ -12813,7 +12794,7 @@ mode_syntax_only( cbl_division_t division ) {
 bool
 mode_syntax_only() {
   return cbl_syntax_only != not_syntax_only
-    && cbl_syntax_only <= current_division;
+      && cbl_syntax_only <= current_division;
 }
 
 void
@@ -12918,7 +12899,8 @@ literal_subscripts_valid( YYLTYPE loc, const cbl_refer_t& name ) {
     const char *upper_phrase = "";
     if( ! oob->occurs.bounds.fixed_size() ) {
       static char ub[32] = "boo";
-      sprintf(ub, " to %lu", oob->occurs.bounds.upper);
+      sprintf(ub, " to " HOST_SIZE_T_PRINT_UNSIGNED,
+              (fmt_size_t)oob->occurs.bounds.upper);
       upper_phrase = ub;
     }
 
@@ -12971,6 +12953,17 @@ require_numeric( YYLTYPE loc, cbl_refer_t scalar ) {
   return true;
 }
 
+static bool
+require_integer( YYLTYPE loc, cbl_refer_t scalar ) {
+  if( is_literal(scalar.field) ) {
+    if( ! is_integer_literal(scalar.field) ) {
+      error_msg(loc, "numeric literal '%s' must be an integer",
+		scalar.field->pretty_name());
+      return false;
+    }
+  }
+  return require_numeric(loc, scalar);
+}
 /* eval methods */
 
 eval_subject_t::eval_subject_t()
@@ -12988,7 +12981,8 @@ eval_subject_t::label( const char skel[] ) {
   cbl_label_t label = protolabel;
   label.line = yylineno;
   size_t n = 1 + symbols_end() - symbols_begin();
-  snprintf(label.name, sizeof(label.name), "_eval_%s_%zu", skel, n);
+  snprintf(label.name, sizeof(label.name),
+           "_eval_%s_" HOST_SIZE_T_PRINT_UNSIGNED, skel, (fmt_size_t)n);
   auto output = symbol_label_add( PROGRAM, &label );
   return output;
 }

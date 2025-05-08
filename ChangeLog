@@ -1,3 +1,35 @@
+2025-04-28  Kwok Cheung Yeung  <kcyeung@baylibre.com>
+
+	* MAINTAINERS (kcy): Add gcc.gnu.org username.
+
+2025-04-22  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR cobol/119217
+	* configure.ac: Restrict cobol to aarch64-*-linux*,
+	x86_64-*-linux*.
+	Fix indentation.
+	* configure: Regenerate.
+
+2025-04-16  Waffl3x  <waffl3x@baylibre.com>
+
+	* MAINTAINERS: Add myself.
+
+2025-04-02  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* configure: Regenerate.
+	* configure.ac: Use -B instead of -L to specifiy the C++ runtime
+	paths on Darwin.
+
+2025-03-31  Alice Carlotti  <alice.carlotti@arm.com>
+
+	* MAINTAINERS: Update my name.
+
+2025-03-28  Richard Biener  <rguenther@suse.de>
+
+	PR bootstrap/119513
+	* configure.ac (compare_exclusions): Add gcc/cobol/parse\$(objext).
+	* configure: Regenerated.
+
 2025-03-25  Iain Sandoe  <iain@sandoe.co.uk>
 
 	PR cobol/119244

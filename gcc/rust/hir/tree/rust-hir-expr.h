@@ -45,9 +45,6 @@ public:
   LoopLabel (Analysis::NodeMapping mapping, Lifetime loop_label,
 	     location_t locus);
 
-  // Returns whether the LoopLabel is in an error state.
-  bool is_error () const { return label.is_error (); }
-
   location_t get_locus () const { return locus; }
 
   Analysis::NodeMapping &get_mappings () { return mappings; }
@@ -199,12 +196,13 @@ public:
 class BorrowExpr : public OperatorExpr
 {
   Mutability mut;
+  bool raw;
 
 public:
   std::string as_string () const override;
 
   BorrowExpr (Analysis::NodeMapping mappings,
-	      std::unique_ptr<Expr> borrow_lvalue, Mutability mut,
+	      std::unique_ptr<Expr> borrow_lvalue, Mutability mut, bool raw,
 	      AST::AttrVec outer_attribs, location_t locus);
 
   void accept_vis (HIRFullVisitor &vis) override;
@@ -212,6 +210,7 @@ public:
 
   Mutability get_mut () const { return mut; }
   bool is_mut () const { return mut == Mutability::Mut; }
+  bool is_raw_borrow () const { return raw; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -1715,7 +1714,7 @@ public:
   std::vector<std::unique_ptr<Stmt>> statements;
   std::unique_ptr<Expr> expr;
   bool tail_reachable;
-  LoopLabel label;
+  tl::optional<LoopLabel> label;
   location_t start_locus;
   location_t end_locus;
 
@@ -1735,7 +1734,8 @@ public:
 	     std::vector<std::unique_ptr<Stmt>> block_statements,
 	     std::unique_ptr<Expr> block_expr, bool tail_reachable,
 	     AST::AttrVec inner_attribs, AST::AttrVec outer_attribs,
-	     LoopLabel label, location_t start_locus, location_t end_locus);
+	     tl::optional<LoopLabel> label, location_t start_locus,
+	     location_t end_locus);
 
   // Copy constructor with clone
   BlockExpr (BlockExpr const &other);
@@ -1774,8 +1774,8 @@ public:
     return ExprType::Block;
   }
 
-  bool has_label () const { return !label.is_error (); }
-  LoopLabel &get_label () { return label; }
+  bool has_label () const { return label.has_value (); }
+  LoopLabel &get_label () { return label.value (); }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -1803,25 +1803,27 @@ protected:
 // HIR node representing continue expression within loops
 class ContinueExpr : public ExprWithoutBlock
 {
-  Lifetime label;
+  tl::optional<Lifetime> label;
   location_t locus;
 
 public:
   std::string as_string () const override;
 
   // Returns true if the continue expr has a label.
-  bool has_label () const { return !label.is_error (); }
+  bool has_label () const { return label.has_value (); }
 
   // Constructor for a ContinueExpr with a label.
   ContinueExpr (Analysis::NodeMapping mappings, location_t locus,
-		Lifetime label, AST::AttrVec outer_attribs = AST::AttrVec ());
+		tl::optional<Lifetime> label,
+		AST::AttrVec outer_attribs = AST::AttrVec ());
 
   location_t get_locus () const override final { return locus; }
 
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  Lifetime &get_label () { return label; }
+  Lifetime &get_label () { return label.value (); }
+  const Lifetime &get_label () const { return label.value (); }
 
   ExprType get_expression_type () const final override
   {
@@ -1848,7 +1850,7 @@ protected:
 class BreakExpr : public ExprWithoutBlock
 {
   // bool has_label;
-  Lifetime label;
+  tl::optional<Lifetime> label;
 
   // bool has_break_expr;
   std::unique_ptr<Expr> break_expr;
@@ -1859,7 +1861,7 @@ public:
   std::string as_string () const override;
 
   // Returns whether the break expression has a label or not.
-  bool has_label () const { return !label.is_error (); }
+  bool has_label () const { return label.has_value (); }
 
   /* Returns whether the break expression has an expression used in the break or
    * not. */
@@ -1867,7 +1869,7 @@ public:
 
   // Constructor for a break expression
   BreakExpr (Analysis::NodeMapping mappings, location_t locus,
-	     Lifetime break_label,
+	     tl::optional<Lifetime> break_label,
 	     std::unique_ptr<Expr> expr_in_break = nullptr,
 	     AST::AttrVec outer_attribs = AST::AttrVec ());
 
@@ -1886,7 +1888,8 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  Lifetime &get_label () { return label; }
+  Lifetime &get_label () { return label.value (); }
+  const Lifetime &get_label () const { return label.value (); }
 
   Expr &get_expr () { return *break_expr; }
 
@@ -2293,7 +2296,7 @@ protected:
 class BaseLoopExpr : public ExprWithBlock
 {
 protected:
-  LoopLabel loop_label;
+  tl::optional<LoopLabel> loop_label;
   std::unique_ptr<BlockExpr> loop_block;
 
 private:
@@ -2303,7 +2306,7 @@ protected:
   // Constructor for BaseLoopExpr
   BaseLoopExpr (Analysis::NodeMapping mappings,
 		std::unique_ptr<BlockExpr> loop_block, location_t locus,
-		LoopLabel loop_label,
+		tl::optional<LoopLabel> loop_label,
 		AST::AttrVec outer_attribs = AST::AttrVec ());
 
   // Copy constructor for BaseLoopExpr with clone
@@ -2322,13 +2325,14 @@ protected:
   }
 
 public:
-  bool has_loop_label () const { return !loop_label.is_error (); }
+  bool has_loop_label () const { return loop_label.has_value (); }
 
   location_t get_locus () const override final { return locus; }
 
   HIR::BlockExpr &get_loop_block () { return *loop_block; };
 
-  LoopLabel &get_loop_label () { return loop_label; }
+  LoopLabel &get_loop_label () { return loop_label.value (); }
+  const LoopLabel &get_loop_label () const { return loop_label.value (); }
 };
 
 // 'Loop' expression (i.e. the infinite loop) HIR node
@@ -2340,7 +2344,8 @@ public:
   // Constructor for LoopExpr
   LoopExpr (Analysis::NodeMapping mappings,
 	    std::unique_ptr<BlockExpr> loop_block, location_t locus,
-	    LoopLabel loop_label, AST::AttrVec outer_attribs = AST::AttrVec ());
+	    tl::optional<LoopLabel> loop_label,
+	    AST::AttrVec outer_attribs = AST::AttrVec ());
 
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
@@ -2370,7 +2375,7 @@ public:
   WhileLoopExpr (Analysis::NodeMapping mappings,
 		 std::unique_ptr<Expr> loop_condition,
 		 std::unique_ptr<BlockExpr> loop_block, location_t locus,
-		 LoopLabel loop_label,
+		 tl::optional<LoopLabel> loop_label,
 		 AST::AttrVec outer_attribs = AST::AttrVec ());
 
   // Copy constructor with clone
@@ -2419,7 +2424,7 @@ public:
 		    std::vector<std::unique_ptr<Pattern>> match_arm_patterns,
 		    std::unique_ptr<Expr> condition,
 		    std::unique_ptr<BlockExpr> loop_block, location_t locus,
-		    LoopLabel loop_label,
+		    tl::optional<LoopLabel> loop_label,
 		    AST::AttrVec outer_attribs = AST::AttrVec ());
 
   // Copy constructor with clone
@@ -3111,6 +3116,80 @@ public:
 	     std::set<AST::InlineAsmOption> options,
 	     Analysis::NodeMapping mappings,
 	     AST::AttrVec outer_attribs = AST::AttrVec ());
+};
+
+struct LlvmOperand
+{
+  std::string constraint;
+  std::unique_ptr<Expr> expr;
+
+  LlvmOperand (std::string constraint, std::unique_ptr<Expr> &&expr)
+    : constraint (constraint), expr (std::move (expr))
+  {}
+
+  LlvmOperand (const LlvmOperand &other)
+    : constraint (other.constraint), expr (other.expr->clone_expr ())
+  {}
+  LlvmOperand &operator= (const LlvmOperand &other)
+  {
+    constraint = other.constraint;
+    expr = other.expr->clone_expr ();
+
+    return *this;
+  }
+};
+
+class LlvmInlineAsm : public ExprWithoutBlock
+{
+public:
+  struct Options
+  {
+    bool is_volatile;
+    bool align_stack;
+    AST::LlvmInlineAsm::Dialect dialect;
+  };
+
+  location_t locus;
+  AST::AttrVec outer_attrs;
+  std::vector<LlvmOperand> inputs;
+  std::vector<LlvmOperand> outputs;
+  std::vector<AST::TupleTemplateStr> templates;
+  std::vector<AST::TupleClobber> clobbers;
+  Options options;
+
+  LlvmInlineAsm (location_t locus, std::vector<LlvmOperand> inputs,
+		 std::vector<LlvmOperand> outputs,
+		 std::vector<AST::TupleTemplateStr> templates,
+		 std::vector<AST::TupleClobber> clobbers, Options options,
+		 AST::AttrVec outer_attrs, Analysis::NodeMapping mappings)
+    : ExprWithoutBlock (mappings, std::move (outer_attrs)), locus (locus),
+      inputs (std::move (inputs)), outputs (std::move (outputs)),
+      templates (std::move (templates)), clobbers (std::move (clobbers)),
+      options (options)
+  {}
+
+  AST::LlvmInlineAsm::Dialect get_dialect () { return options.dialect; }
+
+  location_t get_locus () const override { return locus; }
+
+  std::vector<AST::Attribute> &get_outer_attrs () { return outer_attrs; }
+
+  void accept_vis (HIRFullVisitor &vis) override;
+  void accept_vis (HIRExpressionVisitor &vis) override;
+
+  LlvmInlineAsm *clone_expr_without_block_impl () const override
+  {
+    return new LlvmInlineAsm (*this);
+  }
+
+  std::vector<AST::TupleTemplateStr> &get_templates () { return templates; }
+
+  Expr::ExprType get_expression_type () const override
+  {
+    return Expr::ExprType::LlvmInlineAsm;
+  }
+
+  std::vector<AST::TupleClobber> get_clobbers () { return clobbers; }
 };
 
 } // namespace HIR

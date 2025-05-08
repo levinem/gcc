@@ -46,6 +46,11 @@
 #include <string>
 #include <vector>
 
+// Provide fallback definition.
+#ifndef NAME_MAX
+#define NAME_MAX 255
+#endif
+
 #define PICTURE_MAX 64
 
 extern const char *numed_message;
@@ -223,6 +228,12 @@ enum symbol_type_t {
   SymFile,
   SymDataSection,
 };
+
+// The ISO specification says alphanumeric literals have a maximum length of
+// 8,191 characters.  It seems to be silent on the length of alphanumeric data
+// items.  Our implementation requires a maximum length, so we chose to make it
+// the same.
+#define MAXIMUM_ALPHA_LENGTH 8192
 
 struct cbl_field_data_t {
   uint32_t memsize;             // nonzero if larger subsequent redefining field
@@ -477,10 +488,18 @@ struct cbl_subtable_t {
 
 bool is_elementary( enum cbl_field_type_t type );
 
+/*  In cbl_field_t:
+ *  'offset' is overloaded for FldAlphanumeric/temporary/intermediate variables
+ *  For such variables, offset is a copy of the initial capacity.  This is in
+ *  support of the FUNCTION TRIM function, which both needs to be able to
+ *  reduce the capacity of the target variable, and then to reset it back to
+ *  the original value
+ */
+
 struct cbl_field_t {
   size_t offset;
   enum cbl_field_type_t type, usage;
-  size_t attr;
+  uint64_t attr;
   static_assert(sizeof(attr) == sizeof(cbl_field_attr_t), "wrong attr size");
   size_t parent;    // symbols[] index of our parent
   size_t our_index; // symbols[] index of this field, set in symbol_add()
@@ -499,7 +518,6 @@ struct cbl_field_t {
   tree data_decl_node;  // Reference to the run-time data of the COBOL variable
   //                    // For linkage_e variables, data_decl_node is a pointer
   //                    // to the data, rather than the actual data
-  tree literal_decl_node; // This is a FLOAT128 version of data.value
 
   void set_linkage( cbl_ffi_crv_t crv, bool optional ) {
     linkage.optional = optional;
@@ -583,8 +601,8 @@ struct cbl_field_t {
   bool has_attr( cbl_field_attr_t attr ) const {
     return cbl_field_attr_t(this->attr & attr) == attr;
   }
-  size_t set_attr( cbl_field_attr_t attr );
-  size_t clear_attr( cbl_field_attr_t attr );
+  uint64_t set_attr( cbl_field_attr_t attr );
+  uint64_t clear_attr( cbl_field_attr_t attr );
   const char * attr_str( const std::vector<cbl_field_attr_t>& attrs ) const;
 
   bool is_justifiable() const {
@@ -1259,7 +1277,8 @@ struct function_descr_t {
   static function_descr_t init( const char name[] ) {
     function_descr_t descr = {};
     if( -1 == snprintf( descr.name, sizeof(descr.name), "%s", name ) ) {
-      dbgmsg("name truncated to '%s' (max %zu characters)", name);
+      dbgmsg("name truncated to '%s' (max " HOST_SIZE_T_PRINT_UNSIGNED
+             " characters)", name, (fmt_size_t)sizeof(descr.name));
     }
     return descr;  // truncation also reported elsewhere ?
   }
@@ -2035,11 +2054,12 @@ struct cbl_perform_tgt_t {
   void dump() const {
     assert(ifrom);
     if( !ito ) {
-      dbgmsg( "%s:%d: #%3zu %s", __PRETTY_FUNCTION__, __LINE__,
-             ifrom, from()->str() );
+      dbgmsg( "%s:%d: #%3" GCC_PRISZ "u %s", __PRETTY_FUNCTION__, __LINE__,
+             (fmt_size_t)ifrom, from()->str() );
     } else {
-      dbgmsg( "%s:%d: #%3zu %s THRU #%3zu %s", __PRETTY_FUNCTION__, __LINE__,
-             ifrom, from()->str(), ito, to()->str() );
+      dbgmsg( "%s:%d: #%3" GCC_PRISZ "u %s THRU #%3" GCC_PRISZ "u %s",
+             __PRETTY_FUNCTION__, __LINE__,
+             (fmt_size_t)ifrom, from()->str(), (fmt_size_t)ito, to()->str() );
     }
   }
 
@@ -2232,7 +2252,7 @@ cbl_file_t * symbol_record_file( const cbl_field_t *f );
 
 struct cbl_field_t * symbol_find_odo( const cbl_field_t * field );
 
-size_t numeric_group_attrs( const cbl_field_t *field );
+uint64_t numeric_group_attrs( const cbl_field_t *field );
 
 static inline struct cbl_field_t *
 field_at( size_t index ) {
@@ -2385,5 +2405,7 @@ void gcc_location_set( const LOC& loc );
 // It's the only entry point in the module, and so it seemed to me wasteful to
 //  create an entire .h module.  So, I stuck it here.
 size_t count_characters(const char *in, size_t length);
+
+void current_enabled_ecs( tree ena );
 
 #endif

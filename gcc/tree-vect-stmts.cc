@@ -419,18 +419,21 @@ vect_stmt_relevant_p (stmt_vec_info stmt_info, loop_vec_info loop_vinfo,
 	}
     }
 
-  /* Check if it's an induction and multiple exits.  In this case there will be
-     a usage later on after peeling which is needed for the alternate exit.  */
+  /* Check if it's a not live PHI and multiple exits.  In this case
+     there will be a usage later on after peeling which is needed for the
+     alternate exit.  */
   if (LOOP_VINFO_EARLY_BREAKS (loop_vinfo)
-      && STMT_VINFO_DEF_TYPE (stmt_info) == vect_induction_def)
+      && is_a <gphi *> (stmt)
+      && ((! VECTORIZABLE_CYCLE_DEF (STMT_VINFO_DEF_TYPE (stmt_info))
+	  && ! *live_p)
+	  || STMT_VINFO_DEF_TYPE (stmt_info) == vect_induction_def))
     {
       if (dump_enabled_p ())
-	  dump_printf_loc (MSG_NOTE, vect_location,
-			   "vec_stmt_relevant_p: induction forced for "
-			   "early break.\n");
+	dump_printf_loc (MSG_NOTE, vect_location,
+			 "vec_stmt_relevant_p: PHI forced live for "
+			 "early break.\n");
       LOOP_VINFO_EARLY_BREAKS_LIVE_IVS (loop_vinfo).safe_push (stmt_info);
       *live_p = true;
-
     }
 
   if (*live_p && *relevant == vect_unused_in_scope
@@ -714,6 +717,8 @@ vect_mark_stmts_to_be_vectorized (loop_vec_info loop_vinfo, bool *fatal)
       bb = bbs[i];
       for (si = gsi_start_phis (bb); !gsi_end_p (si); gsi_next (&si))
 	{
+	  if (virtual_operand_p (gimple_phi_result (gsi_stmt (si))))
+	    continue;
 	  stmt_vec_info phi_info = loop_vinfo->lookup_stmt (gsi_stmt (si));
 	  if (dump_enabled_p ())
 	    dump_printf_loc (MSG_NOTE, vect_location, "init: phi relevant? %G",
@@ -2134,6 +2139,14 @@ get_group_load_store_type (vec_info *vinfo, stmt_vec_info stmt_info,
 			    : vect_store_lanes_supported (vectype, group_size,
 							  masked_p))) != IFN_LAST)
 	    *memory_access_type = VMAT_LOAD_STORE_LANES;
+	  else if (!loop_vinfo && slp_node->avoid_stlf_fail)
+	    {
+	      *memory_access_type = VMAT_ELEMENTWISE;
+	      if (dump_enabled_p ())
+		dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
+				 "using element-wise load to avoid disrupting "
+				 "cross iteration store-to-load forwarding\n");
+	    }
 	  else
 	    *memory_access_type = VMAT_CONTIGUOUS;
 
@@ -2522,6 +2535,7 @@ get_load_store_type (vec_info  *vinfo, stmt_vec_info stmt_info,
 	{
 	  if (!TYPE_VECTOR_SUBPARTS (vectype).is_constant ()
 	      || !TYPE_VECTOR_SUBPARTS (gs_info->offset_vectype).is_constant ()
+	      || VECTOR_BOOLEAN_TYPE_P (gs_info->offset_vectype)
 	      || !constant_multiple_p (TYPE_VECTOR_SUBPARTS
 					 (gs_info->offset_vectype),
 				       TYPE_VECTOR_SUBPARTS (vectype)))
@@ -5527,7 +5541,6 @@ vectorizable_conversion (vec_info *vinfo,
   tree vec_dest, cvt_op = NULL_TREE;
   tree scalar_dest;
   tree op0, op1 = NULL_TREE;
-  loop_vec_info loop_vinfo = dyn_cast <loop_vec_info> (vinfo);
   tree_code tc1;
   code_helper code, code1, code2;
   code_helper codecvt1 = ERROR_MARK, codecvt2 = ERROR_MARK;
@@ -5537,7 +5550,7 @@ vectorizable_conversion (vec_info *vinfo,
   poly_uint64 nunits_in;
   poly_uint64 nunits_out;
   tree vectype_out, vectype_in;
-  int ncopies, i;
+  int i;
   tree lhs_type, rhs_type;
   /* For conversions between floating point and integer, there're 2 NARROW
      cases. NARROW_SRC is for FLOAT_EXPR, means
@@ -5604,7 +5617,7 @@ vectorizable_conversion (vec_info *vinfo,
   /* Check types of lhs and rhs.  */
   scalar_dest = gimple_get_lhs (stmt);
   lhs_type = TREE_TYPE (scalar_dest);
-  vectype_out = STMT_VINFO_VECTYPE (stmt_info);
+  vectype_out = SLP_TREE_VECTYPE (slp_node);
 
   /* Check the operands of the operation.  */
   slp_tree slp_op0, slp_op1 = NULL;
@@ -5702,25 +5715,11 @@ vectorizable_conversion (vec_info *vinfo,
       modifier = WIDEN;
     }
 
-  /* Multiple types in SLP are handled by creating the appropriate number of
-     vectorized stmts for each SLP node.  Hence, NCOPIES is always 1 in
-     case of SLP.  */
-  if (slp_node)
-    ncopies = 1;
-  else if (modifier == NARROW_DST)
-    ncopies = vect_get_num_copies (loop_vinfo, vectype_out);
-  else
-    ncopies = vect_get_num_copies (loop_vinfo, vectype_in);
-
-  /* Sanity check: make sure that at least one copy of the vectorized stmt
-     needs to be generated.  */
-  gcc_assert (ncopies >= 1);
-
   bool found_mode = false;
   scalar_mode lhs_mode = SCALAR_TYPE_MODE (lhs_type);
   scalar_mode rhs_mode = SCALAR_TYPE_MODE (rhs_type);
   opt_scalar_mode rhs_mode_iter;
-  auto_vec<std::pair<tree, tree_code> > converts;
+  auto_vec<std::pair<tree, tree_code>, 2> converts;
 
   /* Supportable by target?  */
   switch (modifier)
@@ -5870,16 +5869,11 @@ vectorizable_conversion (vec_info *vinfo,
       else if (code == FLOAT_EXPR)
 	{
 	  wide_int op_min_value, op_max_value;
-	  if (slp_node)
-	    {
-	      tree def;
-	      /* ???  Merge ranges in case of more than one lane.  */
-	      if (SLP_TREE_LANES (slp_op0) != 1
-		  || !(def = vect_get_slp_scalar_def (slp_op0, 0))
-		  || !vect_get_range_info (def, &op_min_value, &op_max_value))
-		goto unsupported;
-	    }
-	  else if (!vect_get_range_info (op0, &op_min_value, &op_max_value))
+	  tree def;
+	  /* ???  Merge ranges in case of more than one lane.  */
+	  if (SLP_TREE_LANES (slp_op0) != 1
+	      || !(def = vect_get_slp_scalar_def (slp_op0, 0))
+	      || !vect_get_range_info (def, &op_min_value, &op_max_value))
 	    goto unsupported;
 
 	  cvt_type
@@ -5915,9 +5909,8 @@ vectorizable_conversion (vec_info *vinfo,
 
   if (!vec_stmt)		/* transformation not required.  */
     {
-      if (slp_node
-	  && (!vect_maybe_update_slp_op_vectype (slp_op0, vectype_in)
-	      || !vect_maybe_update_slp_op_vectype (slp_op1, vectype_in)))
+      if (!vect_maybe_update_slp_op_vectype (slp_op0, vectype_in)
+	  || !vect_maybe_update_slp_op_vectype (slp_op1, vectype_in))
 	{
 	  if (dump_enabled_p ())
 	    dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
@@ -5928,16 +5921,14 @@ vectorizable_conversion (vec_info *vinfo,
       if (modifier == NONE)
         {
 	  STMT_VINFO_TYPE (stmt_info) = type_conversion_vec_info_type;
-	  vect_model_simple_cost (vinfo, stmt_info,
-				  ncopies * (1 + multi_step_cvt),
+	  vect_model_simple_cost (vinfo, stmt_info, (1 + multi_step_cvt),
 				  dt, ndts, slp_node, cost_vec);
 	}
       else if (modifier == NARROW_SRC || modifier == NARROW_DST)
 	{
 	  STMT_VINFO_TYPE (stmt_info) = type_demotion_vec_info_type;
 	  /* The final packing step produces one vector result per copy.  */
-	  unsigned int nvectors
-	    = (slp_node ? SLP_TREE_NUMBER_OF_VEC_STMTS (slp_node) : ncopies);
+	  unsigned int nvectors = SLP_TREE_NUMBER_OF_VEC_STMTS (slp_node);
 	  vect_model_promotion_demotion_cost (stmt_info, dt, nvectors,
 					      multi_step_cvt, cost_vec,
 					      widen_arith);
@@ -5949,9 +5940,7 @@ vectorizable_conversion (vec_info *vinfo,
 	     per copy.  MULTI_STEP_CVT is 0 for a single conversion,
 	     so >> MULTI_STEP_CVT divides by 2^(number of steps - 1).  */
 	  unsigned int nvectors
-	    = (slp_node
-	       ? SLP_TREE_NUMBER_OF_VEC_STMTS (slp_node) >> multi_step_cvt
-	       : ncopies * 2);
+	    = SLP_TREE_NUMBER_OF_VEC_STMTS (slp_node) >> multi_step_cvt;
 	  vect_model_promotion_demotion_cost (stmt_info, dt, nvectors,
 					      multi_step_cvt, cost_vec,
 					      widen_arith);
@@ -5962,8 +5951,7 @@ vectorizable_conversion (vec_info *vinfo,
 
   /* Transform.  */
   if (dump_enabled_p ())
-    dump_printf_loc (MSG_NOTE, vect_location,
-                     "transform conversion. ncopies = %d.\n", ncopies);
+    dump_printf_loc (MSG_NOTE, vect_location, "transform conversion.\n");
 
   if (op_type == binary_op)
     {
@@ -6002,23 +5990,10 @@ vectorizable_conversion (vec_info *vinfo,
 					    widen_or_narrow_float_p
 					    ? vectype_out : cvt_type);
 
-  int ninputs = 1;
-  if (!slp_node)
-    {
-      if (modifier == WIDEN)
-	;
-      else if (modifier == NARROW_SRC || modifier == NARROW_DST)
-	{
-	  if (multi_step_cvt)
-	    ninputs = vect_pow2 (multi_step_cvt);
-	  ninputs *= 2;
-	}
-    }
-
   switch (modifier)
     {
     case NONE:
-      vect_get_vec_defs (vinfo, stmt_info, slp_node, ncopies,
+      vect_get_vec_defs (vinfo, stmt_info, slp_node, 1,
 			 op0, vectype_in, &vec_oprnds0);
       /* vec_dest is intermediate type operand when multi_step_cvt.  */
       if (multi_step_cvt)
@@ -6045,10 +6020,7 @@ vectorizable_conversion (vec_info *vinfo,
 	  gimple_set_lhs (new_stmt, new_temp);
 	  vect_finish_stmt_generation (vinfo, stmt_info, new_stmt, gsi);
 
-	  if (slp_node)
-	    slp_node->push_vec_def (new_stmt);
-	  else
-	    STMT_VINFO_VEC_STMTS (stmt_info).safe_push (new_stmt);
+	  slp_node->push_vec_def (new_stmt);
 	}
       break;
 
@@ -6057,7 +6029,7 @@ vectorizable_conversion (vec_info *vinfo,
 	 of elements that we can fit in a vectype (nunits), we have to
 	 generate more than one vector stmt - i.e - we need to "unroll"
 	 the vector stmt by a factor VF/nunits.  */
-      vect_get_vec_defs (vinfo, stmt_info, slp_node, ncopies * ninputs,
+      vect_get_vec_defs (vinfo, stmt_info, slp_node, 1,
 			 op0, vectype_in, &vec_oprnds0,
 			 code == WIDEN_LSHIFT_EXPR ? NULL_TREE : op1,
 			 vectype_in, &vec_oprnds1);
@@ -6101,10 +6073,7 @@ vectorizable_conversion (vec_info *vinfo,
 	  else
 	    new_stmt = SSA_NAME_DEF_STMT (vop0);
 
-	  if (slp_node)
-	    slp_node->push_vec_def (new_stmt);
-	  else
-	    STMT_VINFO_VEC_STMTS (stmt_info).safe_push (new_stmt);
+	  slp_node->push_vec_def (new_stmt);
 	}
       break;
 
@@ -6114,7 +6083,7 @@ vectorizable_conversion (vec_info *vinfo,
 	 of elements that we can fit in a vectype (nunits), we have to
 	 generate more than one vector stmt - i.e - we need to "unroll"
 	 the vector stmt by a factor VF/nunits.  */
-      vect_get_vec_defs (vinfo, stmt_info, slp_node, ncopies * ninputs,
+      vect_get_vec_defs (vinfo, stmt_info, slp_node, 1,
 			 op0, vectype_in, &vec_oprnds0);
       /* Arguments are ready.  Create the new vector stmts.  */
       if (cvt_type && modifier == NARROW_DST)
@@ -6147,16 +6116,11 @@ vectorizable_conversion (vec_info *vinfo,
 	      /* This is the last step of the conversion sequence. Store the
 		 vectors in SLP_NODE or in vector info of the scalar statement
 		 (or in STMT_VINFO_RELATED_STMT chain).  */
-	      if (slp_node)
-		slp_node->push_vec_def (new_stmt);
-	      else
-		STMT_VINFO_VEC_STMTS (stmt_info).safe_push (new_stmt);
+	      slp_node->push_vec_def (new_stmt);
 	    }
 	}
       break;
     }
-  if (!slp_node)
-    *vec_stmt = STMT_VINFO_VEC_STMTS (stmt_info)[0];
 
   vec_oprnds0.release ();
   vec_oprnds1.release ();
@@ -6749,13 +6713,16 @@ vectorizable_shift (vec_info *vinfo,
     {
       if (was_scalar_shift_arg)
 	{
-	  /* If the argument was the same in all lanes create
-	     the correctly typed vector shift amount directly.  */
+	  /* If the argument was the same in all lanes create the
+	     correctly typed vector shift amount directly.  Note
+	     we made SLP scheduling think we use the original scalars,
+	     so place the compensation code next to the shift which
+	     is conservative.  See PR119640 where it otherwise breaks.  */
 	  op1 = fold_convert (TREE_TYPE (vectype), op1);
 	  op1 = vect_init_vector (vinfo, stmt_info, op1, TREE_TYPE (vectype),
-				  !loop_vinfo ? gsi : NULL);
+				  gsi);
 	  vec_oprnd1 = vect_init_vector (vinfo, stmt_info, op1, vectype,
-					 !loop_vinfo ? gsi : NULL);
+					 gsi);
 	  vec_oprnds1.create (slp_node->vec_stmts_size);
 	  for (k = 0; k < slp_node->vec_stmts_size; k++)
 	    vec_oprnds1.quick_push (vec_oprnd1);
@@ -8824,6 +8791,15 @@ vectorizable_store (vec_info *vinfo,
 	  if (n == const_nunits)
 	    {
 	      int mis_align = dr_misalignment (first_dr_info, vectype);
+	      /* With VF > 1 we advance the DR by step, if that is constant
+		 and only aligned when performed VF times, DR alignment
+		 analysis can analyze this as aligned since it assumes
+		 contiguous accesses.  But that is not how we code generate
+		 here, so adjust for this.  */
+	      if (maybe_gt (vf, 1u)
+		  && !multiple_p (DR_STEP_ALIGNMENT (first_dr_info->dr),
+				  DR_TARGET_ALIGNMENT (first_dr_info)))
+		mis_align = -1;
 	      dr_alignment_support dr_align
 		= vect_supportable_dr_alignment (vinfo, dr_info, vectype,
 						 mis_align);
@@ -8845,6 +8821,10 @@ vectorizable_store (vec_info *vinfo,
 	      ltype = build_vector_type (elem_type, n);
 	      lvectype = vectype;
 	      int mis_align = dr_misalignment (first_dr_info, ltype);
+	      if (maybe_gt (vf, 1u)
+		  && !multiple_p (DR_STEP_ALIGNMENT (first_dr_info->dr),
+				  DR_TARGET_ALIGNMENT (first_dr_info)))
+		mis_align = -1;
 	      dr_alignment_support dr_align
 		= vect_supportable_dr_alignment (vinfo, dr_info, ltype,
 						 mis_align);
@@ -10836,6 +10816,15 @@ vectorizable_load (vec_info *vinfo,
 	  if (n == const_nunits)
 	    {
 	      int mis_align = dr_misalignment (first_dr_info, vectype);
+	      /* With VF > 1 we advance the DR by step, if that is constant
+		 and only aligned when performed VF times, DR alignment
+		 analysis can analyze this as aligned since it assumes
+		 contiguous accesses.  But that is not how we code generate
+		 here, so adjust for this.  */
+	      if (maybe_gt (vf, 1u)
+		  && !multiple_p (DR_STEP_ALIGNMENT (first_dr_info->dr),
+				  DR_TARGET_ALIGNMENT (first_dr_info)))
+		mis_align = -1;
 	      dr_alignment_support dr_align
 		= vect_supportable_dr_alignment (vinfo, dr_info, vectype,
 						 mis_align);
@@ -10864,6 +10853,10 @@ vectorizable_load (vec_info *vinfo,
 		  if (VECTOR_TYPE_P (ptype))
 		    {
 		      mis_align = dr_misalignment (first_dr_info, ptype);
+		      if (maybe_gt (vf, 1u)
+			  && !multiple_p (DR_STEP_ALIGNMENT (first_dr_info->dr),
+					  DR_TARGET_ALIGNMENT (first_dr_info)))
+			mis_align = -1;
 		      dr_align
 			= vect_supportable_dr_alignment (vinfo, dr_info, ptype,
 							 mis_align);
@@ -13606,29 +13599,23 @@ vectorizable_early_exit (vec_info *vinfo, stmt_vec_info stmt_info,
      codegen so we must replace the original insn.  */
   gimple *orig_stmt = STMT_VINFO_STMT (vect_orig_stmt (stmt_info));
   gcond *cond_stmt = as_a <gcond *>(orig_stmt);
+
+  tree cst = build_zero_cst (vectype);
+  auto bb = gimple_bb (cond_stmt);
+  edge exit_true_edge = EDGE_SUCC (bb, 0);
+  if (exit_true_edge->flags & EDGE_FALSE_VALUE)
+    exit_true_edge = EDGE_SUCC (bb, 1);
+  gcc_assert (exit_true_edge->flags & EDGE_TRUE_VALUE);
+
   /* When vectorizing we assume that if the branch edge is taken that we're
      exiting the loop.  This is not however always the case as the compiler will
      rewrite conditions to always be a comparison against 0.  To do this it
      sometimes flips the edges.  This is fine for scalar,  but for vector we
-     then have to flip the test, as we're still assuming that if you take the
-     branch edge that we found the exit condition.  i.e. we need to know whether
-     we are generating a `forall` or an `exist` condition.  */
-  auto new_code = NE_EXPR;
-  auto reduc_optab = ior_optab;
-  auto reduc_op = BIT_IOR_EXPR;
-  tree cst = build_zero_cst (vectype);
-  edge exit_true_edge = EDGE_SUCC (gimple_bb (cond_stmt), 0);
-  if (exit_true_edge->flags & EDGE_FALSE_VALUE)
-    exit_true_edge = EDGE_SUCC (gimple_bb (cond_stmt), 1);
-  gcc_assert (exit_true_edge->flags & EDGE_TRUE_VALUE);
-  if (flow_bb_inside_loop_p (LOOP_VINFO_LOOP (loop_vinfo),
-			     exit_true_edge->dest))
-    {
-      new_code = EQ_EXPR;
-      reduc_optab = and_optab;
-      reduc_op = BIT_AND_EXPR;
-      cst = build_minus_one_cst (vectype);
-    }
+     then have to negate the result of the test, as we're still assuming that if
+     you take the branch edge that we found the exit condition.  i.e. we need to
+     know whether we are generating a `forall` or an `exist` condition.  */
+  bool flipped = flow_bb_inside_loop_p (LOOP_VINFO_LOOP (loop_vinfo),
+					exit_true_edge->dest);
 
   /* Analyze only.  */
   if (!vec_stmt)
@@ -13644,14 +13631,13 @@ vectorizable_early_exit (vec_info *vinfo, stmt_vec_info stmt_info,
 	}
 
       if (ncopies > 1
-	  && direct_optab_handler (reduc_optab, mode) == CODE_FOR_nothing)
+	  && direct_optab_handler (ior_optab, mode) == CODE_FOR_nothing)
 	{
 	  if (dump_enabled_p ())
 	      dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
 			       "can't vectorize early exit because the "
-			       "target does not support boolean vector %s "
+			       "target does not support boolean vector IOR "
 			       "for type %T.\n",
-			       reduc_optab == ior_optab ? "OR" : "AND",
 			       vectype);
 	  return false;
 	}
@@ -13711,6 +13697,29 @@ vectorizable_early_exit (vec_info *vinfo, stmt_vec_info stmt_info,
 	stmts.quick_push (gimple_assign_lhs (stmt));
     }
 
+  /* If we're comparing against a previous forall we need to negate the resullts
+     before we do the final comparison or reduction.  */
+  if (flipped)
+    {
+      /* Rewrite the if(all(mask)) into if (!all(mask)) which is the same as
+	 if (any(~mask)) by negating the masks and flipping the branches.
+
+	1. For unmasked loops we simply reduce the ~mask.
+	2. For masked loops we reduce (~mask & loop_mask) which is the same as
+	   doing (mask & loop_mask) ^ loop_mask.  */
+      for (unsigned i = 0; i < stmts.length (); i++)
+	{
+	  tree inv_lhs = make_temp_ssa_name (vectype, NULL, "vexit_inv");
+	  auto inv_stmt = gimple_build_assign (inv_lhs, BIT_NOT_EXPR, stmts[i]);
+	  vect_finish_stmt_generation (loop_vinfo, stmt_info, inv_stmt,
+				       &cond_gsi);
+	  stmts[i] = inv_lhs;
+	}
+
+      EDGE_SUCC (bb, 0)->flags ^= (EDGE_TRUE_VALUE|EDGE_FALSE_VALUE);
+      EDGE_SUCC (bb, 1)->flags ^= (EDGE_TRUE_VALUE|EDGE_FALSE_VALUE);
+    }
+
   /* Determine if we need to reduce the final value.  */
   if (stmts.length () > 1)
     {
@@ -13749,7 +13758,7 @@ vectorizable_early_exit (vec_info *vinfo, stmt_vec_info stmt_info,
 	  new_temp = make_temp_ssa_name (vectype, NULL, "vexit_reduc");
 	  tree arg0 = workset.pop ();
 	  tree arg1 = workset.pop ();
-	  new_stmt = gimple_build_assign (new_temp, reduc_op, arg0, arg1);
+	  new_stmt = gimple_build_assign (new_temp, BIT_IOR_EXPR, arg0, arg1);
 	  vect_finish_stmt_generation (loop_vinfo, stmt_info, new_stmt,
 				       &cond_gsi);
 	  workset.quick_insert (0, new_temp);
@@ -13772,7 +13781,7 @@ vectorizable_early_exit (vec_info *vinfo, stmt_vec_info stmt_info,
 
   gcc_assert (new_temp);
 
-  gimple_cond_set_condition (cond_stmt, new_code, new_temp, cst);
+  gimple_cond_set_condition (cond_stmt, NE_EXPR, new_temp, cst);
   update_stmt (orig_stmt);
 
   if (slp_node)
@@ -13997,7 +14006,7 @@ vect_analyze_stmt (vec_info *vinfo,
 
   /* When we arrive here with a non-SLP statement and we are supposed
      to use SLP for everything fail vectorization.  */
-  if (!node && param_vect_force_slp)
+  if (!node)
     return opt_result::failure_at (stmt_info->stmt,
 				   "needs non-SLP handling\n");
 
@@ -14031,7 +14040,7 @@ vect_analyze_stmt (vec_info *vinfo,
 	  || vectorizable_comparison (vinfo, stmt_info, NULL, NULL, node,
 				      cost_vec)
 	  || vectorizable_lc_phi (as_a <loop_vec_info> (vinfo),
-				  stmt_info, NULL, node)
+				  stmt_info, node)
 	  || vectorizable_recurr (as_a <loop_vec_info> (vinfo),
 				   stmt_info, NULL, node, cost_vec)
 	  || vectorizable_early_exit (vinfo, stmt_info, NULL, NULL, node,
@@ -14105,6 +14114,10 @@ vect_transform_stmt (vec_info *vinfo,
   bool done;
 
   gcc_assert (slp_node || !PURE_SLP_STMT (stmt_info));
+
+  if (dump_enabled_p ())
+    dump_printf_loc (MSG_NOTE, vect_location,
+		     "------>vectorizing statement: %G", stmt_info->stmt);
 
   tree saved_vectype = STMT_VINFO_VECTYPE (stmt_info);
   if (slp_node)
@@ -14194,19 +14207,19 @@ vect_transform_stmt (vec_info *vinfo,
 
     case reduc_vec_info_type:
       done = vect_transform_reduction (as_a <loop_vec_info> (vinfo), stmt_info,
-				       gsi, &vec_stmt, slp_node);
+				       gsi, slp_node);
       gcc_assert (done);
       break;
 
     case cycle_phi_info_type:
       done = vect_transform_cycle_phi (as_a <loop_vec_info> (vinfo), stmt_info,
-				       &vec_stmt, slp_node, slp_node_instance);
+				       slp_node, slp_node_instance);
       gcc_assert (done);
       break;
 
     case lc_phi_info_type:
-      done = vectorizable_lc_phi (as_a <loop_vec_info> (vinfo),
-				  stmt_info, &vec_stmt, slp_node);
+      done = vect_transform_lc_phi (as_a <loop_vec_info> (vinfo),
+				    stmt_info, slp_node);
       gcc_assert (done);
       break;
 

@@ -390,6 +390,10 @@ range_op_handler::lhs_op1_relation (const vrange &lhs,
 	return m_operator->lhs_op1_relation (as_a <prange> (lhs),
 					     as_a <irange> (op1),
 					     as_a <irange> (op2), rel);
+      case RO_PPI:
+	return m_operator->lhs_op1_relation (as_a <prange> (lhs),
+					     as_a <prange> (op1),
+					     as_a <irange> (op2), rel);
       case RO_IFF:
 	return m_operator->lhs_op1_relation (as_a <irange> (lhs),
 					     as_a <frange> (op1),
@@ -2220,6 +2224,13 @@ operator_mult::op1_range (irange &r, tree type,
   wide_int offset;
   if (op2.singleton_p (offset) && offset != 0)
     return range_op_handler (TRUNC_DIV_EXPR).fold_range (r, type, lhs, op2);
+
+  //  ~[0, 0] = op1 * op2  defines op1 and op2 as non-zero.
+  if (!lhs.contains_p (wi::zero (TYPE_PRECISION (lhs.type ()))))
+    {
+      r.set_nonzero (type);
+      return true;
+    }
   return false;
 }
 
@@ -2408,8 +2419,11 @@ operator_widen_mult_unsigned::wi_fold (irange &r, tree type,
 class operator_div : public cross_product_operator
 {
   using range_operator::update_bitmask;
+  using range_operator::op2_range;
 public:
   operator_div (tree_code div_kind) { m_code = div_kind; }
+  bool op2_range (irange &r, tree type, const irange &lhs, const irange &,
+		  relation_trio) const;
   virtual void wi_fold (irange &r, tree type,
 		        const wide_int &lh_lb,
 		        const wide_int &lh_ub,
@@ -2428,6 +2442,19 @@ static operator_div op_trunc_div (TRUNC_DIV_EXPR);
 static operator_div op_floor_div (FLOOR_DIV_EXPR);
 static operator_div op_round_div (ROUND_DIV_EXPR);
 static operator_div op_ceil_div (CEIL_DIV_EXPR);
+
+// Set OP2 to non-zero if the LHS isn't UNDEFINED.
+bool
+operator_div::op2_range (irange &r, tree type, const irange &lhs,
+			 const irange &, relation_trio) const
+{
+  if (!lhs.undefined_p ())
+    {
+      r.set_nonzero (type);
+      return true;
+    }
+  return false;
+}
 
 bool
 operator_div::wi_op_overflows (wide_int &res, tree type,

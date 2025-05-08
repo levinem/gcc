@@ -1395,26 +1395,24 @@ add_functions (void)
 {
   /* Argument names.  These are used as argument keywords and so need to
     match the documentation.  Please keep this list in sorted order.  */
-  const char
-    *a = "a", *a1 = "a1", *a2 = "a2", *ar = "array", *b = "b",
-    *bck = "back", *bd = "boundary", *c = "c", *c_ptr_1 = "c_ptr_1",
-    *c_ptr_2 = "c_ptr_2", *ca = "coarray", *com = "command",
-    *dist = "distance", *dm = "dim", *f = "field", *failed="failed",
-    *fs = "fsource", *han = "handler", *i = "i",
-    *idy = "identity", *image = "image", *j = "j", *kind = "kind",
-    *l = "l", *ln = "len", *level = "level", *m = "matrix", *ma = "matrix_a",
-    *mb = "matrix_b", *md = "mode", *mo = "mold", *msk = "mask",
-    *n = "n", *ncopies= "ncopies", *nm = "name", *num = "number",
-    *op = "operation", *ord = "order", *odd = "ordered", *p = "p",
-	*p1 = "path1", *p2 = "path2", *pad = "pad", *pid = "pid", *pos = "pos",
-	*pt = "pointer", *r = "r", *rd = "round",
-    *s = "s", *set = "set", *sh = "shift", *shp = "shape",
-    *sig = "sig", *src = "source", *ssg = "substring",
-    *sta = "string_a", *stb = "string_b", *stg = "string",
-    *sub = "sub", *sz = "size", *tg = "target", *team = "team", *tm = "time",
-    *ts = "tsource", *ut = "unit", *v = "vector", *va = "vector_a",
-    *vb = "vector_b", *vl = "values", *val = "value", *x = "x", *y = "y",
-    *z = "z";
+  const char *a
+    = "a",
+    *a1 = "a1", *a2 = "a2", *ar = "array", *b = "b", *bck = "back",
+    *bd = "boundary", *c = "c", *c_ptr_1 = "c_ptr_1", *c_ptr_2 = "c_ptr_2",
+    *ca = "coarray", *com = "command", *dm = "dim", *f = "field",
+    *fs = "fsource", *han = "handler", *i = "i", *idy = "identity",
+    *image = "image", *j = "j", *kind = "kind", *l = "l", *ln = "len",
+    *level = "level", *m = "matrix", *ma = "matrix_a", *mb = "matrix_b",
+    *md = "mode", *mo = "mold", *msk = "mask", *n = "n", *ncopies = "ncopies",
+    *nm = "name", *num = "number", *op = "operation", *ord = "order",
+    *odd = "ordered", *p = "p", *p1 = "path1", *p2 = "path2", *pad = "pad",
+    *pid = "pid", *pos = "pos", *pt = "pointer", *r = "r", *rd = "round",
+    *s = "s", *set = "set", *sh = "shift", *shp = "shape", *sig = "sig",
+    *src = "source", *ssg = "substring", *sta = "string_a", *stb = "string_b",
+    *stg = "string", *sub = "sub", *sz = "size", *tg = "target", *team = "team",
+    *team_or_team_number = "team/team_number", *tm = "time", *ts = "tsource",
+    *ut = "unit", *v = "vector", *va = "vector_a", *vb = "vector_b",
+    *vl = "values", *val = "value", *x = "x", *y = "y", *z = "z";
 
   int di, dr, dd, dl, dc, dz, ii;
 
@@ -2112,10 +2110,10 @@ add_functions (void)
 
   make_generic ("getpid", GFC_ISYM_GETPID, GFC_STD_GNU);
 
-  add_sym_1 ("get_team", GFC_ISYM_GET_TEAM, CLASS_TRANSFORMATIONAL,
-	     ACTUAL_NO, BT_INTEGER, di, GFC_STD_F2018,
-	     gfc_check_get_team, NULL, gfc_resolve_get_team,
-	     level, BT_INTEGER, di, OPTIONAL);
+  add_sym_1 ("get_team", GFC_ISYM_GET_TEAM, CLASS_TRANSFORMATIONAL, ACTUAL_NO,
+	     BT_DERIVED, di, GFC_STD_F2018, gfc_check_get_team,
+	     gfc_simplify_get_team, gfc_resolve_get_team, level, BT_INTEGER, di,
+	     OPTIONAL);
 
   add_sym_0 ("getuid", GFC_ISYM_GETUID, CLASS_IMPURE, ACTUAL_NO, BT_INTEGER,
 	     di, GFC_STD_GNU, NULL, NULL, gfc_resolve_getuid);
@@ -2265,9 +2263,11 @@ add_functions (void)
 
   make_generic ("ierrno", GFC_ISYM_IERRNO, GFC_STD_GNU);
 
-  add_sym_2 ("image_index", GFC_ISYM_IMAGE_INDEX, CLASS_INQUIRY, ACTUAL_NO, BT_INTEGER, di, GFC_STD_F2008,
-	     gfc_check_image_index, gfc_simplify_image_index, gfc_resolve_image_index,
-	     ca, BT_REAL, dr, REQUIRED, sub, BT_INTEGER, ii, REQUIRED);
+  add_sym_3 ("image_index", GFC_ISYM_IMAGE_INDEX, CLASS_TRANSFORMATIONAL,
+	     ACTUAL_NO, BT_INTEGER, di, GFC_STD_F2008, gfc_check_image_index,
+	     gfc_simplify_image_index, gfc_resolve_image_index, ca, BT_REAL, dr,
+	     REQUIRED, sub, BT_INTEGER, ii, REQUIRED, team_or_team_number,
+	     BT_VOID, di, OPTIONAL);
 
   add_sym_2 ("image_status", GFC_ISYM_IMAGE_STATUS, CLASS_ELEMENTAL, ACTUAL_NO,
 	     BT_INTEGER, di, GFC_STD_F2018, gfc_check_image_status,
@@ -2848,11 +2848,10 @@ add_functions (void)
 
   make_generic ("null", GFC_ISYM_NULL, GFC_STD_F95);
 
-  add_sym_2 ("num_images", GFC_ISYM_NUM_IMAGES, CLASS_TRANSFORMATIONAL,
-	     ACTUAL_NO, BT_INTEGER, di, GFC_STD_F2008,
-	     gfc_check_num_images, gfc_simplify_num_images, NULL,
-	     dist, BT_INTEGER, di, OPTIONAL,
-	     failed, BT_LOGICAL, dl, OPTIONAL);
+  add_sym_1 ("num_images", GFC_ISYM_NUM_IMAGES, CLASS_TRANSFORMATIONAL,
+	     ACTUAL_NO, BT_INTEGER, di, GFC_STD_F2008, gfc_check_num_images,
+	     gfc_simplify_num_images, NULL, team_or_team_number, BT_VOID, di,
+	     OPTIONAL);
 
   add_sym_3 ("out_of_range", GFC_ISYM_OUT_OF_RANGE, CLASS_ELEMENTAL, ACTUAL_NO,
 	     BT_LOGICAL, dl, GFC_STD_F2018,
@@ -3338,10 +3337,11 @@ add_functions (void)
 	     gfc_check_team_number, NULL, gfc_resolve_team_number,
 	     team, BT_DERIVED, di, OPTIONAL);
 
-  add_sym_3 ("this_image", GFC_ISYM_THIS_IMAGE, CLASS_INQUIRY, ACTUAL_NO, BT_INTEGER, di, GFC_STD_F2008,
-	     gfc_check_this_image, gfc_simplify_this_image, gfc_resolve_this_image,
-	     ca, BT_REAL, dr, OPTIONAL, dm, BT_INTEGER, ii, OPTIONAL,
-	     dist, BT_INTEGER, di, OPTIONAL);
+  add_sym_3red ("this_image", GFC_ISYM_THIS_IMAGE, CLASS_INQUIRY, ACTUAL_NO,
+		BT_INTEGER, di, GFC_STD_F2008, gfc_check_this_image,
+		gfc_simplify_this_image, gfc_resolve_this_image, ca, BT_REAL,
+		dr, OPTIONAL, dm, BT_INTEGER, ii, OPTIONAL, team, BT_DERIVED,
+		di, OPTIONAL);
 
   add_sym_0 ("time", GFC_ISYM_TIME, CLASS_IMPURE, ACTUAL_NO, BT_INTEGER,
 	     di, GFC_STD_GNU, NULL, NULL, gfc_resolve_time);
@@ -3835,11 +3835,11 @@ add_subroutines (void)
 	      st, BT_INTEGER, di, OPTIONAL, INTENT_OUT,
 	      trim_name, BT_LOGICAL, dl, OPTIONAL, INTENT_IN);
 
-  add_sym_2s ("move_alloc", GFC_ISYM_MOVE_ALLOC, CLASS_PURE, BT_UNKNOWN, 0,
-	      GFC_STD_F2003,
-	      gfc_check_move_alloc, NULL, NULL,
-	      f, BT_UNKNOWN, 0, REQUIRED, INTENT_INOUT,
-	      t, BT_UNKNOWN, 0, REQUIRED, INTENT_OUT);
+  add_sym_4s ("move_alloc", GFC_ISYM_MOVE_ALLOC, CLASS_PURE, BT_UNKNOWN, 0,
+	      GFC_STD_F2003, gfc_check_move_alloc, NULL, NULL, f, BT_UNKNOWN, 0,
+	      REQUIRED, INTENT_INOUT, t, BT_UNKNOWN, 0, REQUIRED, INTENT_OUT,
+	      stat, BT_INTEGER, di, OPTIONAL, INTENT_OUT, errmsg, BT_CHARACTER,
+	      dc, OPTIONAL, INTENT_INOUT);
 
   add_sym_5s ("mvbits", GFC_ISYM_MVBITS, CLASS_ELEMENTAL, BT_UNKNOWN, 0,
 	      GFC_STD_F95, gfc_check_mvbits, NULL, gfc_resolve_mvbits,
@@ -4956,6 +4956,9 @@ check_specific (gfc_intrinsic_sym *specific, gfc_expr *expr, int error_flag)
   else if (specific->check.f3red == gfc_check_transf_bit_intrins)
     /* Same as for PRODUCT and SUM, but different checks.  */
     t = gfc_check_transf_bit_intrins (*ap);
+  else if (specific->check.f3red == gfc_check_this_image)
+    /* May need to reassign arguments.  */
+    t = gfc_check_this_image (*ap);
   else
      {
        if (specific->check.f1 == NULL)

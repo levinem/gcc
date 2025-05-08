@@ -229,6 +229,35 @@ void test07()
 #endif
 }
 
+void
+test08()
+{
+  // PR libstdc++/119620 -- flat_set::emplace always constructs element on the stack
+  static int copy_counter;
+  struct A {
+    A() { }
+    A(const A&) { ++copy_counter; }
+    A& operator=(const A&) { ++copy_counter; return *this; }
+    auto operator<=>(const A&) const = default;
+  };
+  std::flat_set<A> s;
+  A a;
+  s.emplace(a);
+  VERIFY( copy_counter == 1 );
+  s.emplace(a);
+  VERIFY( copy_counter == 1 );
+}
+
+void
+test09()
+{
+  // PR libstdc++/119427 - std::erase_if(std::flat_foo) does not work
+  std::flat_set<int> s = {1,2,3,4,5};
+  auto n = std::erase_if(s, [](int x) { return x % 2 != 0; });
+  VERIFY( n == 3 );
+  VERIFY( std::ranges::equal(s, (int[]){2,4}) );
+}
+
 int
 main()
 {
@@ -240,4 +269,6 @@ main()
   test05();
   test06();
   test07();
+  test08();
+  test09();
 }

@@ -562,6 +562,16 @@ proc check_effective_target_elf { } {
     }
 }
 
+# Returns 1 if the target uses the PE/COFF object format, 0 otherwise.
+
+proc check_effective_target_pe { } {
+    if { [gcc_target_object_format] == "pe" } {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
 # Returns 1 if the target toolchain supports ifunc, 0 otherwise.
 
 proc check_ifunc_available { } {
@@ -644,6 +654,37 @@ proc check_effective_target_trampolines { } {
 	 || [istarget ft32-*-*]
 	 || [istarget pru-*-*]
 	 || [istarget bpf-*-*] } {
+	return 0;
+    }
+    return 1
+}
+
+# Return 1 if target supports calling virtual variadic methods
+# of multi-inheritance classes.
+
+proc check_effective_target_variadic_mi_thunk { } {
+    # These targets do not implement TARGET_ASM_OUTPUT_MI_THUNK.
+    if { [istarget avr-*-*]
+	 || [istarget bpf-*-*]
+	 || [istarget fr30-*-*]
+	 || [istarget ft32-*-*]
+	 || [istarget amdgcn-*-*]
+	 || [istarget h8300-*-*]
+	 || [istarget iq2000-*-*]
+	 || [istarget lm32-*-*]
+	 || [istarget m32c-*-*]
+	 || [istarget m32r-*-*]
+	 || [istarget mcore-*-*]
+	 || [istarget moxie-*-*]
+	 || [istarget msp430-*-*]
+	 || [istarget nvptx-*-*]
+	 || [istarget pdp11-*-*]
+	 || [istarget pru-*-*]
+	 || [istarget rl78-*-*]
+	 || [istarget rx-*-*]
+	 || [istarget v850-*-*]
+	 || [istarget visium-*-*] } {
+
 	return 0;
     }
     return 1
@@ -12622,6 +12663,18 @@ proc check_effective_target_exceptions_enabled {} {
     }]
 }
 
+# Returns 1 if target uses setjump/longjump for implementing exceptions,
+# 0 otherwise.
+proc check_effective_target_using_sjlj_exceptions {} {
+    return [check_no_compiler_messages using_sjlj_exceptions assembly {
+	// C++
+	#if !defined __USING_SJLJ_EXCEPTIONS__
+	#error not using SJLJ exception implementation
+	#endif
+	int dummy;
+    }]
+}
+
 proc check_effective_target_tiny {} {
     return [check_cached_effective_target tiny {
       if { [istarget aarch64*-*-*]
@@ -13489,11 +13542,11 @@ proc check_effective_target_arm_v8_3a_bkey_directive { } {
 # Return 1 if the target supports executing the Armv8.1-M Mainline Low
 # Overhead Loop, 0 otherwise.  The test is valid for ARM.
 
-proc check_effective_target_arm_v8_1_lob_ok { } {
+proc check_effective_target_arm_v8_1m_lob_hw { } {
     if { ![check_effective_target_arm_cortex_m] } {
 	return 0;
     } else {
-	return [check_runtime arm_v8_1_lob_hw_available {
+	return [check_runtime arm_v8_1m_lob_hw_available {
 		int
 		main (void)
 		{ int i = 0;
@@ -13513,9 +13566,9 @@ proc check_effective_target_arm_v8_1_lob_ok { } {
 # the Armv8.1-M Mainline Low Overhead Loop, 0 otherwise.  The test is
 # valid for ARM.
 
-proc check_effective_target_arm_thumb2_no_arm_v8_1_lob { } {
+proc check_effective_target_arm_thumb2_no_arm_v8_1m_lob { } {
     if { [check_effective_target_arm_thumb2]
-	 && ![check_effective_target_arm_v8_1_lob_ok] } {
+	 && ![check_effective_target_arm_v8_1m_lob_hw] } {
 	return 1
     }
     return 0
@@ -13525,9 +13578,9 @@ proc check_effective_target_arm_thumb2_no_arm_v8_1_lob { } {
 # used and the target does not support executing the Armv8.1-M
 # Mainline Low Overhead Loop, 0 otherwise.  The test is valid for ARM.
 
-proc check_effective_target_arm_thumb2_ok_no_arm_v8_1_lob { } {
+proc check_effective_target_arm_thumb2_ok_no_arm_v8_1m_lob { } {
     if { [check_effective_target_arm_thumb2_ok]
-	 && ![check_effective_target_arm_v8_1_lob_ok] } {
+	 && ![check_effective_target_arm_v8_1m_lob_hw] } {
 	return 1
     }
     return 0

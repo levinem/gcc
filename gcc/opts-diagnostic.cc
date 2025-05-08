@@ -39,7 +39,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "pretty-print-markup.h"
 #include "opts.h"
 #include "options.h"
-#include "make-unique.h"
 
 /* A namespace for handling the DSL of the arguments of
    -fdiagnostics-add-output= and -fdiagnostics-set-output=.  */
@@ -308,7 +307,7 @@ parse (const context &ctxt, const char *unparsed_arg)
     }
   else
     result.m_scheme_name = unparsed_arg;
-  return ::make_unique<scheme_name_and_params> (std::move (result));
+  return std::make_unique<scheme_name_and_params> (std::move (result));
 }
 
 /* class output_factory::scheme_handler.  */
@@ -317,8 +316,8 @@ parse (const context &ctxt, const char *unparsed_arg)
 
 output_factory::output_factory ()
 {
-  m_scheme_handlers.push_back (::make_unique<text_scheme_handler> ());
-  m_scheme_handlers.push_back (::make_unique<sarif_scheme_handler> ());
+  m_scheme_handlers.push_back (std::make_unique<text_scheme_handler> ());
+  m_scheme_handlers.push_back (std::make_unique<sarif_scheme_handler> ());
 }
 
 const output_factory::scheme_handler *
@@ -405,7 +404,7 @@ text_scheme_handler::make_sink (const context &ctxt,
       return nullptr;
     }
 
-  auto sink = ::make_unique<diagnostic_text_output_format> (ctxt.m_dc);
+  auto sink = std::make_unique<diagnostic_text_output_format> (ctxt.m_dc);
   sink->set_show_nesting (show_nesting);
   sink->set_show_locations_in_nesting (show_locations_in_nesting);
   sink->set_show_nesting_levels (show_levels);
@@ -435,6 +434,8 @@ sarif_scheme_handler::make_sink (const context &ctxt,
 				 const scheme_name_and_params &parsed_arg) const
 {
   label_text filename;
+  enum sarif_serialization_kind serialization_kind
+    = sarif_serialization_kind::json;
   enum sarif_version version = sarif_version::v2_1_0;
   for (auto& iter : parsed_arg.m_kvs)
     {
@@ -443,6 +444,20 @@ sarif_scheme_handler::make_sink (const context &ctxt,
       if (key == "file")
 	{
 	  filename = label_text::take (xstrdup (value.c_str ()));
+	  continue;
+	}
+      if (key == "serialization")
+	{
+	  static const std::array<std::pair<const char *, enum sarif_serialization_kind>,
+				  (size_t)sarif_serialization_kind::num_values> value_names
+	    {{{"json", sarif_serialization_kind::json}}};
+
+	  if (!parse_enum_value<enum sarif_serialization_kind>
+		 (ctxt, unparsed_arg,
+		  key, value,
+		  value_names,
+		  serialization_kind))
+	    return nullptr;
 	  continue;
 	}
       if (key == "version")
@@ -463,6 +478,7 @@ sarif_scheme_handler::make_sink (const context &ctxt,
       /* Key not found.  */
       auto_vec<const char *> known_keys;
       known_keys.safe_push ("file");
+      known_keys.safe_push ("serialization");
       known_keys.safe_push ("version");
       ctxt.report_unknown_key (unparsed_arg, key, get_scheme_name (),
 			       known_keys);
@@ -480,15 +496,31 @@ sarif_scheme_handler::make_sink (const context &ctxt,
 			      : ctxt.m_opts.x_main_input_basename);
       output_file = diagnostic_output_format_open_sarif_file (ctxt.m_dc,
 							      line_table,
-							      basename);
+							      basename,
+							      serialization_kind);
     }
   if (!output_file)
     return nullptr;
 
+  sarif_generation_options sarif_gen_opts;
+  sarif_gen_opts.m_version = version;
+
+  std::unique_ptr<sarif_serialization_format> serialization_obj;
+  switch (serialization_kind)
+    {
+    default:
+      gcc_unreachable ();
+    case sarif_serialization_kind::json:
+      serialization_obj
+	= std::make_unique<sarif_serialization_format_json> (true);
+      break;
+    }
+
   auto sink = make_sarif_sink (ctxt.m_dc,
 			       *line_table,
 			       ctxt.m_opts.x_main_input_filename,
-			       version,
+			       std::move (serialization_obj),
+			       sarif_gen_opts,
 			       std::move (output_file));
   return sink;
 }
